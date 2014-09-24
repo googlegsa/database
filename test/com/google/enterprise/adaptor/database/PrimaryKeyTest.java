@@ -129,12 +129,3 @@ public class PrimaryKeyTest {
     assertEquals(2, psh.ncalls);
   }
 }
-
-/*
-  @Test
-  public void testMakingAllIdsSqlString() {
-    PrimaryKey pk = new PrimaryKey("numnum:int,strstr:string");
-    String sql = pk.makeGetAllIdsSqlString("bobby_tables");
-    assertEquals("select numnum, strstr from bobby_tables", sql);
-  }
-*/

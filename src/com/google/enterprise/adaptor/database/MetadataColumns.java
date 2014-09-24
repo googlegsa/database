@@ -1,4 +1,4 @@
-// Copyright 2013 Google Inc. All Rights Reserved.
+// Copyright 2014 Google Inc. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ class MetadataColumns {
     }
     String elements[] = configDef.split(",", -1);
     for (String e : elements) {
-      log.info("element: " + e);
+      log.fine("element: " + e);
       String def[] = e.split(":", 2);
       if (2 != def.length) {
         String emsg = "expected two parts separated by colon: " + e;
@@ -62,6 +62,6 @@ class MetadataColumns {
   }
 
   public String toString() {
-    return "MetadataColumns" + columnNameToMetadataKey;
+    return "MetadataColumns(" + columnNameToMetadataKey + ")";
   }
 }

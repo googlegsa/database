@@ -66,6 +66,6 @@ public class MetadataColumnsTest {
   public void testToString() {
     String configDef = "xf_date:DATE:CREATE,a:b";
     MetadataColumns mc = new MetadataColumns(configDef);
-    assertEquals("MetadataColumns{a=b, xf_date=DATE:CREATE}", "" + mc);
+    assertEquals("MetadataColumns({a=b, xf_date=DATE:CREATE})", "" + mc);
   }
 }

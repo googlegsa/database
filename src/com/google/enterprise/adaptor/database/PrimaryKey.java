@@ -1,4 +1,4 @@
-// Copyright 2013 Google Inc. All Rights Reserved.
+// Copyright 2014 Google Inc. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ class PrimaryKey {
     }
     String elements[] = configDef.split(",", -1);
     for (String e : elements) {
-      log.info("element: " + e);
+      log.fine("element: " + e);
       String def[] = e.split(":", -1);
       if (2 != def.length) {
         throw new IllegalArgumentException("bad def: " + e);
@@ -118,18 +118,3 @@ class PrimaryKey {
     }   
   }
 }
-
-/*
-  String makeGetAllIdsSqlString(String table) {
-    StringBuilder sb = new StringBuilder("select ");
-    for (int i = 0; i < names.size(); i++) {
-      sb.append(names.get(i));
-      if (i != (names.size() - 1)) {
-        sb.append(",");
-      }
-      sb.append(" ");
-    }
-    sb.append("from " + table); // TODO: watch for valid table name
-    return sb.toString();
-  }
-*/

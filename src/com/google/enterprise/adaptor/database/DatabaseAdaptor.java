@@ -19,6 +19,7 @@ import com.google.enterprise.adaptor.AdaptorContext;
 import com.google.enterprise.adaptor.Config;
 import com.google.enterprise.adaptor.DocId;
 import com.google.enterprise.adaptor.DocIdPusher;
+import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Request;
 import com.google.enterprise.adaptor.Response;
 
@@ -60,6 +61,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   public void init(AdaptorContext context) throws Exception {
     maxIdsPerFeedFile = Integer.parseInt(
         context.getConfig().getValue("feed.maxUrls"));
+    if (maxIdsPerFeedFile <= 0) {
+      String errmsg = "feed.maxUrls needs to be positive";
+      throw new InvalidConfigurationException(errmsg);
+    }
 
     driverClass = context.getConfig().getValue("db.driverclass");
     Class.forName(driverClass);
