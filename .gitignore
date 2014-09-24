@@ -15,3 +15,7 @@ Plexi.iml
 
 # NetBeans files
 nbproject/
+
+# run commands
+run_orc_exp
+run_sqlserv_exp
