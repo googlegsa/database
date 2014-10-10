@@ -39,8 +39,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String driverClass;
   private String dbUrl;
   private PrimaryKey primaryKey;
-  private String getIdsSql;
-  private String getContentSql;
+  private String everyDocIdSql;
+  private String singleDocContentSql;
   private String user;
   private String password;
   private MetadataColumns metadataColumns;
@@ -52,8 +52,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.user", null);
     config.addKey("db.password", null);
     config.addKey("db.primarykey", null);
-    config.addKey("db.getIdsSql", null);
-    config.addKey("db.getContentSql", null);
+    config.addKey("db.everyDocIdSql", null);
+    config.addKey("db.singleDocContentSql", null);
     config.addKey("db.metadataColumns", "");
   }
 
@@ -82,11 +82,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
        context.getConfig().getValue("db.primarykey"));
     log.config("primary key: " + primaryKey);
 
-    getIdsSql = context.getConfig().getValue("db.getIdsSql");
-    log.config("get ids sql: " + getIdsSql);
+    everyDocIdSql = context.getConfig().getValue("db.everyDocIdSql");
+    log.config("every docId sql: " + everyDocIdSql);
 
-    getContentSql = context.getConfig().getValue("db.getContentSql");
-    log.config("get content sql: " + getContentSql);
+    singleDocContentSql = context.getConfig().getValue("db.singleDocContentSql");
+    log.config("single doc content sql: " + singleDocContentSql);
 
     metadataColumns = new MetadataColumns(
        context.getConfig().getValue("db.metadataColumns"));
@@ -102,7 +102,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     StatementAndResult statementAndResult = null;
     try {
       conn = makeNewConnection();
-      statementAndResult = getStreamFromDb(conn, getIdsSql);
+      statementAndResult = getStreamFromDb(conn, everyDocIdSql);
       ResultSet rs = statementAndResult.resultSet;
       while (rs.next()) {
         DocId id = new DocId(primaryKey.makeUniqueId(rs));
@@ -200,7 +200,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
   private StatementAndResult getCollectionFromDb(Connection conn,
       String uniqueId) throws SQLException {
-    PreparedStatement st = conn.prepareStatement(getContentSql);
+    PreparedStatement st = conn.prepareStatement(singleDocContentSql);
     primaryKey.setStatementValues(st, uniqueId);  
     log.info("about to query: " + st);
     ResultSet rs = st.executeQuery();
