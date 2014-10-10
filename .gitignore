@@ -8,6 +8,9 @@ keys.jks
 adaptor.crt
 gsa.crt
 
+# unix files
+RCS/
+
 # IntelliJ files
 workspace/
 classes/
