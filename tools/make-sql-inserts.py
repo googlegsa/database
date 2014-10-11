@@ -14,7 +14,7 @@ first_id_inclusive = 0
 last_id_exclusive = 4
 db_name = "sql-serv"
 table_name = "Medium_Size"
-print_use_db_line = True
+print_use_db_line = False
 
 
 # note: ');' line  separator used by c.g.e.a.database.InsertSQL program
