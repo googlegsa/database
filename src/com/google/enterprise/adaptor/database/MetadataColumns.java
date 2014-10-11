@@ -14,14 +14,12 @@
 
 package com.google.enterprise.adaptor.database;
 
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import com.google.enterprise.adaptor.InvalidConfigurationException;
 
-import java.util.logging.Logger;
 import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.logging.Logger;
 
 /**
  * Stores mapping of db columns to metadata keys to send.
@@ -34,17 +32,19 @@ class MetadataColumns {
   private final Map<String, String> columnNameToMetadataKey;
 
   MetadataColumns(String configDef) {
-    Map<String, String> tmp = new TreeMap<String, String>();
     if ("".equals(configDef.trim())) {
-      throw new IllegalArgumentException("empty");
+      columnNameToMetadataKey = Collections.emptyMap();
+      return;
     }
+    
+    Map<String, String> tmp = new TreeMap<String, String>();
     String elements[] = configDef.split(",", -1);
     for (String e : elements) {
       log.fine("element: " + e);
       String def[] = e.split(":", 2);
       if (2 != def.length) {
         String emsg = "expected two parts separated by colon: " + e;
-        throw new IllegalArgumentException(emsg);
+        throw new InvalidConfigurationException(emsg);
       }
       String columnName = def[0];
       String metadataKey = def[1];

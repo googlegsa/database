@@ -38,11 +38,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private int maxIdsPerFeedFile;
   private String driverClass;
   private String dbUrl;
+  private String user;
+  private String password;
   private PrimaryKey primaryKey;
   private String everyDocIdSql;
   private String singleDocContentSql;
-  private String user;
-  private String password;
   private MetadataColumns metadataColumns;
  
   @Override
@@ -68,28 +68,30 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     driverClass = context.getConfig().getValue("db.driverclass");
     Class.forName(driverClass);
-    log.config("loaded driver");
+    log.config("loaded driver: " + driverClass);
 
     dbUrl = context.getConfig().getValue("db.url");
     log.config("db: " + dbUrl);
 
     user = context.getConfig().getValue("db.user");
-    password = context.getConfig().getValue("db.password");
     log.config("db user: " + user);
-    log.config("db password: " + password);
+
+    password = context.getSensitiveValueDecoder().decodeValue(
+        context.getConfig().getValue("db.password"));
+    // log.config("db password: " + password);
 
     primaryKey = new PrimaryKey(
-       context.getConfig().getValue("db.primarykey"));
+        context.getConfig().getValue("db.primarykey"));
     log.config("primary key: " + primaryKey);
 
     everyDocIdSql = context.getConfig().getValue("db.everyDocIdSql");
-    log.config("every docId sql: " + everyDocIdSql);
+    log.config("every doc id sql: " + everyDocIdSql);
 
     singleDocContentSql = context.getConfig().getValue("db.singleDocContentSql");
     log.config("single doc content sql: " + singleDocContentSql);
 
     metadataColumns = new MetadataColumns(
-       context.getConfig().getValue("db.metadataColumns"));
+        context.getConfig().getValue("db.metadataColumns"));
     log.config("metadata columns: " + metadataColumns);
   }
 
@@ -106,11 +108,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       ResultSet rs = statementAndResult.resultSet;
       while (rs.next()) {
         DocId id = new DocId(primaryKey.makeUniqueId(rs));
-        log.info("doc id: " + id);
+        log.log(Level.FINEST, "doc id: {0}", id);
         outstream.add(id);
       }
     } catch (SQLException problem) {
-      log.log(Level.SEVERE, "failed getting ids", problem);
       throw new IOException(problem);
     } finally {
       tryClosingStatementAndResult(statementAndResult);
@@ -164,7 +165,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       resp.setContentType("text/plain");
       resp.getOutputStream().write(document.getBytes(encoding));
     } catch (SQLException problem) {
-      log.log(Level.SEVERE, "failed getting content", problem);
       throw new IOException("retrieval error", problem);
     } finally {
       tryClosingStatementAndResult(statementAndResult);
@@ -192,9 +192,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   }
 
   private Connection makeNewConnection() throws SQLException {
-    log.fine("about to connect");
+    log.finest("about to connect");
     Connection conn = DriverManager.getConnection(dbUrl, user, password);
-    log.fine("connected");
+    log.finest("connected");
     return conn;
   }
 
@@ -202,9 +202,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       String uniqueId) throws SQLException {
     PreparedStatement st = conn.prepareStatement(singleDocContentSql);
     primaryKey.setStatementValues(st, uniqueId);  
-    log.info("about to query: " + st);
+    log.log(Level.FINER, "about to query: {0}",  st);
     ResultSet rs = st.executeQuery();
-    log.fine("queried");
+    log.finer("queried");
     return new StatementAndResult(st, rs); 
   }
 
@@ -214,9 +214,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
         /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
     st.setFetchSize(maxIdsPerFeedFile);  // Integer.MIN_VALUE for MySQL?
-    log.fine("about to query for stream: " + query);
+    log.log(Level.FINER, "about to query for stream: {0}", query);
     ResultSet rs = st.executeQuery(query);
-    log.fine("queried for stream");
+    log.finer("queried for stream");
     return new StatementAndResult(st, rs); 
   }
 
@@ -271,6 +271,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     DocIdPusher wrapped;
     ArrayList<DocId> saved;
     BufferingPusher(DocIdPusher underlying) {
+      if (null == underlying) {
+        throw new NullPointerException();
+      }
       wrapped = underlying;
       saved = new ArrayList<DocId>(maxIdsPerFeedFile);
     }
@@ -282,12 +285,12 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
     void forcePush() throws InterruptedException {
       wrapped.pushDocIds(saved);
-      log.fine("sent " + saved.size() + " doc ids to pusher");
+      log.log(Level.FINE, "sent {0} doc ids to pusher", saved.size());
       saved.clear();
     }
     protected void finalize() throws Throwable {
       if (0 != saved.size()) {
-        log.severe("still have saved ids that weren't sent");
+        log.warning("still have saved ids that weren't sent");
       }
     }
   }

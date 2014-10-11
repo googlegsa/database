@@ -16,10 +16,11 @@ package com.google.enterprise.adaptor.database;
 
 import static org.junit.Assert.*;
 
-import org.junit.*;
-import org.junit.rules.ExpectedException;
+import com.google.enterprise.adaptor.InvalidConfigurationException;
 
+import org.junit.*;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -43,7 +44,7 @@ public class PrimaryKeyTest {
 
   @Test
   public void testEmptyThrows() {
-    thrown.expect(IllegalArgumentException.class);
+    thrown.expect(InvalidConfigurationException.class);
     PrimaryKey pk = new PrimaryKey(" ");
   }
 
@@ -69,7 +70,7 @@ public class PrimaryKeyTest {
 
   @Test
   public void testBadDef() {
-    thrown.expect(IllegalArgumentException.class);
+    thrown.expect(InvalidConfigurationException.class);
     PrimaryKey pk = new PrimaryKey("numnum:int,strstr/string");
   }
 

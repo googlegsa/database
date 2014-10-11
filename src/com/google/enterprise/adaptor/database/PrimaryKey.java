@@ -14,13 +14,15 @@
 
 package com.google.enterprise.adaptor.database;
 
+import com.google.enterprise.adaptor.InvalidConfigurationException;
+
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import java.util.logging.Logger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 /** Organizes information about database table's primary key. */
 class PrimaryKey {
@@ -37,14 +39,14 @@ class PrimaryKey {
 
   PrimaryKey(String configDef) {
     if ("".equals(configDef.trim())) {
-      throw new IllegalArgumentException("empty");
+      throw new InvalidConfigurationException("empty");
     }
     String elements[] = configDef.split(",", -1);
     for (String e : elements) {
       log.fine("element: " + e);
       String def[] = e.split(":", -1);
       if (2 != def.length) {
-        throw new IllegalArgumentException("bad def: " + e);
+        throw new InvalidConfigurationException("bad def: " + e);
       }
       String name = def[0];
       ColumnType type;
@@ -53,7 +55,7 @@ class PrimaryKey {
       } else if ("string".equals(def[1].toLowerCase())) {
         type = ColumnType.STRING;
       } else {
-        throw new IllegalArgumentException("bad type: " + def[1]);
+        throw new InvalidConfigurationException("bad type: " + def[1]);
       } 
       names.add(name);
       types.add(type);

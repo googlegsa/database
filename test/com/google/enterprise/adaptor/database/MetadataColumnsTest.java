@@ -17,16 +17,8 @@ package com.google.enterprise.adaptor.database;
 import static org.junit.Assert.*;
 
 import org.junit.*;
-import org.junit.rules.ExpectedException;
-
 import org.junit.Test;
-
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import org.junit.rules.ExpectedException;
 
 /** Test cases for {@link MetadataColumns}. */
 public class MetadataColumnsTest {
@@ -34,9 +26,15 @@ public class MetadataColumnsTest {
   public ExpectedException thrown = ExpectedException.none();
 
   @Test
-  public void testEmptyThrows() {
-    thrown.expect(IllegalArgumentException.class);
+  public void testEmptyIsAllowed() {
     MetadataColumns mc = new MetadataColumns(" ");
+  }
+
+  @Test
+  public void testMissingColumnNameGivesNull() {
+    // TODO: or should it throw IAE?
+    MetadataColumns mc = new MetadataColumns(" ");
+    assertEquals(null, mc.getMetadataName("not-exist"));
   }
 
   @Test
@@ -56,7 +54,7 @@ public class MetadataColumnsTest {
   }
 
   @Test
-  public void testColonInMetadataKey() {
+  public void testColonInMetadataName() {
     String configDef = "xf_date:DATE:CREATE";
     MetadataColumns mc = new MetadataColumns(configDef);
     assertEquals("DATE:CREATE", mc.getMetadataName("xf_date"));

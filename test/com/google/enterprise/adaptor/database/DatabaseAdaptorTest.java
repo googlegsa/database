@@ -17,12 +17,10 @@ package com.google.enterprise.adaptor.database;
 import static org.junit.Assert.*;
 
 import org.junit.*;
+import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import org.junit.Test;
-import java.util.ArrayList;
-import java.util.List;
-
+/** Tests for DatabaseAdaptor functionality */
 public class DatabaseAdaptorTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();
