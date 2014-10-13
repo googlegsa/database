@@ -14,6 +14,7 @@
 
 package com.google.enterprise.adaptor.database;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.enterprise.adaptor.AbstractAdaptor;
 import com.google.enterprise.adaptor.AdaptorContext;
 import com.google.enterprise.adaptor.Config;
@@ -24,7 +25,8 @@ import com.google.enterprise.adaptor.Request;
 import com.google.enterprise.adaptor.Response;
 
 import java.io.*;
-import java.nio.charset.Charset;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.sql.*;
 import java.util.*;
 import java.util.logging.*;
@@ -33,7 +35,6 @@ import java.util.logging.*;
 public class DatabaseAdaptor extends AbstractAdaptor {
   private static final Logger log
       = Logger.getLogger(DatabaseAdaptor.class.getName());
-  private Charset encoding = Charset.forName("UTF-8");
 
   private int maxIdsPerFeedFile;
   private String driverClass;
@@ -44,6 +45,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String everyDocIdSql;
   private String singleDocContentSql;
   private MetadataColumns metadataColumns;
+  private ResponseGenerator respGenerator;
  
   @Override
   public void initConfig(Config config) {
@@ -55,6 +57,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.everyDocIdSql", null);
     config.addKey("db.singleDocContentSql", null);
     config.addKey("db.metadataColumns", "");
+    config.addKey("db.modeOfOperation", null);
   }
 
   @Override
@@ -92,6 +95,79 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     metadataColumns = new MetadataColumns(
         cfg.getValue("db.metadataColumns"));
     log.config("metadata columns: " + metadataColumns);
+
+    respGenerator = loadResponseGenerator(context.getConfig());
+  }
+  
+  @VisibleForTesting
+  static ResponseGenerator loadResponseGenerator(Config config) {
+    String mode = config.getValue("db.modeOfOperation");
+    if (mode.trim().equals("")) {
+      String errmsg = "modeOfOperation can not be an empty string";
+      throw new InvalidConfigurationException(errmsg);
+    }
+
+    log.fine("about to look for " + mode + " in ResponseGenerator");
+    Method method = null;
+    try {
+      method = ResponseGenerator.class.getDeclaredMethod(mode, Map.class);
+      return loadResponseGeneratorInternal(method,
+          config.getValuesWithPrefix("db.modeOfOperation." + mode));
+    } catch (NoSuchMethodException ex) {
+      log.fine("did not find" + mode + " in ResponseGenerator, going to look"
+          + " for fully qualified name");
+    }
+
+    log.fine("about to try " + mode + " as a fully qualified method name");
+    int sepIndex = mode.lastIndexOf(".");
+    if (sepIndex == -1) {
+      String errmsg = mode + " cannot be parsed as a fully quailfied name";
+      throw new InvalidConfigurationException(errmsg);
+    }
+    String className = mode.substring(0, sepIndex);
+    String methodName = mode.substring(sepIndex + 1);
+    log.log(Level.FINE, "Split {0} into class {1} and method {2}",
+        new Object[] {mode, className, methodName});
+    Class<?> klass;
+    try {
+      klass = Class.forName(className);
+      method = klass.getDeclaredMethod(methodName, Map.class);
+    } catch (ClassNotFoundException ex) {
+      String errmsg = "No class " + className + " found";
+      throw new InvalidConfigurationException(errmsg, ex);
+    } catch (NoSuchMethodException ex) {
+      String errmsg = "No method " + methodName + " found for class "
+          + className;
+      throw new InvalidConfigurationException(errmsg, ex);
+    }
+
+    return loadResponseGeneratorInternal(method,
+        config.getValuesWithPrefix("db.modeOfOperation." + mode));
+  }
+  
+  @VisibleForTesting
+  static ResponseGenerator loadResponseGeneratorInternal(Method method,
+      Map<String, String> config) {
+    log.fine("loading response generator specific configuration");
+    ResponseGenerator respGenerator = null;
+    Object retValue = null;
+    try {
+      retValue = method.invoke(/*static method*/null, config);
+    } catch (IllegalAccessException | IllegalArgumentException
+        | InvocationTargetException e) {
+      String errmsg = "Unexpected exception happened in invoking method";
+      throw new InvalidConfigurationException(errmsg, e);
+    }
+    if (retValue instanceof ResponseGenerator) {
+      respGenerator = (ResponseGenerator) retValue;
+    } else {
+      String errmsg = String.format("Method %s needs to return a %s",
+          method.getName(), ResponseGenerator.class.getName()); 
+      throw new InvalidConfigurationException(errmsg);
+    }
+
+    log.config("loaded response generator: " + respGenerator.toString());
+    return respGenerator;
   }
 
   /** Get all doc ids from database. */
@@ -137,32 +213,20 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         resp.respondNotFound();
         return;
       }
+      
+      // Generate response metadata first.
       ResultSetMetaData rsMetaData = rs.getMetaData();
       int numberOfColumns = rsMetaData.getColumnCount();
-
-      // If we have data then create lines of resulting document.
-      StringBuilder line1 = new StringBuilder();
-      StringBuilder line2 = new StringBuilder();
-      StringBuilder line3 = new StringBuilder();
       for (int i = 1; i < (numberOfColumns + 1); i++) {
-        String tableName = rsMetaData.getTableName(i);
         String columnName = rsMetaData.getColumnName(i);
         Object value = rs.getObject(i);
-        line1.append(",");
-        line1.append(makeIntoCsvField(tableName));
-        line2.append(",");
-        line2.append(makeIntoCsvField(columnName));
-        line3.append(",");
-        line3.append(makeIntoCsvField("" + value));
         if (metadataColumns.isMetadataColumnName(columnName)) {
           String key = metadataColumns.getMetadataName(columnName);
           resp.addMetadata(key, "" + value);
         }
       }
-      String document = line1.substring(1) + "\n"
-          + line2.substring(1) + "\n" + line3.substring(1) + "\n";
-      resp.setContentType("text/plain");
-      resp.getOutputStream().write(document.getBytes(encoding));
+      
+      respGenerator.generateResponse(rs, resp);
     } catch (SQLException problem) {
       throw new IOException("retrieval error", problem);
     } finally {
@@ -242,23 +306,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         log.log(Level.WARNING, "connection close failed", e);
       }
     }
-  }
-
-  private static String makeIntoCsvField(String s) {
-    /*
-     * Fields that contain a special character (comma, newline,
-     * or double quote), must be enclosed in double quotes.
-     * <...> If a field's value contains a double quote character
-     * it is escaped by placing another double quote character next to it.
-     */
-    String doubleQuote = "\"";
-    boolean containsSpecialChar = s.contains(",")
-        || s.contains("\n") || s.contains(doubleQuote);
-    if (containsSpecialChar) {
-      s = s.replace(doubleQuote, doubleQuote + doubleQuote);
-      s = doubleQuote + s + doubleQuote;
-    }
-    return s;
   }
 
   /**
