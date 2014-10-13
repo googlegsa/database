@@ -93,7 +93,7 @@ class PrimaryKey {
           part = rs.getString(names.get(i));
           break;
         default:
-          throw new IllegalStateException("invalid type: " + types.get(i)); 
+          throw new AssertionError("invalid type: " + types.get(i)); 
       } 
       sb.append("/").append(part); // TODO: deal with data with slash
     }
