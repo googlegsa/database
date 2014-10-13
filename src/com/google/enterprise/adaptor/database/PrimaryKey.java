@@ -14,6 +14,7 @@
 
 package com.google.enterprise.adaptor.database;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 
 import java.sql.PreparedStatement;
@@ -23,6 +24,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
+
 
 /** Organizes information about database table's primary key. */
 class PrimaryKey {
@@ -95,13 +97,15 @@ class PrimaryKey {
         default:
           throw new AssertionError("invalid type: " + types.get(i)); 
       } 
-      sb.append("/").append(part); // TODO: deal with data with slash
+      part = encodeSlashInData(part);
+      sb.append("/").append(part);
     }
     return sb.toString().substring(1);
   }
 
   void setStatementValues(PreparedStatement st, String uniqueId)
       throws SQLException {
+    uniqueId = decodeSlashInData(uniqueId);
     String parts[] = uniqueId.split("/", -1); // TODO: deal with slash
     if (parts.length != names.size()) {
       throw new IllegalStateException("id does not match key: " + uniqueId);
@@ -118,5 +122,20 @@ class PrimaryKey {
           throw new IllegalStateException("invalid type: " + types.get(i)); 
       }
     }   
+  }
+
+  static String encodeSlashInData(String data) {
+    if (-1 == data.indexOf('/') && -1 == data.indexOf('\\')) {
+      return data;
+    }
+    data = data.replace("\\", "\\\\");
+    data = data.replace("/", "\\/");
+    return data; 
+  }
+
+  static String decodeSlashInData(String id) {
+    id = id.replace("\\/", "/");
+    id = id.replace("\\\\", "\\");
+    return id;
   }
 }

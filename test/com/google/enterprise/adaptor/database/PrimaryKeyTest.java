@@ -28,6 +28,7 @@ import java.lang.reflect.Proxy;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Random;
 
 /** Test cases for {@link PrimaryKey}. */
 public class PrimaryKeyTest {
@@ -128,5 +129,71 @@ public class PrimaryKeyTest {
     PrimaryKey pk = new PrimaryKey("numnum:int,strstr:string");
     pk.setStatementValues(ps, "888/bluesky");
     assertEquals(2, psh.ncalls);
+  }
+
+  private static String roundtrip(String in) {
+    return PrimaryKey.decodeSlashInData(PrimaryKey.encodeSlashInData(in));
+  }
+
+  @Test
+  public void testEmpty() {
+    assertEquals("", roundtrip(""));
+  }
+
+  @Test
+  public void testSimpleEscaping() {
+    String id = "my-simple-id";
+    assertEquals(id, roundtrip(id));
+  }
+
+  @Test
+  public void testWithSlash() {
+    String id = "my-/simple-id";
+    assertEquals(id, roundtrip(id));
+  }
+
+  @Test
+  public void testWithBackSlash() {
+    String id = "my-\\simple-id";
+    assertEquals(id, roundtrip(id));
+  }
+
+  @Test
+  public void testWithTripleBackSlash() {
+    String id = "\\\\\\";
+    assertEquals(3, id.length());
+    assertEquals(id, roundtrip(id));
+  }
+
+  @Test
+  public void testWithSlashAndBackslash() {
+    String id = "my-\\simp/le-id";
+    assertEquals(id, roundtrip(id));
+  }
+
+  @Test
+  public void testWithMessOfSlashAndBackslash() {
+    String id = "/\\/\\my-\\/simp/le-id/\\/\\\\\\//\\";
+    assertEquals(id, roundtrip(id));
+  }
+
+  private static String makeRandomId() {
+    char choices[] = "13/\\45\\97%^&%$^)*(/<>|P{UITY*c".toCharArray();
+    StringBuilder sb = new StringBuilder();
+    Random r = new Random();
+    int len = r.nextInt(100);
+    for (int i = 0; i < len; i++) {
+      sb.append(choices[r.nextInt(choices.length)]);
+    }
+    return "" + sb;
+  }
+
+  @Test
+  public void testWithFuzz() {
+    int ntests = 100;
+    for (int i = 0; i < ntests; i++) {
+      String fuzz = makeRandomId();
+      assertEquals(fuzz, roundtrip(fuzz));
+    }
   }
 }
