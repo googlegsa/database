@@ -14,7 +14,6 @@
 
 package com.google.enterprise.adaptor.database;
 
-import static org.junit.Assert.fail;
 import static org.junit.Assert.assertNotNull;
 
 import com.google.enterprise.adaptor.Config;
@@ -42,7 +41,7 @@ public class DatabaseAdaptorTest {
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.modeOfOperation", "rowToText");
     final Config config = new Config();
-    for (Map.Entry<String, String> entry: configEntries.entrySet()) {
+    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
     assertNotNull("loaded response generator is null",
@@ -56,7 +55,7 @@ public class DatabaseAdaptorTest {
         + ".DatabaseAdaptorTest.createDummy";
     configEntries.put("db.modeOfOperation", modeOfOperation);
     final Config config = new Config();
-    for (Map.Entry<String, String> entry: configEntries.entrySet()) {
+    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
     assertNotNull("loaded response generator is null",
@@ -68,7 +67,7 @@ public class DatabaseAdaptorTest {
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.modeOfOperation", "noThisMethod");
     final Config config = new Config();
-    for (Map.Entry<String, String> entry: configEntries.entrySet()) {
+    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
 
@@ -83,7 +82,7 @@ public class DatabaseAdaptorTest {
         "com.google.enterprise.adaptor.database"
             + ".DatabaseAdaptorTest.noThisMode");
     final Config config = new Config();
-    for (Map.Entry<String, String> entry: configEntries.entrySet()) {
+    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
 
@@ -96,7 +95,7 @@ public class DatabaseAdaptorTest {
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.modeOfOperation", "noThisClass.noThisMethod");
     final Config config = new Config();
-    for (Map.Entry<String, String> entry: configEntries.entrySet()) {
+    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
 
