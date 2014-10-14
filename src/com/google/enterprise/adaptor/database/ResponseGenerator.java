@@ -140,6 +140,11 @@ public abstract class ResponseGenerator {
       com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
       in.close();
     }
+
+    @Override
+    public String toString() {
+      return getClass().getName() + "(col=" + col + ")";
+    }
   }
 
   private static class FilepathColumn extends ResponseGenerator {
@@ -161,6 +166,11 @@ public abstract class ResponseGenerator {
       com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
       in.close();
     }
+
+    @Override
+    public String toString() {
+      return getClass().getName() + "(col=" + col + ")";
+    }
   }
 
   private static class BlobColumn extends ResponseGenerator {
@@ -181,6 +191,11 @@ public abstract class ResponseGenerator {
       com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
       in.close();
       blob.free();
+    }
+
+    @Override
+    public String toString() {
+      return getClass().getName() + "(col=" + col + ")";
     }
   }
 }
