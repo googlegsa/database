@@ -17,6 +17,8 @@ package com.google.enterprise.adaptor.database;
 import com.google.enterprise.adaptor.Response;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -45,6 +47,10 @@ public abstract class ResponseGenerator {
   /** rowToText mode */
   public static ResponseGenerator rowToText(Map<String, String> config) {
     return new RowToText();
+  }
+
+  public static ResponseGenerator urlColumn(Map<String, String> config) {
+    return new UrlColumn(config.get("columnName"));
   }
 
   private static class RowToText extends ResponseGenerator {
@@ -98,6 +104,31 @@ public abstract class ResponseGenerator {
         s = doubleQuote + s + doubleQuote;
       }
       return s;
+    }
+  }
+
+  private static class UrlColumn extends ResponseGenerator {
+    private final String col;
+    public UrlColumn(String colName) {
+      if (null == colName) {
+        throw new NullPointerException();
+      }
+      col = colName;
+    }
+
+    @Override
+    public void generateResponse(ResultSet rs, Response resp)
+        throws IOException, SQLException {
+      int colIndex = rs.findColumn(col);
+      java.net.URLConnection con = rs.getURL(colIndex).openConnection();
+      String contentType = con.getContentType();
+      if (null != contentType) {
+        resp.setContentType(contentType);
+      }
+      InputStream in = con.getInputStream();
+      OutputStream out = resp.getOutputStream();
+      com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
+      in.close();
     }
   }
 }
