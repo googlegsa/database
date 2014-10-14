@@ -17,6 +17,7 @@ package com.google.enterprise.adaptor.database;
 import com.google.enterprise.adaptor.Response;
 
 import java.io.IOException;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
@@ -51,6 +52,10 @@ public abstract class ResponseGenerator {
 
   public static ResponseGenerator urlColumn(Map<String, String> config) {
     return new UrlColumn(config.get("columnName"));
+  }
+
+  public static ResponseGenerator filepathColumn(Map<String, String> config) {
+    return new FilepathColumn(config.get("columnName"));
   }
 
   private static class RowToText extends ResponseGenerator {
@@ -126,6 +131,27 @@ public abstract class ResponseGenerator {
         resp.setContentType(contentType);
       }
       InputStream in = con.getInputStream();
+      OutputStream out = resp.getOutputStream();
+      com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
+      in.close();
+    }
+  }
+
+  private static class FilepathColumn extends ResponseGenerator {
+    private final String col;
+    public FilepathColumn(String colName) {
+      if (null == colName) {
+        throw new NullPointerException();
+      }
+      col = colName;
+    }
+
+    @Override
+    public void generateResponse(ResultSet rs, Response resp)
+        throws IOException, SQLException {
+      int colIndex = rs.findColumn(col);
+      String path = rs.getString(colIndex);
+      InputStream in = new FileInputStream(path);
       OutputStream out = resp.getOutputStream();
       com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
       in.close();
