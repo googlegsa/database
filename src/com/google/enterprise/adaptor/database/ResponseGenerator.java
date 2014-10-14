@@ -29,8 +29,8 @@ public abstract class ResponseGenerator {
    * This method will generate the Response according to the data returned by
    * SQL statements.
    *
-   * @param rs, the content for this Response will be fetched out of this object
-   * @param resp, the Response to fill into
+   * @param rs the content for this Response will be fetched out of this object
+   * @param resp the Response to fill into
    * @throws IOException
    * @throws SQLException
    */
