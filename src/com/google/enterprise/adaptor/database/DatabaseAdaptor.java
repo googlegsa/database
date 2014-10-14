@@ -47,11 +47,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
  
   @Override
   public void initConfig(Config config) {
-    config.addKey("db.driverclass", null);
+    config.addKey("db.driverClass", null);
     config.addKey("db.url", null);
     config.addKey("db.user", null);
     config.addKey("db.password", null);
-    config.addKey("db.primarykey", null);
+    config.addKey("db.primaryKey", null);
     config.addKey("db.everyDocIdSql", null);
     config.addKey("db.singleDocContentSql", null);
     config.addKey("db.metadataColumns", "");
@@ -59,39 +59,38 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
   @Override
   public void init(AdaptorContext context) throws Exception {
-    maxIdsPerFeedFile = Integer.parseInt(
-        context.getConfig().getValue("feed.maxUrls"));
+    Config cfg = context.getConfig();
+    maxIdsPerFeedFile = Integer.parseInt(cfg.getValue("feed.maxUrls"));
     if (maxIdsPerFeedFile <= 0) {
       String errmsg = "feed.maxUrls needs to be positive";
       throw new InvalidConfigurationException(errmsg);
     }
 
-    driverClass = context.getConfig().getValue("db.driverclass");
+    driverClass = cfg.getValue("db.driverClass");
     Class.forName(driverClass);
     log.config("loaded driver: " + driverClass);
 
-    dbUrl = context.getConfig().getValue("db.url");
+    dbUrl = cfg.getValue("db.url");
     log.config("db: " + dbUrl);
 
-    user = context.getConfig().getValue("db.user");
+    user = cfg.getValue("db.user");
     log.config("db user: " + user);
 
     password = context.getSensitiveValueDecoder().decodeValue(
-        context.getConfig().getValue("db.password"));
+        cfg.getValue("db.password"));
     // log.config("db password: " + password);
 
-    primaryKey = new PrimaryKey(
-        context.getConfig().getValue("db.primarykey"));
+    primaryKey = new PrimaryKey(cfg.getValue("db.primaryKey"));
     log.config("primary key: " + primaryKey);
 
-    everyDocIdSql = context.getConfig().getValue("db.everyDocIdSql");
+    everyDocIdSql = cfg.getValue("db.everyDocIdSql");
     log.config("every doc id sql: " + everyDocIdSql);
 
-    singleDocContentSql = context.getConfig().getValue("db.singleDocContentSql");
+    singleDocContentSql = cfg.getValue("db.singleDocContentSql");
     log.config("single doc content sql: " + singleDocContentSql);
 
     metadataColumns = new MetadataColumns(
-        context.getConfig().getValue("db.metadataColumns"));
+        cfg.getValue("db.metadataColumns"));
     log.config("metadata columns: " + metadataColumns);
   }
 
