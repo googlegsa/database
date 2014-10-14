@@ -28,6 +28,9 @@ import java.lang.reflect.Proxy;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 
 /** Test cases for {@link PrimaryKey}. */
@@ -36,11 +39,23 @@ public class PrimaryKeyTest {
   public ExpectedException thrown = ExpectedException.none();
 
   @Test
+  public void testNullKeys() {
+    thrown.expect(NullPointerException.class);
+    PrimaryKey pk = new PrimaryKey(null, "");
+  }
+
+  @Test
+  public void testNullContentCols() {
+    thrown.expect(NullPointerException.class);
+    PrimaryKey pk = new PrimaryKey("num:int", null);
+  }
+
+  @Test
   public void testSingleInt() {
     PrimaryKey pk = new PrimaryKey("numnum:int");
-    assertEquals(1, pk.numElements());
-    assertEquals("numnum", pk.name(0));
-    assertEquals(PrimaryKey.ColumnType.INT, pk.type(0));
+    assertEquals(1, pk.numElementsForTest());
+    assertEquals("numnum", pk.nameForTest(0));
+    assertEquals(PrimaryKey.ColumnType.INT, pk.typeForTest(0));
   }
 
   @Test
@@ -52,27 +67,40 @@ public class PrimaryKeyTest {
   @Test
   public void testTwoInt() {
     PrimaryKey pk = new PrimaryKey("numnum:int,other:int");
-    assertEquals(2, pk.numElements());
-    assertEquals("numnum", pk.name(0));
-    assertEquals("other", pk.name(1));
-    assertEquals(PrimaryKey.ColumnType.INT, pk.type(0));
-    assertEquals(PrimaryKey.ColumnType.INT, pk.type(1));
+    assertEquals(2, pk.numElementsForTest());
+    assertEquals("numnum", pk.nameForTest(0));
+    assertEquals("other", pk.nameForTest(1));
+    assertEquals(PrimaryKey.ColumnType.INT, pk.typeForTest(0));
+    assertEquals(PrimaryKey.ColumnType.INT, pk.typeForTest(1));
   }
 
   @Test
   public void testIntString() {
     PrimaryKey pk = new PrimaryKey("numnum:int,strstr:string");
-    assertEquals(2, pk.numElements());
-    assertEquals("numnum", pk.name(0));
-    assertEquals("strstr", pk.name(1));
-    assertEquals(PrimaryKey.ColumnType.INT, pk.type(0));
-    assertEquals(PrimaryKey.ColumnType.STRING, pk.type(1));
+    assertEquals(2, pk.numElementsForTest());
+    assertEquals("numnum", pk.nameForTest(0));
+    assertEquals("strstr", pk.nameForTest(1));
+    assertEquals(PrimaryKey.ColumnType.INT, pk.typeForTest(0));
+    assertEquals(PrimaryKey.ColumnType.STRING, pk.typeForTest(1));
+  }
+
+  @Test
+  public void testNameRepeatsNotAllowed() {
+    thrown.expect(InvalidConfigurationException.class);
+    PrimaryKey pk = new PrimaryKey("num:int,num:string");
   }
 
   @Test
   public void testBadDef() {
     thrown.expect(InvalidConfigurationException.class);
     PrimaryKey pk = new PrimaryKey("numnum:int,strstr/string");
+  }
+
+  @Test
+  public void testUnknownContentCol() {
+    thrown.expect(InvalidConfigurationException.class);
+    PrimaryKey pk = new PrimaryKey("numnum:int,strstr:string",
+        "numnum,IsStranger,strstr");
   }
 
   /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
@@ -129,6 +157,42 @@ public class PrimaryKeyTest {
     PrimaryKey pk = new PrimaryKey("numnum:int,strstr:string");
     pk.setStatementValues(ps, "888/bluesky");
     assertEquals(2, psh.ncalls);
+  }
+
+  private static class PreparedStatementHandlerPerDocCols implements 
+      InvocationHandler {
+    List<String> callsAndValues = new ArrayList<String>();
+    public Object invoke(Object proxy, Method method, Object[] args)
+        throws Throwable {
+      String methodName = method.getName();
+      callsAndValues.add(methodName);
+      callsAndValues.add("" + args[0]);
+      callsAndValues.add("" + args[1]);
+      return null;
+    }
+  }
+
+  @Test
+  public void testPreparingRetrievalPerDocCols() throws SQLException {
+    PreparedStatementHandlerPerDocCols psh
+        = new PreparedStatementHandlerPerDocCols();
+    PreparedStatement ps = (PreparedStatement) Proxy.newProxyInstance(
+        PreparedStatement.class.getClassLoader(),
+        new Class[] { PreparedStatement.class }, psh);
+
+    PrimaryKey pk = new PrimaryKey("numnum:int,strstr:string",
+        "numnum,numnum,strstr,numnum,strstr,strstr,numnum");
+    pk.setStatementValues(ps, "888/bluesky");
+    List<String> golden = Arrays.asList(
+        "setInt", "1", "888",
+        "setInt", "2", "888",
+        "setString", "3", "bluesky",
+        "setInt", "4", "888",
+        "setString", "5", "bluesky",
+        "setString", "6", "bluesky",
+        "setInt", "7", "888"
+    );
+    assertEquals(golden, psh.callsAndValues);
   }
 
   private static String roundtrip(String in) {
