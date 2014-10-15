@@ -114,10 +114,10 @@ public class ResponseGeneratorTest {
     return rs;
   }
 
-  private static class MockResponse implements
-      InvocationHandler {
+  private static class MockResponse implements InvocationHandler {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     String contentType = null;
+
     public Object invoke(Object proxy, Method method, Object[] args)
         throws Throwable {
       String methodName = method.getName();
@@ -140,16 +140,16 @@ public class ResponseGeneratorTest {
     
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
-    ResponseGenerator docgen = ResponseGenerator.blobColumn(cfg);
+    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
     byte b[] = new byte[] { 104, 101, 108, 108, 111,
         32, 119, 111, 114, 108, 100 };
-    docgen.generateResponse(makeMockBlobResultSet(b), response);
+    resgen.generateResponse(makeMockBlobResultSet(b), response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals("hello world", responseMsg);
   }
 
   @Test
-  public void testBlobColumnModeNeedsCorrectColumnName() throws Exception {
+  public void testBlobColumnModeIncorrectColumnName() throws Exception {
     MockResponse bar = new MockResponse();
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
@@ -157,11 +157,11 @@ public class ResponseGeneratorTest {
     
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-col-name-is-wrong");
-    ResponseGenerator docgen = ResponseGenerator.blobColumn(cfg);
+    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
     byte b[] = new byte[] { 104, 101, 108, 108, 111,
         32, 119, 111, 114, 108, 100 };
     thrown.expect(java.sql.SQLException.class);
-    docgen.generateResponse(makeMockBlobResultSet(b), response);
+    resgen.generateResponse(makeMockBlobResultSet(b), response);
   }
  
   private static void addContent(File f, String content) throws IOException {
@@ -192,8 +192,8 @@ public class ResponseGeneratorTest {
       testFile = File.createTempFile("db.rg.test", ".txt");
       String content = "we live inside a file\nwe do\nyes";
       addContent(testFile, content);
-      ResponseGenerator docgen = ResponseGenerator.filepathColumn(cfg);
-      docgen.generateResponse(makeMockFilepathResultSet(testFile), response);
+      ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
+      resgen.generateResponse(makeMockFilepathResultSet(testFile), response);
       String responseMsg = new String(far.baos.toByteArray(), "UTF-8");
       Assert.assertEquals(content, responseMsg);
     } finally {
@@ -204,7 +204,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testFilepathColumnModeNeedsCorrectColumnName() throws Exception {
+  public void testFilepathColumnModeIncorrectColumnName() throws Exception {
     MockResponse far = new MockResponse();
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
@@ -218,9 +218,9 @@ public class ResponseGeneratorTest {
       testFile = File.createTempFile("db.rg.test", ".txt");
       String content = "we live inside a file\nwe do\nyes";
       addContent(testFile, content);
-      ResponseGenerator docgen = ResponseGenerator.filepathColumn(cfg);
+      ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
       thrown.expect(java.sql.SQLException.class);
-      docgen.generateResponse(makeMockFilepathResultSet(testFile), response);
+      resgen.generateResponse(makeMockFilepathResultSet(testFile), response);
     } finally {
       if (null != testFile) {
         testFile.delete();
@@ -243,10 +243,10 @@ public class ResponseGeneratorTest {
       testFile = File.createTempFile("db.rg.test", ".txt");
       String content = "from a yellow url connection comes monty python";
       addContent(testFile, content);
-      ResponseGenerator docgen = ResponseGenerator.urlColumn(cfg);
-      URL mockUrl = testFile.toURI().toURL();
-      ResultSet rs = makeMockUrlResultSet(mockUrl);
-      docgen.generateResponse(rs, response);
+      ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
+      URL testUrl = testFile.toURI().toURL();
+      ResultSet rs = makeMockUrlResultSet(testUrl);
+      resgen.generateResponse(rs, response);
       String responseMsg = new String(uar.baos.toByteArray(), "UTF-8");
       Assert.assertEquals(content, responseMsg);
       Assert.assertEquals("text/plain", uar.contentType);
@@ -258,7 +258,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testUrlColumnModeNeedsCorrectColumnName() throws Exception {
+  public void testUrlColumnModeIncorrectColumnName() throws Exception {
     MockResponse far = new MockResponse();
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
@@ -272,11 +272,11 @@ public class ResponseGeneratorTest {
       testFile = File.createTempFile("db.rg.test", ".txt");
       String content = "from a yellow url connection comes monty python";
       addContent(testFile, content);
-      ResponseGenerator docgen = ResponseGenerator.urlColumn(cfg);
-      URL mockUrl = testFile.toURI().toURL();
-      ResultSet rs = makeMockUrlResultSet(mockUrl);
+      ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
+      URL testUrl = testFile.toURI().toURL();
+      ResultSet rs = makeMockUrlResultSet(testUrl);
       thrown.expect(java.sql.SQLException.class);
-      docgen.generateResponse(rs, response);
+      resgen.generateResponse(rs, response);
     } finally {
       if (null != testFile) {
         testFile.delete();
