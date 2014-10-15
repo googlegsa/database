@@ -116,7 +116,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     try {
       method = ResponseGenerator.class.getDeclaredMethod(mode, Map.class);
       return loadResponseGeneratorInternal(method,
-          config.getValuesWithPrefix("db.modeOfOperation." + mode));
+          config.getValuesWithPrefix("db.modeOfOperation." + mode + "."));
     } catch (NoSuchMethodException ex) {
       log.fine("did not find" + mode + " in ResponseGenerator, going to look"
           + " for fully qualified name");
@@ -146,7 +146,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
 
     return loadResponseGeneratorInternal(method,
-        config.getValuesWithPrefix("db.modeOfOperation." + mode));
+        config.getValuesWithPrefix("db.modeOfOperation." + mode + "."));
   }
   
   @VisibleForTesting
