@@ -129,8 +129,7 @@ public abstract class ResponseGenerator {
     @Override
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
-      int colIndex = rs.findColumn(col);
-      java.net.URLConnection con = rs.getURL(colIndex).openConnection();
+      java.net.URLConnection con = rs.getURL(col).openConnection();
       String contentType = con.getContentType();
       if (null != contentType) {
         resp.setContentType(contentType);
@@ -159,8 +158,7 @@ public abstract class ResponseGenerator {
     @Override
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
-      int colIndex = rs.findColumn(col);
-      String path = rs.getString(colIndex);
+      String path = rs.getString(col);
       InputStream in = new FileInputStream(path);
       OutputStream out = resp.getOutputStream();
       com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
@@ -190,7 +188,15 @@ public abstract class ResponseGenerator {
       OutputStream out = resp.getOutputStream();
       com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
       in.close();
-      blob.free();
+      if (!(blob instanceof javax.sql.rowset.serial.SerialBlob)) {
+        // SerialBlob is adament about not supporting free
+        try {
+          blob.free();
+        } catch (java.sql.SQLFeatureNotSupportedException | 
+            UnsupportedOperationException unsupported) {
+          // okee dokee; let JVM garbage collection deal with it
+        }
+      }
     }
 
     @Override
