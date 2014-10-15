@@ -56,6 +56,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.primaryKey", null);
     config.addKey("db.everyDocIdSql", null);
     config.addKey("db.singleDocContentSql", null);
+    config.addKey("db.singleDocContentColumns", "");
     config.addKey("db.metadataColumns", "");
     config.addKey("db.modeOfOperation", null);
   }
@@ -83,7 +84,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         cfg.getValue("db.password"));
     // log.config("db password: " + password);
 
-    primaryKey = new PrimaryKey(cfg.getValue("db.primaryKey"));
+    primaryKey = new PrimaryKey(
+        cfg.getValue("db.primaryKey"),
+        cfg.getValue("db.singleDocContentColumns")
+    );
     log.config("primary key: " + primaryKey);
 
     everyDocIdSql = cfg.getValue("db.everyDocIdSql");

@@ -22,11 +22,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.logging.Logger;
 
-
-/** Organizes information about database table's primary key. */
+/** Provides adaptor DocId and fills getDocContent query. */
 class PrimaryKey {
   private static final Logger log
       = Logger.getLogger(PrimaryKey.class.getName());
@@ -36,15 +38,25 @@ class PrimaryKey {
     STRING
   }
 
-  private List<String> names = new ArrayList<String>();
-  private List<ColumnType> types = new ArrayList<ColumnType>(); 
+  private final List<String> names;  // columns used for DocId
+  private final Map<String, ColumnType> types;  // types of DocId columns
+  private final List<String> contentSqlCols;  // columns for content query
 
-  PrimaryKey(String configDef) {
-    if ("".equals(configDef.trim())) {
+  PrimaryKey(String pkDecls, String contentSqlColumns) {
+    if (null == pkDecls) {
+      throw new NullPointerException();
+    }
+    if (null == contentSqlColumns) {
+      throw new NullPointerException();
+    }
+
+    if ("".equals(pkDecls.trim())) {
       throw new InvalidConfigurationException("empty");
     }
-    String elements[] = configDef.split(",", -1);
-    for (String e : elements) {
+
+    List<String> tmpNames = new ArrayList<String>();
+    Map<String, ColumnType> tmpTypes = new TreeMap<String, ColumnType>();
+    for (String e : pkDecls.split(",", -1)) {
       log.fine("element: " + e);
       String def[] = e.split(":", -1);
       if (2 != def.length) {
@@ -59,43 +71,54 @@ class PrimaryKey {
       } else {
         throw new InvalidConfigurationException("bad type: " + def[1]);
       } 
-      names.add(name);
-      types.add(type);
+      if (tmpTypes.containsKey(name)) {
+        throw new InvalidConfigurationException("name repeat: " + name);
+      }
+      tmpNames.add(name);
+      tmpTypes.put(name, type);
     }
+    names = Collections.unmodifiableList(tmpNames);
+    types = Collections.unmodifiableMap(tmpTypes);
+
+    if ("".equals(contentSqlColumns.trim())) {
+      contentSqlCols = names;
+      return;
+    }
+
+    List<String> tmpContentCols = new ArrayList<String>();
+    for (String e : contentSqlColumns.split(",", -1)) {
+      String name = e;
+      if (!tmpTypes.containsKey(name)) {
+        throw new InvalidConfigurationException("unknown name: " + name);
+      }
+      tmpContentCols.add(name); 
+    }
+    contentSqlCols = Collections.unmodifiableList(tmpContentCols);
   }
 
-  /** Number of columns that make up the primary key. */
-  int numElements() {
-    return names.size(); 
-  }
-
-  /** Name of particular column in primary key. */
-  String name(int i) {
-    return names.get(i);
-  }
-
-  /** Type of particular column in primary key. */
-  ColumnType type(int i) {
-    return types.get(i);
+  @VisibleForTesting
+  PrimaryKey(String pkDecls) {
+    this(pkDecls, "");
   }
 
   public String toString() {
-    return "PrimaryKey(" + names + "," + types + ")";
+    return "PrimaryKey(" + names + "," + types + "," + contentSqlCols + ")";
   }
 
   String makeUniqueId(ResultSet rs) throws SQLException {
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < names.size(); i++) {
+      String name = names.get(i);
       String part;
-      switch (types.get(i)) {
+      switch (types.get(name)) {
         case INT:
-          part = "" + rs.getInt(names.get(i));
+          part = "" + rs.getInt(name);
           break;
         case STRING:
-          part = rs.getString(names.get(i));
+          part = rs.getString(name);
           break;
         default:
-          throw new AssertionError("invalid type: " + types.get(i)); 
+          throw new AssertionError("invalid type: " + types.get(name)); 
       } 
       part = encodeSlashInData(part);
       sb.append("/").append(part);
@@ -106,24 +129,34 @@ class PrimaryKey {
   void setStatementValues(PreparedStatement st, String uniqueId)
       throws SQLException {
     uniqueId = decodeSlashInData(uniqueId);
-    String parts[] = uniqueId.split("/", -1); // TODO: deal with slash
+    String parts[] = uniqueId.split("/", -1);
     if (parts.length != names.size()) {
-      throw new IllegalStateException("id does not match key: " + uniqueId);
+      throw new IllegalStateException("wrong number of values for primary key");
     }
-    for (int i = 0; i < names.size(); i++) {
-      switch (types.get(i)) {
+
+    Map<String, String> zip = new TreeMap<String, String>();
+    for (int i = 0; i < parts.length; i++) {
+      zip.put(names.get(i), parts[i]);
+    }
+
+    for (int i = 0; i < contentSqlCols.size(); i++) {
+      String colName = contentSqlCols.get(i);
+      ColumnType typeOfCol = types.get(colName);
+      String valueOfCol = zip.get(colName);
+      switch (typeOfCol) {
         case INT:
-          st.setInt(i + 1, Integer.parseInt(parts[i]));
+          st.setInt(i + 1, Integer.parseInt(valueOfCol));
           break;
         case STRING:
-          st.setString(i + 1, parts[i]);
+          st.setString(i + 1, valueOfCol);
           break;
         default:
-          throw new IllegalStateException("invalid type: " + types.get(i)); 
+          throw new AssertionError("invalid type: " + typeOfCol); 
       }
     }   
   }
 
+  @VisibleForTesting
   static String encodeSlashInData(String data) {
     if (-1 == data.indexOf('/') && -1 == data.indexOf('\\')) {
       return data;
@@ -133,9 +166,28 @@ class PrimaryKey {
     return data; 
   }
 
+  @VisibleForTesting
   static String decodeSlashInData(String id) {
     id = id.replace("\\/", "/");
     id = id.replace("\\\\", "\\");
     return id;
+  }
+
+  /** Number of columns that make up the primary key. */
+  @VisibleForTesting
+  int numElementsForTest() {
+    return names.size(); 
+  }
+
+  /** Name of particular column in primary key. */
+  @VisibleForTesting
+  String nameForTest(int i) {
+    return names.get(i);
+  }
+
+  /** Type of particular column in primary key. */
+  @VisibleForTesting
+  ColumnType typeForTest(int i) {
+    return types.get(names.get(i));
   }
 }
