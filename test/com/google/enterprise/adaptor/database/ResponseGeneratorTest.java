@@ -141,11 +141,11 @@ public class ResponseGeneratorTest {
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
     ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
-    byte b[] = new byte[] { 104, 101, 108, 108, 111,
-        32, 119, 111, 114, 108, 100 };
+    String content = "hello world";
+    byte b[] = content.getBytes("US-ASCII");
     resgen.generateResponse(makeMockBlobResultSet(b), response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
-    Assert.assertEquals("hello world", responseMsg);
+    Assert.assertEquals(content, responseMsg);
   }
 
   @Test
@@ -158,8 +158,8 @@ public class ResponseGeneratorTest {
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-col-name-is-wrong");
     ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
-    byte b[] = new byte[] { 104, 101, 108, 108, 111,
-        32, 119, 111, 114, 108, 100 };
+    String content = "hello world";
+    byte b[] = content.getBytes("US-ASCII");
     thrown.expect(java.sql.SQLException.class);
     resgen.generateResponse(makeMockBlobResultSet(b), response);
   }
