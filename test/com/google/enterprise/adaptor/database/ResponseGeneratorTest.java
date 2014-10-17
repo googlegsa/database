@@ -102,9 +102,9 @@ public class ResponseGeneratorTest {
         new InvocationHandler() {
           public Object invoke(Object proxy, Method method, Object[] args)
               throws Throwable {
-            Assert.assertEquals("getURL", method.getName());
+            Assert.assertEquals("getString", method.getName());
             if ("my-url-is-in-col".equals(args[0])) {
-              return url;
+              return url.toString();
             } else {
               throw new java.sql.SQLException("no column named: " + args[0]);
             }
@@ -117,6 +117,7 @@ public class ResponseGeneratorTest {
   private static class MockResponse implements InvocationHandler {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     String contentType = null;
+    String displayUrl = null;
 
     public Object invoke(Object proxy, Method method, Object[] args)
         throws Throwable {
@@ -125,6 +126,9 @@ public class ResponseGeneratorTest {
         return baos;
       } else if ("setContentType".equals(methodName)) {
         contentType = "" + args[0];
+        return null;
+      } else if ("setDisplayUrl".equals(methodName)) {
+        displayUrl = "" + args[0];
         return null;
       }
       throw new AssertionError("misused response proxy");
@@ -250,6 +254,7 @@ public class ResponseGeneratorTest {
       String responseMsg = new String(uar.baos.toByteArray(), "UTF-8");
       Assert.assertEquals(content, responseMsg);
       Assert.assertEquals("text/plain", uar.contentType);
+      Assert.assertEquals(testUrl.toString(), uar.displayUrl);
     } finally {
       if (null != testFile) {
         testFile.delete();

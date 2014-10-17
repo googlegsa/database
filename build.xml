@@ -224,7 +224,7 @@ lib/plexi submodule or add the the command line argument
     <java classpath="${build-src.dir}" fork="true" classname="${adaptor.class}">
       <classpath refid="adaptor.run.classpath"/>
       <sysproperty key="java.util.logging.config.file"
-        value="logging.properties"/>
+        value="src/logging.properties"/>
       <sysproperty key="javax.net.ssl.keyStore" file="keys.jks"/>
       <sysproperty key="javax.net.ssl.keyStoreType" value="jks"/>
       <sysproperty key="javax.net.ssl.keyStorePassword" value="changeit"/>

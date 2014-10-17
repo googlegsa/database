@@ -67,8 +67,8 @@ while true; do
 
   cd "$INSERT_SQL_PROG_DIR"
   "$JAVA_HOME/bin/java" \
-      -cp "$ADAPTOR_JAR:$DB_JAR" \
       -Djava.util.logging.config.file="$LOG_PROPS_FILE" \
+      -cp "$ADAPTOR_JAR:$DB_JAR" \
       com.google.enterprise.adaptor.database.InsertSql \
       "$DB_CLASS" "$DB_URL" "$DB_USER" "$DB_PASSWORD" "$TMP_SQL_FILE"
   log info: ran sql inserts with rc $?

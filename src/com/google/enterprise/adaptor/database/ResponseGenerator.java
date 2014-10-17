@@ -20,6 +20,9 @@ import java.io.IOException;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.charset.Charset;
 import java.sql.Blob;
 import java.sql.ResultSet;
@@ -129,10 +132,18 @@ public abstract class ResponseGenerator {
     @Override
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
-      java.net.URLConnection con = rs.getURL(col).openConnection();
+      String urlStr = rs.getString(col);
+      URL url = new URL(urlStr);
+      java.net.URLConnection con = url.openConnection();
       String contentType = con.getContentType();
       if (null != contentType) {
         resp.setContentType(contentType);
+      }
+      try {
+        resp.setDisplayUrl(url.toURI());
+      } catch (URISyntaxException ex) {
+        String errmsg = urlStr + " is not a valid URI";
+        throw new IllegalStateException(errmsg, ex);
       }
       InputStream in = con.getInputStream();
       OutputStream out = resp.getOutputStream();
