@@ -78,7 +78,15 @@ class InsertSql {
   private static class StatementReader {
     private BufferedReader br;
     StatementReader() throws FileNotFoundException {
-      br = new BufferedReader(new FileReader(fn));
+      br = new BufferedReader(new FileReader(fn)) {
+        public String readLine() throws IOException {
+          String line = super.readLine();
+          if (null != line && "".equals(line.trim())) {
+            return readLine();
+          }
+          return line;
+        }
+      };
     }
     String next() throws IOException {
       StringBuilder sb = new StringBuilder(); 
