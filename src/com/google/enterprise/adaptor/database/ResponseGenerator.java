@@ -17,6 +17,8 @@ package com.google.enterprise.adaptor.database;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
 
+import org.xml.sax.InputSource;
+
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,9 +32,24 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.logging.Logger;
+
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Result;
+import javax.xml.transform.Source;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerConfigurationException;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.sax.SAXSource;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.transform.stream.StreamSource;
 
 /** Generate a response according to a SQL result */
 public abstract class ResponseGenerator {
+  protected static final Logger log
+      = Logger.getLogger(ResponseGenerator.class.getName());
+  
   protected final Map<String, String> cfg;
 
   public ResponseGenerator() {
@@ -77,6 +94,59 @@ public abstract class ResponseGenerator {
 
   public static ResponseGenerator blobColumn(Map<String, String> config) {
     return new BlobColumn(config);
+  }
+
+  public static ResponseGenerator rowToHtml(Map<String, String> config)
+      throws TransformerConfigurationException, IOException {
+    return new RowToHtml(config.get("stylesheet"));
+  }
+
+  private static class RowToHtml extends ResponseGenerator {
+    private static final String CONTENT_TYPE = "text/html; charset=utf-8";
+    private static final String DEFAULT_STYLESHEET = "resources/dbdefault.xsl";
+
+    private final Transformer trans;
+    private final String stylesheetName;
+
+    public RowToHtml(String stylesheetFilename)
+        throws TransformerConfigurationException, IOException {
+      InputStream xsl = null;
+      if (null == stylesheetFilename) {
+        stylesheetName = DEFAULT_STYLESHEET;
+        xsl = this.getClass().getResourceAsStream(stylesheetName);
+        if (xsl == null) {
+          throw new AssertionError("Default stylesheet not found in resources");
+        }
+      } else {
+        stylesheetName = stylesheetFilename;
+        xsl = new FileInputStream(stylesheetName);
+      }
+
+      TransformerFactory transFactory = TransformerFactory.newInstance();
+      trans = transFactory.newTransformer(new StreamSource(xsl));
+      // output is html, so we don't need xml declaration
+      trans.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+      xsl.close();
+    }
+
+    @Override
+    public void generateResponse(ResultSet rs, Response resp)
+        throws IOException, SQLException {
+      resp.setContentType(CONTENT_TYPE);
+      TupleReader reader = new TupleReader(rs);
+      Source source = new SAXSource(reader, /*ignored*/new InputSource());
+      Result des = new StreamResult(resp.getOutputStream());
+      try {
+        trans.transform(source, des);
+      } catch (TransformerException e) {
+        throw new RuntimeException("Error in applying xml stylesheet", e);
+      }
+    }
+
+    @Override
+    public String toString() {
+      return getClass().getName() + "(stylesheet=" + stylesheetName + ")";
+    }
   }
 
   private static class RowToText extends ResponseGenerator {

@@ -173,6 +173,7 @@ lib/plexi submodule or add the the command line argument
             value="${adaptor.version}"/>
         </section>
       </manifest>
+      <fileset dir="${resource.dir}"/>
     </jar>
 
     <!-- lib/ -->
