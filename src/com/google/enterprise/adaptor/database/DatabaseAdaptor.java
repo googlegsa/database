@@ -21,6 +21,7 @@ import com.google.enterprise.adaptor.Config;
 import com.google.enterprise.adaptor.DocId;
 import com.google.enterprise.adaptor.DocIdPusher;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
+import com.google.enterprise.adaptor.PollingIncrementalLister;
 import com.google.enterprise.adaptor.Request;
 import com.google.enterprise.adaptor.Response;
 
@@ -46,7 +47,69 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String singleDocContentSql;
   private MetadataColumns metadataColumns;
   private ResponseGenerator respGenerator;
- 
+
+  private class DbAdaptorIncrementalLister implements PollingIncrementalLister {
+    private final String updateSql;
+    private long lastUpdateTimestampInMillis;
+
+    public DbAdaptorIncrementalLister(String updateSql) {
+      this.updateSql = updateSql;
+      log.config("update sql: " + this.updateSql);
+      this.lastUpdateTimestampInMillis = System.currentTimeMillis();
+    }
+
+    @Override
+    public void getModifiedDocIds(DocIdPusher pusher)
+        throws IOException, InterruptedException {
+      BufferingPusher outstream = new BufferingPusher(pusher);
+      Connection conn = null;
+      StatementAndResult statementAndResult = null;
+      try {
+        conn = makeNewConnection();
+        statementAndResult = getUpdateStreamFromDb(conn);
+        ResultSet rs = statementAndResult.resultSet;
+        while (rs.next()) {
+          DocId id = new DocId(primaryKey.makeUniqueId(rs));
+          DocIdPusher.Record record =
+              new DocIdPusher.Record.Builder(id).setCrawlImmediately(true)
+                  .build();
+          log.log(Level.FINEST, "doc id: {0}", id);
+          outstream.add(record);
+        }
+      } catch (SQLException problem) {
+        throw new IOException(problem);
+      } finally {
+        tryClosingStatementAndResult(statementAndResult);
+        tryClosingConnection(conn);
+      }
+      outstream.forcePush();
+
+      lastUpdateTimestampInMillis = System.currentTimeMillis();
+      log.fine("last pushing timestamp set to: " + lastUpdateTimestampInMillis);
+    }
+
+    private StatementAndResult getUpdateStreamFromDb(Connection conn)
+        throws SQLException {
+      PreparedStatement st = conn.prepareStatement(updateSql,
+          /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
+          /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
+      st.setTimestamp(1, new java.sql.Timestamp(lastUpdateTimestampInMillis));
+      ResultSet rs = st.executeQuery();
+      return new StatementAndResult(st, rs);
+    }
+  }
+
+  private DbAdaptorIncrementalLister initDbAdaptorIncrementalLister(
+      Config config) {
+    String updateSql = config.getValue("db.updateSql");
+
+    if (updateSql != null && !"".equals(updateSql.trim())) {
+      return new DbAdaptorIncrementalLister(updateSql);
+    } else {
+      return null;
+    }
+  }
+
   @Override
   public void initConfig(Config config) {
     config.addKey("db.driverClass", null);
@@ -59,6 +122,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.singleDocContentColumns", "");
     config.addKey("db.metadataColumns", "");
     config.addKey("db.modeOfOperation", null);
+    config.addKey("db.updateSql", "");
   }
 
   @Override
@@ -101,8 +165,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     log.config("metadata columns: " + metadataColumns);
 
     respGenerator = loadResponseGenerator(context.getConfig());
+
+    DbAdaptorIncrementalLister incrementalLister
+        = initDbAdaptorIncrementalLister(cfg);
+    if (incrementalLister != null) {
+      context.setPollingIncrementalLister(incrementalLister);
+    }
   }
-  
+
   @VisibleForTesting
   static ResponseGenerator loadResponseGenerator(Config config) {
     String mode = config.getValue("db.modeOfOperation");
@@ -187,8 +257,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       ResultSet rs = statementAndResult.resultSet;
       while (rs.next()) {
         DocId id = new DocId(primaryKey.makeUniqueId(rs));
+        DocIdPusher.Record record =
+            new DocIdPusher.Record.Builder(id).build();
         log.log(Level.FINEST, "doc id: {0}", id);
-        outstream.add(id);
+        outstream.add(record);
       }
     } catch (SQLException problem) {
       throw new IOException(problem);
@@ -313,31 +385,35 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   }
 
   /**
-   * Mechanism that accepts stream of DocId instances, bufferes them,
-   * and sends them when it has accumulated maximum allowed amount per
+   * Mechanism that accepts stream of DocIdPusher.Record instances, bufferes
+   * them, and sends them when it has accumulated maximum allowed amount per
    * feed file.
    */
   private class BufferingPusher {
     DocIdPusher wrapped;
-    ArrayList<DocId> saved;
+    ArrayList<DocIdPusher.Record> saved;
+    
     BufferingPusher(DocIdPusher underlying) {
       if (null == underlying) {
         throw new NullPointerException();
       }
       wrapped = underlying;
-      saved = new ArrayList<DocId>(maxIdsPerFeedFile);
+      saved = new ArrayList<DocIdPusher.Record>(maxIdsPerFeedFile);
     }
-    void add(DocId id) throws InterruptedException {
-      saved.add(id);
+    
+    void add(DocIdPusher.Record record) throws InterruptedException {
+      saved.add(record);
       if (saved.size() >= maxIdsPerFeedFile) {
         forcePush();
       }
     }
+    
     void forcePush() throws InterruptedException {
-      wrapped.pushDocIds(saved);
+      wrapped.pushRecords(saved);
       log.log(Level.FINE, "sent {0} doc ids to pusher", saved.size());
       saved.clear();
     }
+    
     protected void finalize() throws Throwable {
       if (0 != saved.size()) {
         log.warning("still have saved ids that weren't sent");
