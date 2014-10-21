@@ -14,6 +14,7 @@
 
 package com.google.enterprise.adaptor.database;
 
+import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
 
 import org.junit.Assert;
@@ -64,12 +65,22 @@ public class ResponseGeneratorTest {
         new InvocationHandler() {
           public Object invoke(Object proxy, Method method, Object[] args)
               throws Throwable {
-            Assert.assertEquals("getBlob", method.getName());
-            if ("my-blob-col".equals(args[0])) {
-              return new javax.sql.rowset.serial.SerialBlob(b);
-            } else {
-              throw new java.sql.SQLException("no column named: " + args[0]);
+            
+            if ("getBlob".equals(method.getName())) {
+              if ("my-blob-col".equals(args[0])) {
+                return new javax.sql.rowset.serial.SerialBlob(b);
+              } else {
+                throw new java.sql.SQLException("no column named: " + args[0]);
+              }
             }
+            if ("getString".equals(method.getName())) {
+              if ("this-blob-col-has-CT".equals(args[0])) {
+                return "hard-coded-blob-content-type";
+              } else {
+                throw new java.sql.SQLException("no column named: " + args[0]);
+              }
+            }
+            throw new AssertionError("invalid method: " + method.getName());
           }
         }
     );
@@ -288,4 +299,59 @@ public class ResponseGeneratorTest {
       }
     }
   }
+
+  @Test
+  public void testBlobColumnModeContentTypeOverrideAndContentTypeCol()
+      throws Exception {
+    MockResponse bar = new MockResponse();
+    Response response = (Response) Proxy.newProxyInstance(
+        Response.class.getClassLoader(),
+        new Class[] { Response.class }, bar);
+    
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "my-blob-col");
+    cfg.put("contentTypeOverride", "dev/rubish");
+    cfg.put("contentTypeCol", "get-ct-here");
+    thrown.expect(InvalidConfigurationException.class);
+    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
+  }
+
+  @Test
+  public void testBlobColumnModeContentTypeOverride() throws Exception {
+    MockResponse bar = new MockResponse();
+    Response response = (Response) Proxy.newProxyInstance(
+        Response.class.getClassLoader(),
+        new Class[] { Response.class }, bar);
+    
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "my-blob-col");
+    cfg.put("contentTypeOverride", "dev/rubish");
+    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
+    String content = "hello world";
+    byte b[] = content.getBytes("US-ASCII");
+    resgen.generateResponse(makeMockBlobResultSet(b), response);
+    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
+    Assert.assertEquals(content, responseMsg);
+    Assert.assertEquals("dev/rubish", bar.contentType);
+  }
+
+  @Test
+  public void testBlobColumnModeContentTypeCol() throws Exception {
+    MockResponse bar = new MockResponse();
+    Response response = (Response) Proxy.newProxyInstance(
+        Response.class.getClassLoader(),
+        new Class[] { Response.class }, bar);
+    
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "my-blob-col");
+    cfg.put("contentTypeCol", "this-blob-col-has-CT");
+    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
+    String content = "hello world";
+    byte b[] = content.getBytes("US-ASCII");
+    resgen.generateResponse(makeMockBlobResultSet(b), response);
+    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
+    Assert.assertEquals(content, responseMsg);
+    Assert.assertEquals("hard-coded-blob-content-type", bar.contentType);
+  }
+
 }

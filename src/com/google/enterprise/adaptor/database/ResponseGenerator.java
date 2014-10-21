@@ -14,13 +14,13 @@
 
 package com.google.enterprise.adaptor.database;
 
+import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
 
-import java.io.IOException;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.Charset;
@@ -28,10 +28,24 @@ import java.sql.Blob;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.Map;
 
 /** Generate a response according to a SQL result */
 public abstract class ResponseGenerator {
+  protected final Map<String, String> cfg;
+
+  public ResponseGenerator() {
+    this.cfg = Collections.<String, String>emptyMap();
+  }
+
+  protected ResponseGenerator(Map<String, String> config) {
+    if (null == config) {
+      throw new NullPointerException();
+    }
+    this.cfg = Collections.unmodifiableMap(config);
+  }
+
   /**
    * This method will generate the Response according to the data returned by
    * SQL statements.
@@ -46,24 +60,23 @@ public abstract class ResponseGenerator {
 
   @Override
   public String toString() {
-    return getClass().getName();
+    return getClass().getName() + "(" + cfg + ")";
   }
 
-  /** rowToText mode */
   public static ResponseGenerator rowToText(Map<String, String> config) {
     return new RowToText();
   }
 
   public static ResponseGenerator urlColumn(Map<String, String> config) {
-    return new UrlColumn(config.get("columnName"));
+    return new UrlColumn(config);
   }
 
   public static ResponseGenerator filepathColumn(Map<String, String> config) {
-    return new FilepathColumn(config.get("columnName"));
+    return new FilepathColumn(config);
   }
 
   public static ResponseGenerator blobColumn(Map<String, String> config) {
-    return new BlobColumn(config.get("columnName"));
+    return new BlobColumn(config);
   }
 
   private static class RowToText extends ResponseGenerator {
@@ -120,13 +133,44 @@ public abstract class ResponseGenerator {
     }
   }
 
-  private static class UrlColumn extends ResponseGenerator {
-    private final String col;
-    public UrlColumn(String colName) {
-      if (null == colName) {
-        throw new NullPointerException();
+  private abstract static class SingleColumnContent extends ResponseGenerator {
+    final String col;
+    private final String contentTypeOverride; // can be null
+    private final String contentTypeCol; // can be null
+
+    SingleColumnContent(Map<String, String> config) {
+      super(config);
+      col = cfg.get("columnName"); 
+      if (null == col) {
+        throw new NullPointerException("columnName needs to be provided");
       }
-      col = colName;
+      contentTypeOverride = cfg.get("contentTypeOverride");
+      contentTypeCol = cfg.get("contentTypeCol");
+      if (null != contentTypeOverride && null != contentTypeCol) {
+        throw new InvalidConfigurationException("cannot provide both "
+            + "contentTypeOverride and contentTypeCol");
+      }
+    }
+
+    boolean overrideContentType(ResultSet rs, Response res) 
+        throws SQLException {
+      if (null != contentTypeOverride) {
+        res.setContentType(contentTypeOverride);
+        return true;
+      } else if (null != contentTypeCol) {
+        String ct = rs.getString(contentTypeCol);
+        if (null != ct) {
+          res.setContentType(ct);
+          return true;
+        }
+      }
+      return false;
+    }
+  }
+
+  private static class UrlColumn extends SingleColumnContent {
+    public UrlColumn(Map<String, String> config) {
+      super(config);
     }
 
     @Override
@@ -135,9 +179,11 @@ public abstract class ResponseGenerator {
       String urlStr = rs.getString(col);
       URL url = new URL(urlStr);
       java.net.URLConnection con = url.openConnection();
-      String contentType = con.getContentType();
-      if (null != contentType) {
-        resp.setContentType(contentType);
+      if (!overrideContentType(rs, resp)) {
+        String contentType = con.getContentType();
+        if (null != contentType) {
+          resp.setContentType(contentType);
+        }
       }
       try {
         resp.setDisplayUrl(url.toURI());
@@ -150,50 +196,34 @@ public abstract class ResponseGenerator {
       com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
       in.close();
     }
-
-    @Override
-    public String toString() {
-      return getClass().getName() + "(col=" + col + ")";
-    }
   }
 
-  private static class FilepathColumn extends ResponseGenerator {
-    private final String col;
-    public FilepathColumn(String colName) {
-      if (null == colName) {
-        throw new NullPointerException();
-      }
-      col = colName;
+  private static class FilepathColumn extends SingleColumnContent {
+    public FilepathColumn(Map<String, String> config) {
+      super(config);
     }
 
     @Override
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
+      overrideContentType(rs, resp);
       String path = rs.getString(col);
       InputStream in = new FileInputStream(path);
       OutputStream out = resp.getOutputStream();
       com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
       in.close();
     }
-
-    @Override
-    public String toString() {
-      return getClass().getName() + "(col=" + col + ")";
-    }
   }
 
-  private static class BlobColumn extends ResponseGenerator {
-    private final String col;
-    public BlobColumn(String colName) {
-      if (null == colName) {
-        throw new NullPointerException();
-      }
-      col = colName;
+  private static class BlobColumn extends SingleColumnContent {
+    public BlobColumn(Map<String, String> config) {
+      super(config);
     }
 
     @Override
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
+      overrideContentType(rs, resp);
       Blob blob = rs.getBlob(col);
       InputStream in = blob.getBinaryStream();
       OutputStream out = resp.getOutputStream();
@@ -208,11 +238,6 @@ public abstract class ResponseGenerator {
           // okee dokee; let JVM garbage collection deal with it
         }
       }
-    }
-
-    @Override
-    public String toString() {
-      return getClass().getName() + "(col=" + col + ")";
     }
   }
 }
