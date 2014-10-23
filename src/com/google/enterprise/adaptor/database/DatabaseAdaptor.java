@@ -16,14 +16,17 @@ package com.google.enterprise.adaptor.database;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.enterprise.adaptor.AbstractAdaptor;
+import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.AdaptorContext;
 import com.google.enterprise.adaptor.Config;
 import com.google.enterprise.adaptor.DocId;
 import com.google.enterprise.adaptor.DocIdPusher;
+import com.google.enterprise.adaptor.GroupPrincipal;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.PollingIncrementalLister;
 import com.google.enterprise.adaptor.Request;
 import com.google.enterprise.adaptor.Response;
+import com.google.enterprise.adaptor.UserPrincipal;
 
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
@@ -36,6 +39,25 @@ import java.util.logging.*;
 public class DatabaseAdaptor extends AbstractAdaptor {
   private static final Logger log
       = Logger.getLogger(DatabaseAdaptor.class.getName());
+  
+  private enum GsaSpecialColumns {
+    GSA_PERMIT_USERS("GSA_PERMIT_USERS"),
+    GSA_DENY_USERS("GSA_DENY_USERS"),
+    GSA_PERMIT_GROUPS("GSA_PERMIT_GROUPS"),
+    GSA_DENY_GROUPS("GSA_DENY_GROUPS")
+    ;
+
+    private final String text;
+
+    private GsaSpecialColumns(final String text) {
+      this.text = text;
+    }
+
+    @Override
+    public String toString() {
+      return text;
+    }
+  }
 
   private int maxIdsPerFeedFile;
   private String driverClass;
@@ -47,6 +69,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String singleDocContentSql;
   private MetadataColumns metadataColumns;
   private ResponseGenerator respGenerator;
+  private String aclSql;
 
   private class DbAdaptorIncrementalLister implements PollingIncrementalLister {
     private final String updateSql;
@@ -123,6 +146,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.metadataColumns", "");
     config.addKey("db.modeOfOperation", null);
     config.addKey("db.updateSql", "");
+    config.addKey("db.aclSql", "");
   }
 
   @Override
@@ -171,6 +195,15 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     if (incrementalLister != null) {
       context.setPollingIncrementalLister(incrementalLister);
     }
+    
+    if (!isNullOrEmptyString(cfg.getValue("db.aclSql"))) {
+      aclSql = cfg.getValue("db.aclSql");
+      log.config("acl sql: " + aclSql); 
+    }
+  }
+  
+  private static boolean isNullOrEmptyString(String str) {
+    return null == str || "".equals(str.trim());
   }
 
   @VisibleForTesting
@@ -280,7 +313,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     try {
       conn = makeNewConnection();
 
-      statementAndResult = getCollectionFromDb(conn, id.getUniqueId());
+      statementAndResult =
+          getCollectionFromDb(conn, id.getUniqueId(), singleDocContentSql);
       ResultSet rs = statementAndResult.resultSet;
 
       // First handle cases with no data to return.
@@ -302,6 +336,13 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         }
       }
       
+      if (aclSql != null) {
+        Acl acl = getAcl(conn, id.getUniqueId());
+        if (acl != null) {
+          resp.setAcl(acl);
+        }
+      }
+      
       respGenerator.generateResponse(rs, resp);
     } catch (SQLException problem) {
       throw new IOException("retrieval error", problem);
@@ -309,6 +350,86 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       tryClosingStatementAndResult(statementAndResult);
       tryClosingConnection(conn);
     }
+  }
+  
+  private Acl getAcl(Connection conn, String uniqueId) throws SQLException {
+    Acl.Builder builder = new Acl.Builder();
+    StatementAndResult statementAndResult = null;
+
+    try {
+      statementAndResult = getCollectionFromDb(conn, uniqueId, aclSql);
+      ResultSet rs = statementAndResult.resultSet;
+
+      // TODO: right now we just take the first record, if exists, returned.
+      // We might consider changing the behavior later. For example, consolidate
+      // all the returned records in certain ways.
+      boolean hasResult = rs.next();
+      if (!hasResult) {
+        // TODO: right now if the aclSql given by the admin fails to return any 
+        // acls for a document, we just leave the document to be public. We
+        // might consider changing the behavior later.
+        return null;
+      }
+
+      ResultSetMetaData metadata = rs.getMetaData();
+      if (hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_USERS.toString())) {
+        builder.setPermitUsers(getUserPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_PERMIT_USERS));
+      }
+      if (hasColumn(metadata, GsaSpecialColumns.GSA_DENY_USERS.toString())) {
+        builder.setDenyUsers(getUserPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_DENY_USERS));
+      }
+      if (hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_GROUPS.toString())) {
+        builder.setPermitGroups(getGroupPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_PERMIT_GROUPS));
+      }
+      if (hasColumn(metadata, GsaSpecialColumns.GSA_DENY_GROUPS.toString())) {
+        builder.setDenyGroups(getGroupPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_DENY_GROUPS));
+      }
+    } finally {
+      tryClosingStatementAndResult(statementAndResult);
+    }
+    
+    return builder.build();
+  }
+  
+  private static ArrayList<UserPrincipal> getUserPrincipalsFromResultSet(
+      ResultSet rs, GsaSpecialColumns column) throws SQLException {
+    ArrayList<UserPrincipal> principals = new ArrayList<UserPrincipal>();
+    String value = rs.getString(column.toString());
+    if (!isNullOrEmptyString(value)) {
+      String principalNames[] = value.split(",", 0); // drop trailing empties
+      for (String principalName : principalNames) {
+        principals.add(new UserPrincipal(principalName.trim()));
+      }
+    }
+    return principals;
+  }
+  
+  private static ArrayList<GroupPrincipal> getGroupPrincipalsFromResultSet(
+      ResultSet rs, GsaSpecialColumns column) throws SQLException {
+    ArrayList<GroupPrincipal> principals = new ArrayList<GroupPrincipal>();
+    String value = rs.getString(column.toString());
+    if (!isNullOrEmptyString(value)) {
+      String principalNames[] = value.split(",", 0); // drop trailing empties
+      for (String principalName : principalNames) {
+        principals.add(new GroupPrincipal(principalName.trim()));
+      }
+    }
+    return principals;
+  }
+  
+  private static boolean hasColumn(ResultSetMetaData metadata, String column)
+      throws SQLException {
+    int columns = metadata.getColumnCount();
+    for (int x = 1; x <= columns; x++) {
+      if (column.equals(metadata.getColumnName(x))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   public static void main(String[] args) {
@@ -338,8 +459,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   }
 
   private StatementAndResult getCollectionFromDb(Connection conn,
-      String uniqueId) throws SQLException {
-    PreparedStatement st = conn.prepareStatement(singleDocContentSql);
+      String uniqueId, String query) throws SQLException {
+    PreparedStatement st = conn.prepareStatement(query);
     primaryKey.setStatementValues(st, uniqueId);  
     log.log(Level.FINER, "about to query: {0}",  st);
     ResultSet rs = st.executeQuery();
