@@ -14,22 +14,33 @@
 
 package com.google.enterprise.adaptor.database;
 
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
 
+import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Config;
+import com.google.enterprise.adaptor.GroupPrincipal;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
 import com.google.enterprise.adaptor.TestHelper;
+import com.google.enterprise.adaptor.UserPrincipal;
+import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 /** Tests for DatabaseAdaptor functionality */
 public class DatabaseAdaptorTest {
@@ -113,5 +124,266 @@ public class DatabaseAdaptorTest {
         throws IOException, SQLException {
       // do nothing
     }
+  }
+  
+  @Test
+  public void testAclSqlResultSetHasNoRecord() throws SQLException {
+    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
+
+    ResultSet rs =
+        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
+            new Class[] {ResultSet.class}, mockResultSet);
+    ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
+
+    Acl golden = Acl.EMPTY;
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata);
+    
+    assertEquals(golden, acl);
+  }
+  
+  @Test
+  public void testAclSqlResultSetHasOneRecord() throws SQLException {
+    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
+    Map<String, String> record = new TreeMap<String, String>();
+    record.put(GsaSpecialColumns.GSA_PERMIT_USERS.toString(), "puser1, puser2");
+    record.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser1, duser2");
+    record.put(
+        GsaSpecialColumns.GSA_PERMIT_GROUPS.toString(), "pgroup1, pgroup2");
+    record.put(
+        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup2");
+    mockResultSet.addRecord(record);
+
+    ResultSet rs =
+        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
+            new Class[] {ResultSet.class}, mockResultSet);
+    ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
+
+    Acl golden = new Acl.Builder()
+        .setPermitUsers(Arrays.asList(
+            new UserPrincipal("puser2"),
+            new UserPrincipal("puser1")))
+        .setDenyUsers(Arrays.asList(
+            new UserPrincipal("duser1"),
+            new UserPrincipal("duser2")))
+        .setPermitGroups(Arrays.asList(
+            new GroupPrincipal("pgroup1"),
+            new GroupPrincipal("pgroup2")))
+        .setDenyGroups(Arrays.asList(
+            new GroupPrincipal("dgroup2"),
+            new GroupPrincipal("dgroup1")))
+        .build();
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata);
+    
+    assertEquals(golden, acl);
+  }
+  
+  @Test
+  public void testAclSqlResultSetHasNonOverlappingTwoRecord()
+      throws SQLException {
+    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
+    Map<String, String> record = new TreeMap<String, String>();
+    record.put(GsaSpecialColumns.GSA_PERMIT_USERS.toString(), "puser1, puser2");
+    record.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser1, duser2");
+    record.put(
+        GsaSpecialColumns.GSA_PERMIT_GROUPS.toString(), "pgroup1, pgroup2");
+    record.put(
+        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup2");
+    mockResultSet.addRecord(record);
+    Map<String, String> record2 = new TreeMap<String, String>();
+    record2.put(
+        GsaSpecialColumns.GSA_PERMIT_USERS.toString(), "puser3, puser4");
+    record2.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser3, duser4");
+    record2.put(
+        GsaSpecialColumns.GSA_PERMIT_GROUPS.toString(), "pgroup3, pgroup4");
+    record2.put(
+        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup3, dgroup4");
+    mockResultSet.addRecord(record2);
+
+    ResultSet rs =
+        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
+            new Class[] {ResultSet.class}, mockResultSet);
+    ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
+
+    Acl golden = new Acl.Builder()
+        .setPermitUsers(Arrays.asList(
+            new UserPrincipal("puser2"),
+            new UserPrincipal("puser1"),
+            new UserPrincipal("puser4"),
+            new UserPrincipal("puser3")))
+        .setDenyUsers(Arrays.asList(
+            new UserPrincipal("duser2"),
+            new UserPrincipal("duser1"),
+            new UserPrincipal("duser4"),
+            new UserPrincipal("duser3")))
+        .setPermitGroups(Arrays.asList(
+            new GroupPrincipal("pgroup1"),
+            new GroupPrincipal("pgroup3"),
+            new GroupPrincipal("pgroup4"),
+            new GroupPrincipal("pgroup2")))
+        .setDenyGroups(Arrays.asList(
+            new GroupPrincipal("dgroup1"),
+            new GroupPrincipal("dgroup3"),
+            new GroupPrincipal("dgroup4"),
+            new GroupPrincipal("dgroup2")))
+        .build();
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata);
+    
+    assertEquals(golden, acl);
+  }
+  
+  @Test
+  public void testAclSqlResultSetHasOverlappingTwoRecord()
+      throws SQLException {
+    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
+    Map<String, String> record = new TreeMap<String, String>();
+    record.put(GsaSpecialColumns.GSA_PERMIT_USERS.toString(), "puser1, puser2");
+    record.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser1, duser2");
+    record.put(
+        GsaSpecialColumns.GSA_PERMIT_GROUPS.toString(), "pgroup1, pgroup1");
+    record.put(
+        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup1");
+    mockResultSet.addRecord(record);
+    Map<String, String> record2 = new TreeMap<String, String>();
+    record2.put(
+        GsaSpecialColumns.GSA_PERMIT_USERS.toString(), "puser2, puser1");
+    record2.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser4, duser2");
+    record2.put(
+        GsaSpecialColumns.GSA_PERMIT_GROUPS.toString(), "pgroup1");
+    record2.put(
+        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup2, dgroup2");
+    mockResultSet.addRecord(record2);
+
+    ResultSet rs =
+        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
+            new Class[] {ResultSet.class}, mockResultSet);
+    ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
+
+    Acl golden = new Acl.Builder()
+        .setPermitUsers(Arrays.asList(
+            new UserPrincipal("puser2"),
+            new UserPrincipal("puser1")))
+        .setDenyUsers(Arrays.asList(
+            new UserPrincipal("duser2"),
+            new UserPrincipal("duser1"),
+            new UserPrincipal("duser4")))
+        .setPermitGroups(Arrays.asList(
+            new GroupPrincipal("pgroup1")))
+        .setDenyGroups(Arrays.asList(
+            new GroupPrincipal("dgroup1"),
+            new GroupPrincipal("dgroup2")))
+        .build();
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata);
+    
+    assertEquals(golden, acl);
+  }
+  
+  @Test
+  public void testAclSqlResultSetOneColumnMissing() throws SQLException {
+    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
+    Map<String, String> record = new TreeMap<String, String>();
+    record.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser1, duser2");
+    record.put(
+        GsaSpecialColumns.GSA_PERMIT_GROUPS.toString(), "pgroup1, pgroup2");
+    record.put(
+        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup2");
+    mockResultSet.addRecord(record);
+
+    ResultSet rs =
+        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
+            new Class[] {ResultSet.class}, mockResultSet);
+    
+    MockAclSqlResultSetMetaData mockMetadata =
+        new MockAclSqlResultSetMetaData();
+    mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_USERS.toString());
+    mockMetadata.addColumn(GsaSpecialColumns.GSA_PERMIT_GROUPS.toString());
+    mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_GROUPS.toString());
+
+    ResultSetMetaData metadata =
+        (ResultSetMetaData) Proxy.newProxyInstance(
+            ResultSetMetaData.class.getClassLoader(),
+            new Class[] {ResultSetMetaData.class}, mockMetadata);
+
+    Acl golden = new Acl.Builder()
+        .setDenyUsers(Arrays.asList(
+            new UserPrincipal("duser1"),
+            new UserPrincipal("duser2")))
+        .setPermitGroups(Arrays.asList(
+            new GroupPrincipal("pgroup1"),
+            new GroupPrincipal("pgroup2")))
+        .setDenyGroups(Arrays.asList(
+            new GroupPrincipal("dgroup2"),
+            new GroupPrincipal("dgroup1")))
+        .build();
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata);
+    
+    assertEquals(golden, acl);
+  }
+  
+  private static class MockAclSqlResultSet implements InvocationHandler {
+    private ArrayList<Map<String, String>> records;
+    private int cursor;
+    
+    public MockAclSqlResultSet() {
+      records = new ArrayList<Map<String, String>>();
+      cursor = -1;
+    }
+    
+    public void addRecord(Map<String, String> record) {
+      records.add(record);
+    }
+
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args)
+        throws Throwable {
+      String methodName = method.getName(); 
+      if ("getString".equals(methodName)) {
+        return records.get(cursor).get(args[0]);
+      } else if ("next".equals(methodName)) {
+        cursor++;
+        return cursor < records.size();
+      } else {
+        throw new IllegalStateException("unexpected call: " + methodName);
+      }
+    }
+  }
+  
+  private static class MockAclSqlResultSetMetaData
+      implements InvocationHandler {
+    private ArrayList<String> columns;
+    
+    public MockAclSqlResultSetMetaData() {
+      columns = new ArrayList<String>();
+      columns.add(""); // ResultSetMetaData column index starts from 1
+    }
+    
+    public void addColumn(String column) {
+      columns.add(column);
+    }
+
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args)
+        throws Throwable {
+      String methodName = method.getName(); 
+      if ("getColumnCount".equals(methodName)) {
+        return columns.size() - 1; // don't count the first empty string
+      } else if ("getColumnName".equals(methodName)) {
+        return columns.get((Integer) args[0]);
+      } else {
+        throw new IllegalStateException("unexpected call: " + methodName);
+      }
+    }
+  }
+
+  private static ResultSetMetaData getResultSetMetaDataHasAllAclColumns() {
+    MockAclSqlResultSetMetaData mockMetadata =
+        new MockAclSqlResultSetMetaData();
+    mockMetadata.addColumn(GsaSpecialColumns.GSA_PERMIT_USERS.toString());
+    mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_USERS.toString());
+    mockMetadata.addColumn(GsaSpecialColumns.GSA_PERMIT_GROUPS.toString());
+    mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_GROUPS.toString());
+
+    return (ResultSetMetaData) Proxy.newProxyInstance(
+        ResultSetMetaData.class.getClassLoader(),
+        new Class[] {ResultSetMetaData.class}, mockMetadata);
   }
 }

@@ -40,7 +40,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private static final Logger log
       = Logger.getLogger(DatabaseAdaptor.class.getName());
   
-  private enum GsaSpecialColumns {
+  @VisibleForTesting
+  enum GsaSpecialColumns {
     GSA_PERMIT_USERS("GSA_PERMIT_USERS"),
     GSA_DENY_USERS("GSA_DENY_USERS"),
     GSA_PERMIT_GROUPS("GSA_PERMIT_GROUPS"),
@@ -353,49 +354,71 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   }
   
   private Acl getAcl(Connection conn, String uniqueId) throws SQLException {
-    Acl.Builder builder = new Acl.Builder();
     StatementAndResult statementAndResult = null;
 
     try {
       statementAndResult = getCollectionFromDb(conn, uniqueId, aclSql);
       ResultSet rs = statementAndResult.resultSet;
-
-      // TODO: right now we just take the first record, if exists, returned.
-      // We might consider changing the behavior later. For example, consolidate
-      // all the returned records in certain ways.
-      boolean hasResult = rs.next();
-      if (!hasResult) {
-        // TODO: right now if the aclSql given by the admin fails to return any 
-        // acls for a document, we just leave the document to be public. We
-        // might consider changing the behavior later.
-        return null;
-      }
-
       ResultSetMetaData metadata = rs.getMetaData();
-      if (hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_USERS.toString())) {
-        builder.setPermitUsers(getUserPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_PERMIT_USERS));
-      }
-      if (hasColumn(metadata, GsaSpecialColumns.GSA_DENY_USERS.toString())) {
-        builder.setDenyUsers(getUserPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_DENY_USERS));
-      }
-      if (hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_GROUPS.toString())) {
-        builder.setPermitGroups(getGroupPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_PERMIT_GROUPS));
-      }
-      if (hasColumn(metadata, GsaSpecialColumns.GSA_DENY_GROUPS.toString())) {
-        builder.setDenyGroups(getGroupPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_DENY_GROUPS));
-      }
+      
+      return buildAcl(rs, metadata);
     } finally {
       tryClosingStatementAndResult(statementAndResult);
     }
-    
-    return builder.build();
   }
   
-  private static ArrayList<UserPrincipal> getUserPrincipalsFromResultSet(
+  @VisibleForTesting
+  static Acl buildAcl(ResultSet rs, ResultSetMetaData metadata)
+      throws SQLException {
+    boolean hasResult = rs.next();
+    if (!hasResult) {
+      // empty Acl ensures adaptor will mark this document as secure
+      return Acl.EMPTY;
+    }
+
+    Acl.Builder builder = new Acl.Builder();
+    ArrayList<UserPrincipal> permitUsers = new ArrayList<UserPrincipal>();
+    ArrayList<UserPrincipal> denyUsers = new ArrayList<UserPrincipal>();
+    ArrayList<GroupPrincipal> permitGroups = new ArrayList<GroupPrincipal>();
+    ArrayList<GroupPrincipal> denyGroups = new ArrayList<GroupPrincipal>();
+    boolean hasPermitUsers =
+        hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_USERS.toString());
+    boolean hasDenyUsers =
+        hasColumn(metadata, GsaSpecialColumns.GSA_DENY_USERS.toString());
+    boolean hasPermitGroups =
+        hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_GROUPS.toString());
+    boolean hasDenyGroups =
+        hasColumn(metadata, GsaSpecialColumns.GSA_DENY_GROUPS.toString());
+    
+    do {
+      if (hasPermitUsers) {
+        permitUsers.addAll(getUserPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_PERMIT_USERS));
+      }
+      if (hasDenyUsers) {
+        denyUsers.addAll(getUserPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_DENY_USERS));
+      }
+      if (hasPermitGroups) {
+        permitGroups.addAll(getGroupPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_PERMIT_GROUPS));
+      }
+      if (hasDenyGroups) {
+        denyGroups.addAll(getGroupPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_DENY_GROUPS));
+      }
+    } while (rs.next());
+
+    return builder
+        .setPermitUsers(permitUsers)
+        .setDenyUsers(denyUsers)
+        .setPermitGroups(permitGroups)
+        .setDenyGroups(denyGroups)
+        .build();
+  }
+  
+  @VisibleForTesting
+  static ArrayList<UserPrincipal> getUserPrincipalsFromResultSet(
       ResultSet rs, GsaSpecialColumns column) throws SQLException {
     ArrayList<UserPrincipal> principals = new ArrayList<UserPrincipal>();
     String value = rs.getString(column.toString());
@@ -407,8 +430,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
     return principals;
   }
-  
-  private static ArrayList<GroupPrincipal> getGroupPrincipalsFromResultSet(
+
+  @VisibleForTesting
+  static ArrayList<GroupPrincipal> getGroupPrincipalsFromResultSet(
       ResultSet rs, GsaSpecialColumns column) throws SQLException {
     ArrayList<GroupPrincipal> principals = new ArrayList<GroupPrincipal>();
     String value = rs.getString(column.toString());
