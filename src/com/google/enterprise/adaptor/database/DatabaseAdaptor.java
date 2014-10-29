@@ -40,24 +40,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private static final Logger log
       = Logger.getLogger(DatabaseAdaptor.class.getName());
   
-  @VisibleForTesting
-  enum GsaSpecialColumns {
-    GSA_PERMIT_USERS("GSA_PERMIT_USERS"),
-    GSA_DENY_USERS("GSA_DENY_USERS"),
-    GSA_PERMIT_GROUPS("GSA_PERMIT_GROUPS"),
-    GSA_DENY_GROUPS("GSA_DENY_GROUPS")
-    ;
-
-    private final String text;
-
-    private GsaSpecialColumns(final String text) {
-      this.text = text;
-    }
-
-    @Override
-    public String toString() {
-      return text;
-    }
+  private static boolean isNullOrEmptyString(String str) {
+    return null == str || "".equals(str.trim());
   }
 
   private int maxIdsPerFeedFile;
@@ -71,68 +55,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private MetadataColumns metadataColumns;
   private ResponseGenerator respGenerator;
   private String aclSql;
-
-  private class DbAdaptorIncrementalLister implements PollingIncrementalLister {
-    private final String updateSql;
-    private long lastUpdateTimestampInMillis;
-
-    public DbAdaptorIncrementalLister(String updateSql) {
-      this.updateSql = updateSql;
-      log.config("update sql: " + this.updateSql);
-      this.lastUpdateTimestampInMillis = System.currentTimeMillis();
-    }
-
-    @Override
-    public void getModifiedDocIds(DocIdPusher pusher)
-        throws IOException, InterruptedException {
-      BufferingPusher outstream = new BufferingPusher(pusher);
-      Connection conn = null;
-      StatementAndResult statementAndResult = null;
-      try {
-        conn = makeNewConnection();
-        statementAndResult = getUpdateStreamFromDb(conn);
-        ResultSet rs = statementAndResult.resultSet;
-        while (rs.next()) {
-          DocId id = new DocId(primaryKey.makeUniqueId(rs));
-          DocIdPusher.Record record =
-              new DocIdPusher.Record.Builder(id).setCrawlImmediately(true)
-                  .build();
-          log.log(Level.FINEST, "doc id: {0}", id);
-          outstream.add(record);
-        }
-      } catch (SQLException problem) {
-        throw new IOException(problem);
-      } finally {
-        tryClosingStatementAndResult(statementAndResult);
-        tryClosingConnection(conn);
-      }
-      outstream.forcePush();
-
-      lastUpdateTimestampInMillis = System.currentTimeMillis();
-      log.fine("last pushing timestamp set to: " + lastUpdateTimestampInMillis);
-    }
-
-    private StatementAndResult getUpdateStreamFromDb(Connection conn)
-        throws SQLException {
-      PreparedStatement st = conn.prepareStatement(updateSql,
-          /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
-          /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
-      st.setTimestamp(1, new java.sql.Timestamp(lastUpdateTimestampInMillis));
-      ResultSet rs = st.executeQuery();
-      return new StatementAndResult(st, rs);
-    }
-  }
-
-  private DbAdaptorIncrementalLister initDbAdaptorIncrementalLister(
-      Config config) {
-    String updateSql = config.getValue("db.updateSql");
-
-    if (updateSql != null && !"".equals(updateSql.trim())) {
-      return new DbAdaptorIncrementalLister(updateSql);
-    } else {
-      return null;
-    }
-  }
 
   @Override
   public void initConfig(Config config) {
@@ -202,86 +124,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       log.config("acl sql: " + aclSql); 
     }
   }
-  
-  private static boolean isNullOrEmptyString(String str) {
-    return null == str || "".equals(str.trim());
-  }
-
-  @VisibleForTesting
-  static ResponseGenerator loadResponseGenerator(Config config) {
-    String mode = config.getValue("db.modeOfOperation");
-    if (mode.trim().equals("")) {
-      String errmsg = "modeOfOperation can not be an empty string";
-      throw new InvalidConfigurationException(errmsg);
-    }
-
-    log.fine("about to look for " + mode + " in ResponseGenerator");
-    Method method = null;
-    try {
-      method = ResponseGenerator.class.getDeclaredMethod(mode, Map.class);
-      return loadResponseGeneratorInternal(method,
-          config.getValuesWithPrefix("db.modeOfOperation." + mode + "."));
-    } catch (NoSuchMethodException ex) {
-      log.fine("did not find" + mode + " in ResponseGenerator, going to look"
-          + " for fully qualified name");
-    }
-
-    log.fine("about to try " + mode + " as a fully qualified method name");
-    int sepIndex = mode.lastIndexOf(".");
-    if (sepIndex == -1) {
-      String errmsg = mode + " cannot be parsed as a fully quailfied name";
-      throw new InvalidConfigurationException(errmsg);
-    }
-    String className = mode.substring(0, sepIndex);
-    String methodName = mode.substring(sepIndex + 1);
-    log.log(Level.FINE, "Split {0} into class {1} and method {2}",
-        new Object[] {mode, className, methodName});
-    Class<?> klass;
-    try {
-      klass = Class.forName(className);
-      method = klass.getDeclaredMethod(methodName, Map.class);
-    } catch (ClassNotFoundException ex) {
-      String errmsg = "No class " + className + " found";
-      throw new InvalidConfigurationException(errmsg, ex);
-    } catch (NoSuchMethodException ex) {
-      String errmsg = "No method " + methodName + " found for class "
-          + className;
-      throw new InvalidConfigurationException(errmsg, ex);
-    }
-
-    return loadResponseGeneratorInternal(method,
-        config.getValuesWithPrefix("db.modeOfOperation." + mode + "."));
-  }
-  
-  @VisibleForTesting
-  static ResponseGenerator loadResponseGeneratorInternal(Method method,
-      Map<String, String> config) {
-    log.fine("loading response generator specific configuration");
-    ResponseGenerator respGenerator = null;
-    Object retValue = null;
-    try {
-      retValue = method.invoke(/*static method*/null, config);
-    } catch (IllegalAccessException | IllegalArgumentException
-        | InvocationTargetException e) {
-      String errmsg = "Unexpected exception happened in invoking method";
-      throw new InvalidConfigurationException(errmsg, e);
-    }
-    if (retValue instanceof ResponseGenerator) {
-      respGenerator = (ResponseGenerator) retValue;
-    } else {
-      String errmsg = String.format("Method %s needs to return a %s",
-          method.getName(), ResponseGenerator.class.getName()); 
-      throw new InvalidConfigurationException(errmsg);
-    }
-
-    log.config("loaded response generator: " + respGenerator.toString());
-    return respGenerator;
-  }
 
   /** Get all doc ids from database. */
   @Override
   public void getDocIds(DocIdPusher pusher) throws IOException,
-         InterruptedException {
+      InterruptedException {
     BufferingPusher outstream = new BufferingPusher(pusher);
     Connection conn = null;
     StatementAndResult statementAndResult = null;
@@ -313,18 +160,15 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     StatementAndResult statementAndResult = null;
     try {
       conn = makeNewConnection();
-
       statementAndResult =
           getCollectionFromDb(conn, id.getUniqueId(), singleDocContentSql);
       ResultSet rs = statementAndResult.resultSet;
-
       // First handle cases with no data to return.
       boolean hasResult = rs.next();
       if (!hasResult) {
         resp.respondNotFound();
         return;
       }
-      
       // Generate response metadata first.
       ResultSetMetaData rsMetaData = rs.getMetaData();
       int numberOfColumns = rsMetaData.getColumnCount();
@@ -336,14 +180,12 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           resp.addMetadata(key, "" + value);
         }
       }
-      
       if (aclSql != null) {
         Acl acl = getAcl(conn, id.getUniqueId());
         if (acl != null) {
           resp.setAcl(acl);
         }
       }
-      
       respGenerator.generateResponse(rs, resp);
     } catch (SQLException problem) {
       throw new IOException("retrieval error", problem);
@@ -352,15 +194,17 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       tryClosingConnection(conn);
     }
   }
+
+  public static void main(String[] args) {
+    AbstractAdaptor.main(new DatabaseAdaptor(), args);
+  }
   
   private Acl getAcl(Connection conn, String uniqueId) throws SQLException {
     StatementAndResult statementAndResult = null;
-
     try {
       statementAndResult = getCollectionFromDb(conn, uniqueId, aclSql);
       ResultSet rs = statementAndResult.resultSet;
       ResultSetMetaData metadata = rs.getMetaData();
-      
       return buildAcl(rs, metadata);
     } finally {
       tryClosingStatementAndResult(statementAndResult);
@@ -375,7 +219,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       // empty Acl ensures adaptor will mark this document as secure
       return Acl.EMPTY;
     }
-
     Acl.Builder builder = new Acl.Builder();
     ArrayList<UserPrincipal> permitUsers = new ArrayList<UserPrincipal>();
     ArrayList<UserPrincipal> denyUsers = new ArrayList<UserPrincipal>();
@@ -389,7 +232,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_GROUPS.toString());
     boolean hasDenyGroups =
         hasColumn(metadata, GsaSpecialColumns.GSA_DENY_GROUPS.toString());
-    
     do {
       if (hasPermitUsers) {
         permitUsers.addAll(getUserPrincipalsFromResultSet(rs,
@@ -408,7 +250,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             GsaSpecialColumns.GSA_DENY_GROUPS));
       }
     } while (rs.next());
-
     return builder
         .setPermitUsers(permitUsers)
         .setDenyUsers(denyUsers)
@@ -454,10 +295,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       }
     }
     return false;
-  }
-
-  public static void main(String[] args) {
-    AbstractAdaptor.main(new DatabaseAdaptor(), args);
   }
 
   private static class StatementAndResult {
@@ -563,6 +400,153 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       if (0 != saved.size()) {
         log.warning("still have saved ids that weren't sent");
       }
+    }
+  }
+
+  @VisibleForTesting
+  static ResponseGenerator loadResponseGenerator(Config config) {
+    String mode = config.getValue("db.modeOfOperation");
+    if (mode.trim().equals("")) {
+      String errmsg = "modeOfOperation can not be an empty string";
+      throw new InvalidConfigurationException(errmsg);
+    }
+    log.fine("about to look for " + mode + " in ResponseGenerator");
+    Method method = null;
+    try {
+      method = ResponseGenerator.class.getDeclaredMethod(mode, Map.class);
+      return loadResponseGeneratorInternal(method,
+          config.getValuesWithPrefix("db.modeOfOperation." + mode + "."));
+    } catch (NoSuchMethodException ex) {
+      log.fine("did not find" + mode + " in ResponseGenerator, going to look"
+          + " for fully qualified name");
+    }
+    log.fine("about to try " + mode + " as a fully qualified method name");
+    int sepIndex = mode.lastIndexOf(".");
+    if (sepIndex == -1) {
+      String errmsg = mode + " cannot be parsed as a fully quailfied name";
+      throw new InvalidConfigurationException(errmsg);
+    }
+    String className = mode.substring(0, sepIndex);
+    String methodName = mode.substring(sepIndex + 1);
+    log.log(Level.FINE, "Split {0} into class {1} and method {2}",
+        new Object[] {mode, className, methodName});
+    Class<?> klass;
+    try {
+      klass = Class.forName(className);
+      method = klass.getDeclaredMethod(methodName, Map.class);
+    } catch (ClassNotFoundException ex) {
+      String errmsg = "No class " + className + " found";
+      throw new InvalidConfigurationException(errmsg, ex);
+    } catch (NoSuchMethodException ex) {
+      String errmsg = "No method " + methodName + " found for class "
+          + className;
+      throw new InvalidConfigurationException(errmsg, ex);
+    }
+    return loadResponseGeneratorInternal(method,
+        config.getValuesWithPrefix("db.modeOfOperation." + mode + "."));
+  }
+  
+  @VisibleForTesting
+  static ResponseGenerator loadResponseGeneratorInternal(Method method,
+      Map<String, String> config) {
+    log.fine("loading response generator specific configuration");
+    ResponseGenerator respGenerator = null;
+    Object retValue = null;
+    try {
+      retValue = method.invoke(/*static method*/null, config);
+    } catch (IllegalAccessException | IllegalArgumentException
+        | InvocationTargetException e) {
+      String errmsg = "Unexpected exception happened in invoking method";
+      throw new InvalidConfigurationException(errmsg, e);
+    }
+    if (retValue instanceof ResponseGenerator) {
+      respGenerator = (ResponseGenerator) retValue;
+    } else {
+      String errmsg = String.format("Method %s needs to return a %s",
+          method.getName(), ResponseGenerator.class.getName()); 
+      throw new InvalidConfigurationException(errmsg);
+    }
+    log.config("loaded response generator: " + respGenerator.toString());
+    return respGenerator;
+  }
+
+  private class DbAdaptorIncrementalLister implements PollingIncrementalLister {
+    private final String updateSql;
+    private long lastUpdateTimestampInMillis;
+
+    public DbAdaptorIncrementalLister(String updateSql) {
+      this.updateSql = updateSql;
+      log.config("update sql: " + this.updateSql);
+      this.lastUpdateTimestampInMillis = System.currentTimeMillis();
+    }
+
+    @Override
+    public void getModifiedDocIds(DocIdPusher pusher)
+        throws IOException, InterruptedException {
+      BufferingPusher outstream = new BufferingPusher(pusher);
+      Connection conn = null;
+      StatementAndResult statementAndResult = null;
+      try {
+        conn = makeNewConnection();
+        statementAndResult = getUpdateStreamFromDb(conn);
+        ResultSet rs = statementAndResult.resultSet;
+        while (rs.next()) {
+          DocId id = new DocId(primaryKey.makeUniqueId(rs));
+          DocIdPusher.Record record =
+              new DocIdPusher.Record.Builder(id).setCrawlImmediately(true)
+                  .build();
+          log.log(Level.FINEST, "doc id: {0}", id);
+          outstream.add(record);
+        }
+      } catch (SQLException problem) {
+        throw new IOException(problem);
+      } finally {
+        tryClosingStatementAndResult(statementAndResult);
+        tryClosingConnection(conn);
+      }
+      outstream.forcePush();
+      lastUpdateTimestampInMillis = System.currentTimeMillis();
+      log.fine("last pushing timestamp set to: " + lastUpdateTimestampInMillis);
+    }
+
+    private StatementAndResult getUpdateStreamFromDb(Connection conn)
+        throws SQLException {
+      PreparedStatement st = conn.prepareStatement(updateSql,
+          /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
+          /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
+      st.setTimestamp(1, new java.sql.Timestamp(lastUpdateTimestampInMillis));
+      ResultSet rs = st.executeQuery();
+      return new StatementAndResult(st, rs);
+    }
+  }
+
+  private DbAdaptorIncrementalLister initDbAdaptorIncrementalLister(
+      Config config) {
+    String updateSql = config.getValue("db.updateSql");
+    if (updateSql != null && !"".equals(updateSql.trim())) {
+      return new DbAdaptorIncrementalLister(updateSql);
+    } else {
+      return null;
+    }
+  }
+  
+  @VisibleForTesting
+  enum GsaSpecialColumns {
+    GSA_PERMIT_USERS("GSA_PERMIT_USERS"),
+    GSA_DENY_USERS("GSA_DENY_USERS"),
+    GSA_PERMIT_GROUPS("GSA_PERMIT_GROUPS"),
+    GSA_DENY_GROUPS("GSA_DENY_GROUPS")
+    ;
+
+    private final String text;
+
+    private GsaSpecialColumns(final String text) {
+      this.text = text;
+    }
+
+    @Override
+    public String toString() {
+      return text;
     }
   }
 }
