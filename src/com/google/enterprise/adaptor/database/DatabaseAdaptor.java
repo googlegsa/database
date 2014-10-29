@@ -55,6 +55,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private MetadataColumns metadataColumns;
   private ResponseGenerator respGenerator;
   private String aclSql;
+  private String aclPrincipalDelimiter;
 
   @Override
   public void initConfig(Config config) {
@@ -70,6 +71,13 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.modeOfOperation", null);
     config.addKey("db.updateSql", "");
     config.addKey("db.aclSql", "");
+    // by default, the delimiter is a single comma. This delimiter will be taken
+    // from admin's config as is. For example, if the delimiter is
+    //   "", it means no splitting
+    //   "  ", it means to split with exactly two whitespaces
+    //   " , ", it means to split with one leading whitespace, one comma, and
+    //          one trailing whitespace
+    config.addKey("db.aclPrincipalDelimiter", ",");
   }
 
   @Override
@@ -122,6 +130,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     if (!isNullOrEmptyString(cfg.getValue("db.aclSql"))) {
       aclSql = cfg.getValue("db.aclSql");
       log.config("acl sql: " + aclSql); 
+      aclPrincipalDelimiter = cfg.getValue("db.aclPrincipalDelimiter");
+      log.config("aclPrincipalDelimiter: '" + aclPrincipalDelimiter + "'");
     }
   }
 
@@ -205,14 +215,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       statementAndResult = getCollectionFromDb(conn, uniqueId, aclSql);
       ResultSet rs = statementAndResult.resultSet;
       ResultSetMetaData metadata = rs.getMetaData();
-      return buildAcl(rs, metadata);
+      return buildAcl(rs, metadata, aclPrincipalDelimiter);
     } finally {
       tryClosingStatementAndResult(statementAndResult);
     }
   }
   
   @VisibleForTesting
-  static Acl buildAcl(ResultSet rs, ResultSetMetaData metadata)
+  static Acl buildAcl(ResultSet rs, ResultSetMetaData metadata, String delim)
       throws SQLException {
     boolean hasResult = rs.next();
     if (!hasResult) {
@@ -235,19 +245,19 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     do {
       if (hasPermitUsers) {
         permitUsers.addAll(getUserPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_PERMIT_USERS));
+            GsaSpecialColumns.GSA_PERMIT_USERS, delim));
       }
       if (hasDenyUsers) {
         denyUsers.addAll(getUserPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_DENY_USERS));
+            GsaSpecialColumns.GSA_DENY_USERS, delim));
       }
       if (hasPermitGroups) {
         permitGroups.addAll(getGroupPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_PERMIT_GROUPS));
+            GsaSpecialColumns.GSA_PERMIT_GROUPS, delim));
       }
       if (hasDenyGroups) {
         denyGroups.addAll(getGroupPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_DENY_GROUPS));
+            GsaSpecialColumns.GSA_DENY_GROUPS, delim));
       }
     } while (rs.next());
     return builder
@@ -259,28 +269,38 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   }
   
   @VisibleForTesting
-  static ArrayList<UserPrincipal> getUserPrincipalsFromResultSet(
-      ResultSet rs, GsaSpecialColumns column) throws SQLException {
+  static ArrayList<UserPrincipal> getUserPrincipalsFromResultSet(ResultSet rs,
+      GsaSpecialColumns column, String delim) throws SQLException {
     ArrayList<UserPrincipal> principals = new ArrayList<UserPrincipal>();
     String value = rs.getString(column.toString());
     if (!isNullOrEmptyString(value)) {
-      String principalNames[] = value.split(",", 0); // drop trailing empties
-      for (String principalName : principalNames) {
-        principals.add(new UserPrincipal(principalName.trim()));
+      if ("".equals(delim)) {
+        principals.add(new UserPrincipal(value));
+      } else {
+        // drop trailing empties
+        String principalNames[] = value.split(delim, 0);
+        for (String principalName : principalNames) {
+          principals.add(new UserPrincipal(principalName));
+        }
       }
     }
     return principals;
   }
 
   @VisibleForTesting
-  static ArrayList<GroupPrincipal> getGroupPrincipalsFromResultSet(
-      ResultSet rs, GsaSpecialColumns column) throws SQLException {
+  static ArrayList<GroupPrincipal> getGroupPrincipalsFromResultSet(ResultSet rs,
+      GsaSpecialColumns column, String delim) throws SQLException {
     ArrayList<GroupPrincipal> principals = new ArrayList<GroupPrincipal>();
     String value = rs.getString(column.toString());
     if (!isNullOrEmptyString(value)) {
-      String principalNames[] = value.split(",", 0); // drop trailing empties
-      for (String principalName : principalNames) {
-        principals.add(new GroupPrincipal(principalName.trim()));
+      if ("".equals(delim)) {
+        principals.add(new GroupPrincipal(value));
+      } else {
+        // drop trailing empties
+        String principalNames[] = value.split(delim, 0);
+        for (String principalName : principalNames) {
+          principals.add(new GroupPrincipal(principalName));
+        }
       }
     }
     return principals;

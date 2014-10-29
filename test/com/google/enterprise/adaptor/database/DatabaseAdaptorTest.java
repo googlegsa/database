@@ -39,6 +39,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -136,7 +137,7 @@ public class DatabaseAdaptorTest {
     ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
 
     Acl golden = Acl.EMPTY;
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
     
     assertEquals(golden, acl);
   }
@@ -172,7 +173,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2"),
             new GroupPrincipal("dgroup1")))
         .build();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
     
     assertEquals(golden, acl);
   }
@@ -226,7 +227,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup4"),
             new GroupPrincipal("dgroup2")))
         .build();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
     
     assertEquals(golden, acl);
   }
@@ -272,7 +273,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup1"),
             new GroupPrincipal("dgroup2")))
         .build();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
     
     assertEquals(golden, acl);
   }
@@ -314,9 +315,71 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2"),
             new GroupPrincipal("dgroup1")))
         .build();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
     
     assertEquals(golden, acl);
+  }
+  
+  @Test
+  public void testGetPrincipalsWithEmptyDelim() throws SQLException {
+    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
+    Map<String, String> record = new TreeMap<String, String>();
+    record.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser1, duser2");
+    record.put(
+        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup2");
+    mockResultSet.addRecord(record);
+
+    ResultSet rs =
+        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
+            new Class[] {ResultSet.class}, mockResultSet);
+    rs.next();
+    
+    List<UserPrincipal> goldenUsers = Arrays.asList(
+        new UserPrincipal("duser1, duser2"));
+    List<GroupPrincipal> goldenGroups = Arrays.asList(
+        new GroupPrincipal("dgroup1, dgroup2"));
+
+    ArrayList<UserPrincipal> users =
+        DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_DENY_USERS, "");
+    ArrayList<GroupPrincipal> groups =
+        DatabaseAdaptor.getGroupPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_DENY_GROUPS, "");
+    
+    assertEquals(goldenUsers, users);
+    assertEquals(goldenGroups, groups);
+  }
+  
+  @Test
+  public void testGetPrincipalsWithUserDefinedDelim() throws SQLException {
+    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
+    Map<String, String> record = new TreeMap<String, String>();
+    record.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser1 ; duser2");
+    record.put(
+        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1 ; dgroup2");
+    mockResultSet.addRecord(record);
+
+    ResultSet rs =
+        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
+            new Class[] {ResultSet.class}, mockResultSet);
+    rs.next();
+    
+    List<UserPrincipal> goldenUsers = Arrays.asList(
+        new UserPrincipal("duser1"), 
+        new UserPrincipal("duser2"));
+    List<GroupPrincipal> goldenGroups = Arrays.asList(
+        new GroupPrincipal("dgroup1"),
+        new GroupPrincipal("dgroup2"));
+
+    ArrayList<UserPrincipal> users =
+        DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_DENY_USERS, " ; ");
+    ArrayList<GroupPrincipal> groups =
+        DatabaseAdaptor.getGroupPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_DENY_GROUPS, " ; ");
+    
+    assertEquals(goldenUsers, users);
+    assertEquals(goldenGroups, groups);
   }
   
   private static class MockAclSqlResultSet implements InvocationHandler {
