@@ -49,7 +49,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String dbUrl;
   private String user;
   private String password;
-  private PrimaryKey primaryKey;
+  private UniqueKey uniqueKey;
   private String everyDocIdSql;
   private String singleDocContentSql;
   private MetadataColumns metadataColumns;
@@ -62,7 +62,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.url", null);
     config.addKey("db.user", null);
     config.addKey("db.password", null);
-    config.addKey("db.primaryKey", null);
+    config.addKey("db.uniqueKey", null);
     config.addKey("db.everyDocIdSql", null);
     config.addKey("db.singleDocContentSql", null);
     config.addKey("db.singleDocContentParameters", "");
@@ -95,11 +95,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         cfg.getValue("db.password"));
     // log.config("db password: " + password);
 
-    primaryKey = new PrimaryKey(
-        cfg.getValue("db.primaryKey"),
+    uniqueKey = new UniqueKey(
+        cfg.getValue("db.uniqueKey"),
         cfg.getValue("db.singleDocContentParameters")
     );
-    log.config("primary key: " + primaryKey);
+    log.config("primary key: " + uniqueKey);
 
     everyDocIdSql = cfg.getValue("db.everyDocIdSql");
     log.config("every doc id sql: " + everyDocIdSql);
@@ -137,7 +137,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       statementAndResult = getStreamFromDb(conn, everyDocIdSql);
       ResultSet rs = statementAndResult.resultSet;
       while (rs.next()) {
-        DocId id = new DocId(primaryKey.makeUniqueId(rs));
+        DocId id = new DocId(uniqueKey.makeUniqueId(rs));
         DocIdPusher.Record record =
             new DocIdPusher.Record.Builder(id).build();
         log.log(Level.FINEST, "doc id: {0}", id);
@@ -322,7 +322,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private StatementAndResult getCollectionFromDb(Connection conn,
       String uniqueId, String query) throws SQLException {
     PreparedStatement st = conn.prepareStatement(query);
-    primaryKey.setStatementValues(st, uniqueId);  
+    uniqueKey.setStatementValues(st, uniqueId);  
     log.log(Level.FINER, "about to query: {0}",  st);
     ResultSet rs = st.executeQuery();
     log.finer("queried");
@@ -491,7 +491,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         statementAndResult = getUpdateStreamFromDb(conn);
         ResultSet rs = statementAndResult.resultSet;
         while (rs.next()) {
-          DocId id = new DocId(primaryKey.makeUniqueId(rs));
+          DocId id = new DocId(uniqueKey.makeUniqueId(rs));
           DocIdPusher.Record record =
               new DocIdPusher.Record.Builder(id).setCrawlImmediately(true)
                   .build();

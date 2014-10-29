@@ -29,9 +29,9 @@ import java.util.TreeMap;
 import java.util.logging.Logger;
 
 /** Provides adaptor DocId and fills getDocContent query. */
-class PrimaryKey {
+class UniqueKey {
   private static final Logger log
-      = Logger.getLogger(PrimaryKey.class.getName());
+      = Logger.getLogger(UniqueKey.class.getName());
 
   static enum ColumnType {
     INT,
@@ -42,7 +42,7 @@ class PrimaryKey {
   private final Map<String, ColumnType> types;  // types of DocId columns
   private final List<String> contentSqlCols;  // columns for content query
 
-  PrimaryKey(String pkDecls, String contentSqlColumns) {
+  UniqueKey(String pkDecls, String contentSqlColumns) {
     if (null == pkDecls) {
       throw new NullPointerException();
     }
@@ -97,12 +97,12 @@ class PrimaryKey {
   }
 
   @VisibleForTesting
-  PrimaryKey(String pkDecls) {
+  UniqueKey(String pkDecls) {
     this(pkDecls, "");
   }
 
   public String toString() {
-    return "PrimaryKey(" + names + "," + types + "," + contentSqlCols + ")";
+    return "UniqueKey(" + names + "," + types + "," + contentSqlCols + ")";
   }
 
   String makeUniqueId(ResultSet rs) throws SQLException {

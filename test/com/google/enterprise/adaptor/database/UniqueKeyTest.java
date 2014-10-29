@@ -33,73 +33,73 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
-/** Test cases for {@link PrimaryKey}. */
-public class PrimaryKeyTest {
+/** Test cases for {@link UniqueKey}. */
+public class UniqueKeyTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();
 
   @Test
   public void testNullKeys() {
     thrown.expect(NullPointerException.class);
-    PrimaryKey pk = new PrimaryKey(null, "");
+    UniqueKey pk = new UniqueKey(null, "");
   }
 
   @Test
   public void testNullContentCols() {
     thrown.expect(NullPointerException.class);
-    PrimaryKey pk = new PrimaryKey("num:int", null);
+    UniqueKey pk = new UniqueKey("num:int", null);
   }
 
   @Test
   public void testSingleInt() {
-    PrimaryKey pk = new PrimaryKey("numnum:int");
+    UniqueKey pk = new UniqueKey("numnum:int");
     assertEquals(1, pk.numElementsForTest());
     assertEquals("numnum", pk.nameForTest(0));
-    assertEquals(PrimaryKey.ColumnType.INT, pk.typeForTest(0));
+    assertEquals(UniqueKey.ColumnType.INT, pk.typeForTest(0));
   }
 
   @Test
   public void testEmptyThrows() {
     thrown.expect(InvalidConfigurationException.class);
-    PrimaryKey pk = new PrimaryKey(" ");
+    UniqueKey pk = new UniqueKey(" ");
   }
 
   @Test
   public void testTwoInt() {
-    PrimaryKey pk = new PrimaryKey("numnum:int,other:int");
+    UniqueKey pk = new UniqueKey("numnum:int,other:int");
     assertEquals(2, pk.numElementsForTest());
     assertEquals("numnum", pk.nameForTest(0));
     assertEquals("other", pk.nameForTest(1));
-    assertEquals(PrimaryKey.ColumnType.INT, pk.typeForTest(0));
-    assertEquals(PrimaryKey.ColumnType.INT, pk.typeForTest(1));
+    assertEquals(UniqueKey.ColumnType.INT, pk.typeForTest(0));
+    assertEquals(UniqueKey.ColumnType.INT, pk.typeForTest(1));
   }
 
   @Test
   public void testIntString() {
-    PrimaryKey pk = new PrimaryKey("numnum:int,strstr:string");
+    UniqueKey pk = new UniqueKey("numnum:int,strstr:string");
     assertEquals(2, pk.numElementsForTest());
     assertEquals("numnum", pk.nameForTest(0));
     assertEquals("strstr", pk.nameForTest(1));
-    assertEquals(PrimaryKey.ColumnType.INT, pk.typeForTest(0));
-    assertEquals(PrimaryKey.ColumnType.STRING, pk.typeForTest(1));
+    assertEquals(UniqueKey.ColumnType.INT, pk.typeForTest(0));
+    assertEquals(UniqueKey.ColumnType.STRING, pk.typeForTest(1));
   }
 
   @Test
   public void testNameRepeatsNotAllowed() {
     thrown.expect(InvalidConfigurationException.class);
-    PrimaryKey pk = new PrimaryKey("num:int,num:string");
+    UniqueKey pk = new UniqueKey("num:int,num:string");
   }
 
   @Test
   public void testBadDef() {
     thrown.expect(InvalidConfigurationException.class);
-    PrimaryKey pk = new PrimaryKey("numnum:int,strstr/string");
+    UniqueKey pk = new UniqueKey("numnum:int,strstr/string");
   }
 
   @Test
   public void testUnknownContentCol() {
     thrown.expect(InvalidConfigurationException.class);
-    PrimaryKey pk = new PrimaryKey("numnum:int,strstr:string",
+    UniqueKey pk = new UniqueKey("numnum:int,strstr:string",
         "numnum,IsStranger,strstr");
   }
 
@@ -123,7 +123,7 @@ public class PrimaryKeyTest {
 
   @Test
   public void testProcessingDocId() throws SQLException {
-    PrimaryKey pk = new PrimaryKey("numnum:int,strstr:string");
+    UniqueKey pk = new UniqueKey("numnum:int,strstr:string");
     assertEquals("345/abc", pk.makeUniqueId(makeMockResultSet(345, "abc")));
   }
 
@@ -154,7 +154,7 @@ public class PrimaryKeyTest {
         PreparedStatement.class.getClassLoader(),
         new Class[] { PreparedStatement.class }, psh);
 
-    PrimaryKey pk = new PrimaryKey("numnum:int,strstr:string");
+    UniqueKey pk = new UniqueKey("numnum:int,strstr:string");
     pk.setStatementValues(ps, "888/bluesky");
     assertEquals(2, psh.ncalls);
   }
@@ -180,7 +180,7 @@ public class PrimaryKeyTest {
         PreparedStatement.class.getClassLoader(),
         new Class[] { PreparedStatement.class }, psh);
 
-    PrimaryKey pk = new PrimaryKey("numnum:int,strstr:string",
+    UniqueKey pk = new UniqueKey("numnum:int,strstr:string",
         "numnum,numnum,strstr,numnum,strstr,strstr,numnum");
     pk.setStatementValues(ps, "888/bluesky");
     List<String> golden = Arrays.asList(
@@ -196,7 +196,7 @@ public class PrimaryKeyTest {
   }
 
   private static String roundtrip(String in) {
-    return PrimaryKey.decodeSlashInData(PrimaryKey.encodeSlashInData(in));
+    return UniqueKey.decodeSlashInData(UniqueKey.encodeSlashInData(in));
   }
 
   @Test
