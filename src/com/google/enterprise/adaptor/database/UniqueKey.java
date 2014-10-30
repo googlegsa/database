@@ -48,8 +48,8 @@ class UniqueKey {
   private final List<String> contentSqlCols;  // columns for content query
   private final List<String> aclSqlCols;  // columns for acl query
 
-  UniqueKey(String pkDecls, String contentSqlColumns, String aclSqlColumns) {
-    if (null == pkDecls) {
+  UniqueKey(String ukDecls, String contentSqlColumns, String aclSqlColumns) {
+    if (null == ukDecls) {
       throw new NullPointerException();
     }
     if (null == contentSqlColumns) {
@@ -59,15 +59,15 @@ class UniqueKey {
       throw new NullPointerException();
     }
 
-    if ("".equals(pkDecls.trim())) {
-      throw new InvalidConfigurationException("empty");
+    if ("".equals(ukDecls.trim())) {
+      throw new InvalidConfigurationException("unique key can't be empty");
     }
 
     List<String> tmpNames = new ArrayList<String>();
     Map<String, ColumnType> tmpTypes = new TreeMap<String, ColumnType>();
-    for (String e : pkDecls.split(",", -1)) {
+    for (String e : ukDecls.split(",", 0)) {
       log.fine("element: " + e);
-      String def[] = e.split(":", -1);
+      String def[] = e.split(":", 2);
       if (2 != def.length) {
         throw new InvalidConfigurationException("bad def: " + e);
       }
@@ -113,8 +113,7 @@ class UniqueKey {
   private static List<String> splitIntoNameList(String cols,
       Set<String> validNames) {
     List<String> tmpContentCols = new ArrayList<String>();
-    for (String e : cols.split(",", -1)) {
-      String name = e;
+    for (String name : cols.split(",", 0)) {
       if (!validNames.contains(name)) {
         throw new InvalidConfigurationException("unknown name: " + name);
       }
@@ -124,12 +123,12 @@ class UniqueKey {
   }
 
   @VisibleForTesting
-  UniqueKey(String pkDecls) {
-    this(pkDecls, "", "");
+  UniqueKey(String ukDecls) {
+    this(ukDecls, "", "");
   }
 
   public String toString() {
-    return "UniqueKey(" + names + "," + types + "," + contentSqlCols 
+    return "UniqueKey(" + names + "," + types + "," + contentSqlCols + ","
         + aclSqlCols + ")";
   }
 
@@ -159,17 +158,17 @@ class UniqueKey {
           break;
         default:
           throw new AssertionError("invalid type: " + types.get(name)); 
-      } 
+      }
       part = encodeSlashInData(part);
       sb.append("/").append(part);
     }
     return sb.toString().substring(1);
   }
 
-  private void setSqlValues(PreparedStatement st, String uniqueId, List<String> sqlCols)
-      throws SQLException {
+  private void setSqlValues(PreparedStatement st, String uniqueId,
+      List<String> sqlCols) throws SQLException {
     uniqueId = decodeSlashInData(uniqueId);
-    String parts[] = uniqueId.split("/", -1);
+    String parts[] = uniqueId.split("/", 0);
     if (parts.length != names.size()) {
       throw new IllegalStateException("wrong number of values for primary key");
     }

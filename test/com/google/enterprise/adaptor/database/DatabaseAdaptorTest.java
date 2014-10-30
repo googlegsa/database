@@ -116,10 +116,14 @@ public class DatabaseAdaptorTest {
   }
 
   static ResponseGenerator createDummy(Map<String, String> config) {
-    return new DummyResponseGenerator();
+    return new DummyResponseGenerator(config);
   }
 
   private static class DummyResponseGenerator extends ResponseGenerator {
+    public DummyResponseGenerator(Map<String, String> config) {
+      super(config);
+    }
+
     @Override
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {

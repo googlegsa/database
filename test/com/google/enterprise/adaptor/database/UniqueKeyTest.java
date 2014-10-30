@@ -41,78 +41,78 @@ public class UniqueKeyTest {
   @Test
   public void testNullKeys() {
     thrown.expect(NullPointerException.class);
-    UniqueKey pk = new UniqueKey(null, "", "");
+    UniqueKey uk = new UniqueKey(null, "", "");
   }
 
   @Test
   public void testNullContentCols() {
     thrown.expect(NullPointerException.class);
-    UniqueKey pk = new UniqueKey("num:int", null, "");
+    UniqueKey uk = new UniqueKey("num:int", null, "");
   }
 
   @Test
   public void testNullAclCols() {
     thrown.expect(NullPointerException.class);
-    UniqueKey pk = new UniqueKey("num:int", "", null);
+    UniqueKey uk = new UniqueKey("num:int", "", null);
   }
 
   @Test
   public void testSingleInt() {
-    UniqueKey pk = new UniqueKey("numnum:int");
-    assertEquals(1, pk.numElementsForTest());
-    assertEquals("numnum", pk.nameForTest(0));
-    assertEquals(UniqueKey.ColumnType.INT, pk.typeForTest(0));
+    UniqueKey uk = new UniqueKey("numnum:int");
+    assertEquals(1, uk.numElementsForTest());
+    assertEquals("numnum", uk.nameForTest(0));
+    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
   }
 
   @Test
   public void testEmptyThrows() {
     thrown.expect(InvalidConfigurationException.class);
-    UniqueKey pk = new UniqueKey(" ");
+    UniqueKey uk = new UniqueKey(" ");
   }
 
   @Test
   public void testTwoInt() {
-    UniqueKey pk = new UniqueKey("numnum:int,other:int");
-    assertEquals(2, pk.numElementsForTest());
-    assertEquals("numnum", pk.nameForTest(0));
-    assertEquals("other", pk.nameForTest(1));
-    assertEquals(UniqueKey.ColumnType.INT, pk.typeForTest(0));
-    assertEquals(UniqueKey.ColumnType.INT, pk.typeForTest(1));
+    UniqueKey uk = new UniqueKey("numnum:int,other:int");
+    assertEquals(2, uk.numElementsForTest());
+    assertEquals("numnum", uk.nameForTest(0));
+    assertEquals("other", uk.nameForTest(1));
+    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
+    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(1));
   }
 
   @Test
   public void testIntString() {
-    UniqueKey pk = new UniqueKey("numnum:int,strstr:string");
-    assertEquals(2, pk.numElementsForTest());
-    assertEquals("numnum", pk.nameForTest(0));
-    assertEquals("strstr", pk.nameForTest(1));
-    assertEquals(UniqueKey.ColumnType.INT, pk.typeForTest(0));
-    assertEquals(UniqueKey.ColumnType.STRING, pk.typeForTest(1));
+    UniqueKey uk = new UniqueKey("numnum:int,strstr:string");
+    assertEquals(2, uk.numElementsForTest());
+    assertEquals("numnum", uk.nameForTest(0));
+    assertEquals("strstr", uk.nameForTest(1));
+    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
+    assertEquals(UniqueKey.ColumnType.STRING, uk.typeForTest(1));
   }
 
   @Test
   public void testNameRepeatsNotAllowed() {
     thrown.expect(InvalidConfigurationException.class);
-    UniqueKey pk = new UniqueKey("num:int,num:string");
+    UniqueKey uk = new UniqueKey("num:int,num:string");
   }
 
   @Test
   public void testBadDef() {
     thrown.expect(InvalidConfigurationException.class);
-    UniqueKey pk = new UniqueKey("numnum:int,strstr/string");
+    UniqueKey uk = new UniqueKey("numnum:int,strstr/string");
   }
 
   @Test
   public void testUnknownContentCol() {
     thrown.expect(InvalidConfigurationException.class);
-    UniqueKey pk = new UniqueKey("numnum:int,strstr:string",
+    UniqueKey uk = new UniqueKey("numnum:int,strstr:string",
         "numnum,IsStranger,strstr", "");
   }
 
   @Test
   public void testUnknownAclCol() {
     thrown.expect(InvalidConfigurationException.class);
-    UniqueKey pk = new UniqueKey("numnum:int,strstr:string", "",
+    UniqueKey uk = new UniqueKey("numnum:int,strstr:string", "",
         "numnum,IsStranger,strstr");
   }
 
@@ -136,8 +136,8 @@ public class UniqueKeyTest {
 
   @Test
   public void testProcessingDocId() throws SQLException {
-    UniqueKey pk = new UniqueKey("numnum:int,strstr:string");
-    assertEquals("345/abc", pk.makeUniqueId(makeMockResultSet(345, "abc")));
+    UniqueKey uk = new UniqueKey("numnum:int,strstr:string");
+    assertEquals("345/abc", uk.makeUniqueId(makeMockResultSet(345, "abc")));
   }
 
   private static class PreparedStatementHandler implements 
@@ -179,9 +179,9 @@ public class UniqueKeyTest {
         PreparedStatement.class.getClassLoader(),
         new Class[] { PreparedStatement.class }, psh);
 
-    UniqueKey pk = new UniqueKey("numnum:int,strstr:string,"
+    UniqueKey uk = new UniqueKey("numnum:int,strstr:string,"
         + "timestamp:timestamp,date:date,time:time,long:long");
-    pk.setContentSqlValues(ps, "888/bluesky/1414701070212/2014-01-01/"
+    uk.setContentSqlValues(ps, "888/bluesky/1414701070212/2014-01-01/"
         + "02:03:04/123");
     assertEquals(6, psh.ncalls);
   }
@@ -207,9 +207,9 @@ public class UniqueKeyTest {
         PreparedStatement.class.getClassLoader(),
         new Class[] { PreparedStatement.class }, psh);
 
-    UniqueKey pk = new UniqueKey("numnum:int,strstr:string",
+    UniqueKey uk = new UniqueKey("numnum:int,strstr:string",
         "numnum,numnum,strstr,numnum,strstr,strstr,numnum", "");
-    pk.setContentSqlValues(ps, "888/bluesky");
+    uk.setContentSqlValues(ps, "888/bluesky");
     List<String> golden = Arrays.asList(
         "setInt", "1", "888",
         "setInt", "2", "888",

@@ -179,7 +179,8 @@ public class ResponseGeneratorTest {
     resgen.generateResponse(makeMockBlobResultSet(b), response);
   }
  
-  private static void addContent(File f, String content) throws IOException {
+  private static void writeDataToFile(File f, String content)
+      throws IOException {
     FileOutputStream fw = null;
     try {
       fw = new FileOutputStream(f);
@@ -206,7 +207,7 @@ public class ResponseGeneratorTest {
     try {
       testFile = File.createTempFile("db.rg.test", ".txt");
       String content = "we live inside a file\nwe do\nyes";
-      addContent(testFile, content);
+      writeDataToFile(testFile, content);
       ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
       resgen.generateResponse(makeMockFilepathResultSet(testFile), response);
       String responseMsg = new String(far.baos.toByteArray(), "UTF-8");
@@ -232,7 +233,7 @@ public class ResponseGeneratorTest {
     try {
       testFile = File.createTempFile("db.rg.test", ".txt");
       String content = "we live inside a file\nwe do\nyes";
-      addContent(testFile, content);
+      writeDataToFile(testFile, content);
       ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
       thrown.expect(java.sql.SQLException.class);
       resgen.generateResponse(makeMockFilepathResultSet(testFile), response);
@@ -257,7 +258,7 @@ public class ResponseGeneratorTest {
     try {
       testFile = File.createTempFile("db.rg.test", ".txt");
       String content = "from a yellow url connection comes monty python";
-      addContent(testFile, content);
+      writeDataToFile(testFile, content);
       ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
       URL testUrl = testFile.toURI().toURL();
       ResultSet rs = makeMockUrlResultSet(testUrl);
@@ -287,7 +288,7 @@ public class ResponseGeneratorTest {
     try {
       testFile = File.createTempFile("db.rg.test", ".txt");
       String content = "from a yellow url connection comes monty python";
-      addContent(testFile, content);
+      writeDataToFile(testFile, content);
       ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
       URL testUrl = testFile.toURI().toURL();
       ResultSet rs = makeMockUrlResultSet(testUrl);

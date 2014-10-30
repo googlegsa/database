@@ -52,10 +52,6 @@ public abstract class ResponseGenerator {
   
   protected final Map<String, String> cfg;
 
-  public ResponseGenerator() {
-    this.cfg = Collections.<String, String>emptyMap();
-  }
-
   protected ResponseGenerator(Map<String, String> config) {
     if (null == config) {
       throw new NullPointerException();
@@ -81,7 +77,7 @@ public abstract class ResponseGenerator {
   }
 
   public static ResponseGenerator rowToText(Map<String, String> config) {
-    return new RowToText();
+    return new RowToText(config);
   }
 
   public static ResponseGenerator urlColumn(Map<String, String> config) {
@@ -98,7 +94,7 @@ public abstract class ResponseGenerator {
 
   public static ResponseGenerator rowToHtml(Map<String, String> config)
       throws TransformerConfigurationException, IOException {
-    return new RowToHtml(config.get("stylesheet"));
+    return new RowToHtml(config);
   }
 
   private static class RowToHtml extends ResponseGenerator {
@@ -108,8 +104,10 @@ public abstract class ResponseGenerator {
     private final Transformer trans;
     private final String stylesheetName;
 
-    public RowToHtml(String stylesheetFilename)
+    public RowToHtml(Map<String, String> config)
         throws TransformerConfigurationException, IOException {
+      super(config);
+      String stylesheetFilename = config.get("stylesheet");
       InputStream xsl = null;
       if (null == stylesheetFilename) {
         stylesheetName = DEFAULT_STYLESHEET;
@@ -142,18 +140,14 @@ public abstract class ResponseGenerator {
         throw new RuntimeException("Error in applying xml stylesheet", e);
       }
     }
-
-    @Override
-    public String toString() {
-      return getClass().getName() + "(stylesheet=" + stylesheetName + ")";
-    }
   }
 
   private static class RowToText extends ResponseGenerator {
     private static final String CONTENT_TYPE = "text/plain; charset=utf-8";
     private static final Charset ENCODING = Charset.forName("UTF-8");
 
-    public RowToText() {
+    public RowToText(Map<String, String> config) {
+      super(config);
       // no rowToText mode specific configuration
     }
 
@@ -261,10 +255,16 @@ public abstract class ResponseGenerator {
         String errmsg = urlStr + " is not a valid URI";
         throw new IllegalStateException(errmsg, ex);
       }
-      InputStream in = con.getInputStream();
-      OutputStream out = resp.getOutputStream();
-      com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
-      in.close();
+      InputStream in = null;
+      try {
+        in = con.getInputStream();
+        OutputStream out = resp.getOutputStream();
+        com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
+      } finally {
+        if (null != in) {
+          in.close();
+        }
+      }
     }
   }
 
@@ -278,10 +278,16 @@ public abstract class ResponseGenerator {
         throws IOException, SQLException {
       overrideContentType(rs, resp);
       String path = rs.getString(col);
-      InputStream in = new FileInputStream(path);
-      OutputStream out = resp.getOutputStream();
-      com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
-      in.close();
+      InputStream in = null;
+      try {
+        in = new FileInputStream(path);
+        OutputStream out = resp.getOutputStream();
+        com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
+      } finally {
+        if (null != in) {
+          in.close();
+        }
+      }
     }
   }
 
@@ -300,12 +306,12 @@ public abstract class ResponseGenerator {
       com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
       in.close();
       if (!(blob instanceof javax.sql.rowset.serial.SerialBlob)) {
-        // SerialBlob is adament about not supporting free
+        // SerialBlob is adamant about not supporting free
         try {
           blob.free();
         } catch (java.sql.SQLFeatureNotSupportedException | 
             UnsupportedOperationException unsupported) {
-          // okee dokee; let JVM garbage collection deal with it
+          // let JVM garbage collection deal with it
         }
       }
     }

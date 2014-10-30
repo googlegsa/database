@@ -102,7 +102,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     password = context.getSensitiveValueDecoder().decodeValue(
         cfg.getValue("db.password"));
-    // log.config("db password: " + password);
 
     uniqueKey = new UniqueKey(
         cfg.getValue("db.uniqueKey"),
@@ -117,11 +116,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     singleDocContentSql = cfg.getValue("db.singleDocContentSql");
     log.config("single doc content sql: " + singleDocContentSql);
 
-    metadataColumns = new MetadataColumns(
-        cfg.getValue("db.metadataColumns"));
+    metadataColumns = new MetadataColumns(cfg.getValue("db.metadataColumns"));
     log.config("metadata columns: " + metadataColumns);
 
-    respGenerator = loadResponseGenerator(context.getConfig());
+    respGenerator = loadResponseGenerator(cfg);
 
     DbAdaptorIncrementalLister incrementalLister
         = initDbAdaptorIncrementalLister(cfg);
@@ -141,7 +139,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   @Override
   public void getDocIds(DocIdPusher pusher) throws IOException,
       InterruptedException {
-    BufferingPusher outstream = new BufferingPusher(pusher);
+    BufferedPusher outstream = new BufferedPusher(pusher);
     Connection conn = null;
     StatementAndResult statementAndResult = null;
     try {
@@ -155,8 +153,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         log.log(Level.FINEST, "doc id: {0}", id);
         outstream.add(record);
       }
-    } catch (SQLException problem) {
-      throw new IOException(problem);
+    } catch (SQLException ex) {
+      throw new IOException(ex);
     } finally {
       tryClosingStatementAndResult(statementAndResult);
       tryClosingConnection(conn);
@@ -191,15 +189,17 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           resp.addMetadata(key, "" + value);
         }
       }
+      // Generate Acl if aclSql is provided.
       if (aclSql != null) {
         Acl acl = getAcl(conn, id.getUniqueId());
         if (acl != null) {
           resp.setAcl(acl);
         }
       }
+      // Generate response body.
       respGenerator.generateResponse(rs, resp);
-    } catch (SQLException problem) {
-      throw new IOException("retrieval error", problem);
+    } catch (SQLException ex) {
+      throw new IOException("retrieval error", ex);
     } finally {
       tryClosingStatementAndResult(statementAndResult);
       tryClosingConnection(conn);
@@ -276,7 +276,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     String value = rs.getString(column.toString());
     if (!isNullOrEmptyString(value)) {
       if ("".equals(delim)) {
-        principals.add(new UserPrincipal(value));
+        principals.add(new UserPrincipal(value.trim()));
       } else {
         // drop trailing empties
         String principalNames[] = value.split(delim, 0);
@@ -295,7 +295,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     String value = rs.getString(column.toString());
     if (!isNullOrEmptyString(value)) {
       if ("".equals(delim)) {
-        principals.add(new GroupPrincipal(value));
+        principals.add(new GroupPrincipal(value.trim()));
       } else {
         // drop trailing empties
         String principalNames[] = value.split(delim, 0);
@@ -376,13 +376,13 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     if (null != strs) {
       try {
         strs.resultSet.close();
-      } catch (SQLException e) {
-        log.log(Level.WARNING, "result set close failed", e);
+      } catch (SQLException ex) {
+        log.log(Level.WARNING, "result set close failed", ex);
       }
       try {
         strs.statement.close();
-      } catch (SQLException e) {
-        log.log(Level.WARNING, "statement close failed", e);
+      } catch (SQLException ex) {
+        log.log(Level.WARNING, "statement close failed", ex);
       }
     }
   }
@@ -391,22 +391,22 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     if (null != conn) {
       try {
         conn.close();
-      } catch (SQLException e) {
-        log.log(Level.WARNING, "connection close failed", e);
+      } catch (SQLException ex) {
+        log.log(Level.WARNING, "connection close failed", ex);
       }
     }
   }
 
   /**
-   * Mechanism that accepts stream of DocIdPusher.Record instances, bufferes
+   * Mechanism that accepts stream of DocIdPusher.Record instances, buffers
    * them, and sends them when it has accumulated maximum allowed amount per
    * feed file.
    */
-  private class BufferingPusher {
+  private class BufferedPusher {
     DocIdPusher wrapped;
     ArrayList<DocIdPusher.Record> saved;
     
-    BufferingPusher(DocIdPusher underlying) {
+    BufferedPusher(DocIdPusher underlying) {
       if (null == underlying) {
         throw new NullPointerException();
       }
@@ -437,7 +437,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   @VisibleForTesting
   static ResponseGenerator loadResponseGenerator(Config config) {
     String mode = config.getValue("db.modeOfOperation");
-    if (mode.trim().equals("")) {
+    if (isNullOrEmptyString(mode)) {
       String errmsg = "modeOfOperation can not be an empty string";
       throw new InvalidConfigurationException(errmsg);
     }
@@ -514,7 +514,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     @Override
     public void getModifiedDocIds(DocIdPusher pusher)
         throws IOException, InterruptedException {
-      BufferingPusher outstream = new BufferingPusher(pusher);
+      BufferedPusher outstream = new BufferedPusher(pusher);
       Connection conn = null;
       StatementAndResult statementAndResult = null;
       try {
@@ -529,8 +529,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           log.log(Level.FINEST, "doc id: {0}", id);
           outstream.add(record);
         }
-      } catch (SQLException problem) {
-        throw new IOException(problem);
+      } catch (SQLException ex) {
+        throw new IOException(ex);
       } finally {
         tryClosingStatementAndResult(statementAndResult);
         tryClosingConnection(conn);
@@ -554,7 +554,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private DbAdaptorIncrementalLister initDbAdaptorIncrementalLister(
       Config config) {
     String updateSql = config.getValue("db.updateSql");
-    if (updateSql != null && !"".equals(updateSql.trim())) {
+    if (!isNullOrEmptyString(updateSql)) {
       return new DbAdaptorIncrementalLister(updateSql);
     } else {
       return null;

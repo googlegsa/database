@@ -38,13 +38,13 @@ class MetadataColumns {
     }
     
     Map<String, String> tmp = new TreeMap<String, String>();
-    String elements[] = configDef.split(",", -1);
+    String elements[] = configDef.split(",", 0); // drop trailing empties
     for (String e : elements) {
       log.fine("element: " + e);
       String def[] = e.split(":", 2);
       if (2 != def.length) {
-        String emsg = "expected two parts separated by colon: " + e;
-        throw new InvalidConfigurationException(emsg);
+        String errmsg = "expected two parts separated by colon: " + e;
+        throw new InvalidConfigurationException(errmsg);
       }
       String columnName = def[0];
       String metadataKey = def[1];

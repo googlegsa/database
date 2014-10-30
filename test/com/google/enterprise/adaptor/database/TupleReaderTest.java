@@ -36,9 +36,7 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stream.StreamResult;
 
-/**
- *  Unit Test for TupleReader
- */
+/** Unit Test for {@link TupleReader}. */
 public class TupleReaderTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();
@@ -178,9 +176,9 @@ public class TupleReaderTest {
             new Class[] {ResultSetMetaData.class}, metadata);
     
     Calendar cal = Calendar.getInstance();
-    cal.set(cal.YEAR, 2004);
-    cal.set(cal.MONTH, cal.OCTOBER);
-    cal.set(cal.DATE, 6);
+    cal.set(Calendar.YEAR, 2004);
+    cal.set(Calendar.MONTH, Calendar.OCTOBER);
+    cal.set(Calendar.DATE, 6);
     java.sql.Date retDate = new java.sql.Date(cal.getTime().getTime());
     
     MockResultSet resultSet = new MockResultSet(rsMetadata, retDate);
@@ -215,12 +213,12 @@ public class TupleReaderTest {
             new Class[] {ResultSetMetaData.class}, metadata);
     
     Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
-    cal.set(cal.YEAR, 2004);
-    cal.set(cal.MONTH, cal.OCTOBER);
-    cal.set(cal.DATE, 6);
-    cal.set(cal.HOUR, 9);
-    cal.set(cal.MINUTE, 15);
-    cal.set(cal.SECOND, 30);
+    cal.set(Calendar.YEAR, 2004);
+    cal.set(Calendar.MONTH, Calendar.OCTOBER);
+    cal.set(Calendar.DATE, 6);
+    cal.set(Calendar.HOUR, 9);
+    cal.set(Calendar.MINUTE, 15);
+    cal.set(Calendar.SECOND, 30);
     long gmtTime = cal.getTime().getTime()
         + TimeZone.getTimeZone("Etc/GMT-7").getRawOffset();
     java.sql.Timestamp retDate = new java.sql.Timestamp(gmtTime);
@@ -257,12 +255,12 @@ public class TupleReaderTest {
             new Class[] {ResultSetMetaData.class}, metadata);
     
     Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
-    cal.set(cal.YEAR, 2004);
-    cal.set(cal.MONTH, cal.OCTOBER);
-    cal.set(cal.DATE, 6);
-    cal.set(cal.HOUR, 9);
-    cal.set(cal.MINUTE, 15);
-    cal.set(cal.SECOND, 30);
+    cal.set(Calendar.YEAR, 2004);
+    cal.set(Calendar.MONTH, Calendar.OCTOBER);
+    cal.set(Calendar.DATE, 6);
+    cal.set(Calendar.HOUR, 9);
+    cal.set(Calendar.MINUTE, 15);
+    cal.set(Calendar.SECOND, 30);
     long gmtTime = cal.getTime().getTime()
         + TimeZone.getTimeZone("Etc/GMT-7").getRawOffset();
     java.sql.Time retDate = new java.sql.Time(gmtTime);
