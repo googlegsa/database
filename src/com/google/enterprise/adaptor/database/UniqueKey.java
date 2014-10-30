@@ -36,7 +36,11 @@ class UniqueKey {
 
   static enum ColumnType {
     INT,
-    STRING
+    STRING,
+    TIMESTAMP,
+    DATE,
+    TIME,
+    LONG
   }
 
   private final List<String> names;  // columns used for DocId
@@ -73,6 +77,14 @@ class UniqueKey {
         type = ColumnType.INT;
       } else if ("string".equals(def[1].toLowerCase())) {
         type = ColumnType.STRING;
+      } else if ("timestamp".equals(def[1].toLowerCase())) {
+        type = ColumnType.TIMESTAMP;
+      } else if ("date".equals(def[1].toLowerCase())) {
+        type = ColumnType.DATE;
+      } else if ("time".equals(def[1].toLowerCase())) {
+        type = ColumnType.TIME;
+      } else if ("long".equals(def[1].toLowerCase())) {
+        type = ColumnType.LONG;
       } else {
         throw new InvalidConfigurationException("bad type: " + def[1]);
       } 
@@ -132,6 +144,18 @@ class UniqueKey {
           break;
         case STRING:
           part = rs.getString(name);
+          break;
+        case TIMESTAMP:
+          part = "" + rs.getTimestamp(name);
+          break;
+        case DATE:
+          part = "" + rs.getDate(name);
+          break;
+        case TIME:
+          part = "" + rs.getTime(name);
+          break;
+        case LONG:
+          part = "" + rs.getLong(name);
           break;
         default:
           throw new AssertionError("invalid type: " + types.get(name)); 
