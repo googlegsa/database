@@ -53,10 +53,6 @@ class MetadataColumns {
     columnNameToMetadataKey = Collections.unmodifiableMap(tmp);
   }
 
-  public boolean isMetadataColumnName(String columnName) {
-    return columnNameToMetadataKey.containsKey(columnName);
-  }
-
   public String getMetadataName(String columnName) {
     return columnNameToMetadataKey.get(columnName);
   }

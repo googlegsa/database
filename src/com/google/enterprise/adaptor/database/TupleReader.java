@@ -124,8 +124,8 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         handler.endElement(ns, rootElement, rootElement);
       }
       handler.endDocument();
-    } catch (SQLException sqle) {
-      throw new SAXException(sqle);
+    } catch (SQLException ex) {
+      throw new SAXException(ex);
     }
   }
 
@@ -236,7 +236,6 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           }
           break;
         case Types.OTHER:
-        case Types.STRUCT:
         default:
           log.info("skip column of type " + sqlTypeName);
           columnSkipped = true;
@@ -333,8 +332,9 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
 
   /**
    * Copies valid XML unicode characters as defined in the XML 1.0 standard -
-   * http://www.w3.org/TR/2000/REC-xml-20001006#NT-Char. Fixes http://b/912246.
+   * http://www.w3.org/TR/2000/REC-xml-20001006#NT-Char.
    * Note: Writer should be a BufferedWriter since we write one byte at a time.
+   * 
    * @return number of characters copied.
    */
   private static int copyValidXMLCharacters(Reader in, Writer out)
@@ -434,8 +434,8 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
     public void write(char[] cbuf, int off, int len) throws IOException {
       try {
         handler.characters(cbuf, off, len);
-      } catch (SAXException saxe) {
-        throw new IOException(saxe);
+      } catch (SAXException ex) {
+        throw new IOException(ex);
       }
     }
   }

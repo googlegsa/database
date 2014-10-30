@@ -32,7 +32,6 @@ public class MetadataColumnsTest {
 
   @Test
   public void testMissingColumnNameGivesNull() {
-    // TODO: or should it throw IAE?
     MetadataColumns mc = new MetadataColumns(" ");
     assertEquals(null, mc.getMetadataName("not-exist"));
   }
@@ -41,11 +40,8 @@ public class MetadataColumnsTest {
   public void testSimpleCase() {
     String configDef = "xf_date:CREATE_DATE,name:AUTHOR";
     MetadataColumns mc = new MetadataColumns(configDef);
-    assertTrue(mc.isMetadataColumnName("xf_date"));
-    assertTrue(mc.isMetadataColumnName("name"));
-    assertFalse(mc.isMetadataColumnName("CREATE_DATE"));
-    assertFalse(mc.isMetadataColumnName("AUTHOR"));
-    assertFalse(mc.isMetadataColumnName("xYz"));
+    assertNotNull(mc.getMetadataName("xf_date"));
+    assertNotNull(mc.getMetadataName("name"));
     assertEquals("CREATE_DATE", mc.getMetadataName("xf_date"));
     assertEquals("AUTHOR", mc.getMetadataName("name"));
     assertNull(mc.getMetadataName("CREATE_DATE"));

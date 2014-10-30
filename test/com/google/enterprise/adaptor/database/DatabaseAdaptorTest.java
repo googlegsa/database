@@ -43,7 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** Tests for DatabaseAdaptor functionality */
+/** Test cases for {@link DatabaseAdaptor}. */
 public class DatabaseAdaptorTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();

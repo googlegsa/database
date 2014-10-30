@@ -184,8 +184,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       for (int i = 1; i < (numberOfColumns + 1); i++) {
         String columnName = rsMetaData.getColumnName(i);
         Object value = rs.getObject(i);
-        if (metadataColumns.isMetadataColumnName(columnName)) {
-          String key = metadataColumns.getMetadataName(columnName);
+        String key = metadataColumns.getMetadataName(columnName);
+        if (key != null) {
           resp.addMetadata(key, "" + value);
         }
       }
