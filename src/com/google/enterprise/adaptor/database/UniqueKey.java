@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.logging.Logger;
 
@@ -41,12 +42,16 @@ class UniqueKey {
   private final List<String> names;  // columns used for DocId
   private final Map<String, ColumnType> types;  // types of DocId columns
   private final List<String> contentSqlCols;  // columns for content query
+  private final List<String> aclSqlCols;  // columns for acl query
 
-  UniqueKey(String pkDecls, String contentSqlColumns) {
+  UniqueKey(String pkDecls, String contentSqlColumns, String aclSqlColumns) {
     if (null == pkDecls) {
       throw new NullPointerException();
     }
     if (null == contentSqlColumns) {
+      throw new NullPointerException();
+    }
+    if (null == aclSqlColumns) {
       throw new NullPointerException();
     }
 
@@ -82,27 +87,38 @@ class UniqueKey {
 
     if ("".equals(contentSqlColumns.trim())) {
       contentSqlCols = names;
-      return;
+    } else {
+      contentSqlCols = splitIntoNameList(contentSqlColumns, tmpTypes.keySet());
     }
 
+    if ("".equals(aclSqlColumns.trim())) {
+      aclSqlCols = names;
+    } else {
+      aclSqlCols = splitIntoNameList(aclSqlColumns, tmpTypes.keySet());
+    }
+  }
+
+  private static List<String> splitIntoNameList(String cols,
+      Set<String> validNames) {
     List<String> tmpContentCols = new ArrayList<String>();
-    for (String e : contentSqlColumns.split(",", -1)) {
+    for (String e : cols.split(",", -1)) {
       String name = e;
-      if (!tmpTypes.containsKey(name)) {
+      if (!validNames.contains(name)) {
         throw new InvalidConfigurationException("unknown name: " + name);
       }
       tmpContentCols.add(name); 
     }
-    contentSqlCols = Collections.unmodifiableList(tmpContentCols);
+    return Collections.unmodifiableList(tmpContentCols);
   }
 
   @VisibleForTesting
   UniqueKey(String pkDecls) {
-    this(pkDecls, "");
+    this(pkDecls, "", "");
   }
 
   public String toString() {
-    return "UniqueKey(" + names + "," + types + "," + contentSqlCols + ")";
+    return "UniqueKey(" + names + "," + types + "," + contentSqlCols 
+        + aclSqlCols + ")";
   }
 
   String makeUniqueId(ResultSet rs) throws SQLException {
@@ -126,21 +142,19 @@ class UniqueKey {
     return sb.toString().substring(1);
   }
 
-  void setStatementValues(PreparedStatement st, String uniqueId)
+  private void setSqlValues(PreparedStatement st, String uniqueId, List<String> sqlCols)
       throws SQLException {
     uniqueId = decodeSlashInData(uniqueId);
     String parts[] = uniqueId.split("/", -1);
     if (parts.length != names.size()) {
       throw new IllegalStateException("wrong number of values for primary key");
     }
-
     Map<String, String> zip = new TreeMap<String, String>();
     for (int i = 0; i < parts.length; i++) {
       zip.put(names.get(i), parts[i]);
     }
-
-    for (int i = 0; i < contentSqlCols.size(); i++) {
-      String colName = contentSqlCols.get(i);
+    for (int i = 0; i < sqlCols.size(); i++) {
+      String colName = sqlCols.get(i);
       ColumnType typeOfCol = types.get(colName);
       String valueOfCol = zip.get(colName);
       switch (typeOfCol) {
@@ -154,6 +168,16 @@ class UniqueKey {
           throw new AssertionError("invalid type: " + typeOfCol); 
       }
     }   
+  }
+
+  void setContentSqlValues(PreparedStatement st, String uniqueId)
+      throws SQLException {
+    setSqlValues(st, uniqueId, contentSqlCols);
+  }
+
+  void setAclSqlValues(PreparedStatement st, String uniqueId)
+      throws SQLException {
+    setSqlValues(st, uniqueId, aclSqlCols);
   }
 
   @VisibleForTesting

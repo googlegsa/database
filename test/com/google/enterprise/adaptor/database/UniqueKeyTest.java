@@ -41,13 +41,19 @@ public class UniqueKeyTest {
   @Test
   public void testNullKeys() {
     thrown.expect(NullPointerException.class);
-    UniqueKey pk = new UniqueKey(null, "");
+    UniqueKey pk = new UniqueKey(null, "", "");
   }
 
   @Test
   public void testNullContentCols() {
     thrown.expect(NullPointerException.class);
-    UniqueKey pk = new UniqueKey("num:int", null);
+    UniqueKey pk = new UniqueKey("num:int", null, "");
+  }
+
+  @Test
+  public void testNullAclCols() {
+    thrown.expect(NullPointerException.class);
+    UniqueKey pk = new UniqueKey("num:int", "", null);
   }
 
   @Test
@@ -100,6 +106,13 @@ public class UniqueKeyTest {
   public void testUnknownContentCol() {
     thrown.expect(InvalidConfigurationException.class);
     UniqueKey pk = new UniqueKey("numnum:int,strstr:string",
+        "numnum,IsStranger,strstr", "");
+  }
+
+  @Test
+  public void testUnknownAclCol() {
+    thrown.expect(InvalidConfigurationException.class);
+    UniqueKey pk = new UniqueKey("numnum:int,strstr:string", "",
         "numnum,IsStranger,strstr");
   }
 
@@ -155,7 +168,7 @@ public class UniqueKeyTest {
         new Class[] { PreparedStatement.class }, psh);
 
     UniqueKey pk = new UniqueKey("numnum:int,strstr:string");
-    pk.setStatementValues(ps, "888/bluesky");
+    pk.setContentSqlValues(ps, "888/bluesky");
     assertEquals(2, psh.ncalls);
   }
 
@@ -181,8 +194,8 @@ public class UniqueKeyTest {
         new Class[] { PreparedStatement.class }, psh);
 
     UniqueKey pk = new UniqueKey("numnum:int,strstr:string",
-        "numnum,numnum,strstr,numnum,strstr,strstr,numnum");
-    pk.setStatementValues(ps, "888/bluesky");
+        "numnum,numnum,strstr,numnum,strstr,strstr,numnum", "");
+    pk.setContentSqlValues(ps, "888/bluesky");
     List<String> golden = Arrays.asList(
         "setInt", "1", "888",
         "setInt", "2", "888",

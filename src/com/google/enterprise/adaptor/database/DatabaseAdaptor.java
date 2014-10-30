@@ -65,11 +65,12 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.uniqueKey", null);
     config.addKey("db.everyDocIdSql", null);
     config.addKey("db.singleDocContentSql", null);
-    config.addKey("db.singleDocContentParameters", "");
+    config.addKey("db.singleDocContentSqlParameters", "");
     config.addKey("db.metadataColumns", "");
     config.addKey("db.modeOfOperation", null);
     config.addKey("db.updateSql", "");
     config.addKey("db.aclSql", "");
+    config.addKey("db.aclSqlParameters", "");
   }
 
   @Override
@@ -97,7 +98,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     uniqueKey = new UniqueKey(
         cfg.getValue("db.uniqueKey"),
-        cfg.getValue("db.singleDocContentParameters")
+        cfg.getValue("db.singleDocContentSqlParameters"),
+        cfg.getValue("db.aclSqlParameters")
     );
     log.config("primary key: " + uniqueKey);
 
@@ -160,8 +162,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     StatementAndResult statementAndResult = null;
     try {
       conn = makeNewConnection();
-      statementAndResult =
-          getCollectionFromDb(conn, id.getUniqueId(), singleDocContentSql);
+      statementAndResult = getDocFromDb(conn, id.getUniqueId());
       ResultSet rs = statementAndResult.resultSet;
       // First handle cases with no data to return.
       boolean hasResult = rs.next();
@@ -202,7 +203,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private Acl getAcl(Connection conn, String uniqueId) throws SQLException {
     StatementAndResult statementAndResult = null;
     try {
-      statementAndResult = getCollectionFromDb(conn, uniqueId, aclSql);
+      statementAndResult = getAclFromDb(conn, uniqueId);
       ResultSet rs = statementAndResult.resultSet;
       ResultSetMetaData metadata = rs.getMetaData();
       return buildAcl(rs, metadata);
@@ -319,13 +320,23 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     return conn;
   }
 
-  private StatementAndResult getCollectionFromDb(Connection conn,
-      String uniqueId, String query) throws SQLException {
-    PreparedStatement st = conn.prepareStatement(query);
-    uniqueKey.setStatementValues(st, uniqueId);  
-    log.log(Level.FINER, "about to query: {0}",  st);
+  private StatementAndResult getDocFromDb(Connection conn,
+      String uniqueId) throws SQLException {
+    PreparedStatement st = conn.prepareStatement(singleDocContentSql);
+    uniqueKey.setContentSqlValues(st, uniqueId);  
+    log.log(Level.FINER, "about to get doc: {0}",  uniqueId);
     ResultSet rs = st.executeQuery();
-    log.finer("queried");
+    log.finer("got doc");
+    return new StatementAndResult(st, rs); 
+  }
+
+  private StatementAndResult getAclFromDb(Connection conn,
+      String uniqueId) throws SQLException {
+    PreparedStatement st = conn.prepareStatement(aclSql);
+    uniqueKey.setAclSqlValues(st, uniqueId);  
+    log.log(Level.FINER, "about to get acl: {0}",  uniqueId);
+    ResultSet rs = st.executeQuery();
+    log.finer("got acl");
     return new StatementAndResult(st, rs); 
   }
 
