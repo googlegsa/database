@@ -153,6 +153,18 @@ public class UniqueKeyTest {
       } else if ("setString".equals(methodName)) {
         assertEquals(2, args[0]); 
         assertEquals("bluesky", args[1]); 
+      } else if ("setTimestamp".equals(methodName)) {
+        assertEquals(3, args[0]); 
+        assertEquals(new java.sql.Timestamp(1414701070212L), args[1]); 
+      } else if ("setDate".equals(methodName)) {
+        assertEquals(4, args[0]); 
+        assertEquals(java.sql.Date.valueOf("2014-01-01"), args[1]); 
+      } else if ("setTime".equals(methodName)) {
+        assertEquals(5, args[0]); 
+        assertEquals(java.sql.Time.valueOf("02:03:04"), args[1]); 
+      } else if ("setLong".equals(methodName)) {
+        assertEquals(6, args[0]); 
+        assertEquals(123L, args[1]); 
       } else {
         throw new IllegalStateException("unexpected call: " + methodName);
       }
@@ -167,9 +179,11 @@ public class UniqueKeyTest {
         PreparedStatement.class.getClassLoader(),
         new Class[] { PreparedStatement.class }, psh);
 
-    UniqueKey pk = new UniqueKey("numnum:int,strstr:string");
-    pk.setContentSqlValues(ps, "888/bluesky");
-    assertEquals(2, psh.ncalls);
+    UniqueKey pk = new UniqueKey("numnum:int,strstr:string,"
+        + "timestamp:timestamp,date:date,time:time,long:long");
+    pk.setContentSqlValues(ps, "888/bluesky/1414701070212/2014-01-01/"
+        + "02:03:04/123");
+    assertEquals(6, psh.ncalls);
   }
 
   private static class PreparedStatementHandlerPerDocCols implements 

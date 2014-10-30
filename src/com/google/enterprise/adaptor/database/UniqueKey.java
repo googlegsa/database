@@ -146,7 +146,7 @@ class UniqueKey {
           part = rs.getString(name);
           break;
         case TIMESTAMP:
-          part = "" + rs.getTimestamp(name);
+          part = "" + rs.getTimestamp(name).getTime();
           break;
         case DATE:
           part = "" + rs.getDate(name);
@@ -187,6 +187,19 @@ class UniqueKey {
           break;
         case STRING:
           st.setString(i + 1, valueOfCol);
+          break;
+        case TIMESTAMP:
+          long timestamp = Long.parseLong(valueOfCol);
+          st.setTimestamp(i + 1, new java.sql.Timestamp(timestamp));
+          break;
+        case DATE:
+          st.setDate(i + 1, java.sql.Date.valueOf(valueOfCol));
+          break;
+        case TIME:
+          st.setTime(i + 1, java.sql.Time.valueOf(valueOfCol));
+          break;
+        case LONG:
+          st.setLong(i + 1, Long.parseLong(valueOfCol));
           break;
         default:
           throw new AssertionError("invalid type: " + typeOfCol); 
