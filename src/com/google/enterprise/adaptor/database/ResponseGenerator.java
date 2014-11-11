@@ -32,6 +32,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.xml.transform.OutputKeys;
@@ -210,6 +211,8 @@ public abstract class ResponseGenerator {
       }
       contentTypeOverride = cfg.get("contentTypeOverride");
       contentTypeCol = cfg.get("contentTypeCol");
+      log.config("contentTypeOverride=" + contentTypeOverride);
+      log.config("contentTypeCol=" + contentTypeCol);
       if (null != contentTypeOverride && null != contentTypeCol) {
         throw new InvalidConfigurationException("cannot provide both "
             + "contentTypeOverride and contentTypeCol");
@@ -220,11 +223,13 @@ public abstract class ResponseGenerator {
         throws SQLException {
       if (null != contentTypeOverride) {
         res.setContentType(contentTypeOverride);
+        log.log(Level.FINE, "overrode content type: {0}", contentTypeOverride);
         return true;
       } else if (null != contentTypeCol) {
         String ct = rs.getString(contentTypeCol);
         if (null != ct) {
           res.setContentType(ct);
+          log.log(Level.FINE, "overrode content type: {0}", ct);
           return true;
         }
       }
