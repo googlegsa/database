@@ -37,6 +37,7 @@ import java.util.logging.Logger;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
+import javax.xml.transform.Templates;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
@@ -101,29 +102,25 @@ public abstract class ResponseGenerator {
     private static final String CONTENT_TYPE = "text/html; charset=utf-8";
     private static final String DEFAULT_STYLESHEET = "resources/dbdefault.xsl";
 
-    private final Transformer trans;
-    private final String stylesheetName;
+    private final Templates template;
 
     public RowToHtml(Map<String, String> config)
         throws TransformerConfigurationException, IOException {
       super(config);
       String stylesheetFilename = config.get("stylesheet");
       InputStream xsl = null;
-      if (null == stylesheetFilename) {
-        stylesheetName = DEFAULT_STYLESHEET;
+      if (null != stylesheetFilename) {
+        xsl = new FileInputStream(stylesheetFilename);
+      } else {
+        String stylesheetName = DEFAULT_STYLESHEET;
         xsl = this.getClass().getResourceAsStream(stylesheetName);
         if (xsl == null) {
           throw new AssertionError("Default stylesheet not found in resources");
         }
-      } else {
-        stylesheetName = stylesheetFilename;
-        xsl = new FileInputStream(stylesheetName);
       }
 
       TransformerFactory transFactory = TransformerFactory.newInstance();
-      trans = transFactory.newTransformer(new StreamSource(xsl));
-      // output is html, so we don't need xml declaration
-      trans.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+      template = transFactory.newTemplates(new StreamSource(xsl));
       xsl.close();
     }
 
@@ -135,6 +132,9 @@ public abstract class ResponseGenerator {
       Source source = new SAXSource(reader, /*ignored*/new InputSource());
       Result des = new StreamResult(resp.getOutputStream());
       try {
+        Transformer trans = template.newTransformer();
+        // output is html, so we don't need xml declaration
+        trans.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
         trans.transform(source, des);
       } catch (TransformerException e) {
         throw new RuntimeException("Error in applying xml stylesheet", e);
