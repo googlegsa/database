@@ -49,7 +49,7 @@ import javax.xml.transform.stream.StreamSource;
 
 /** Generate a response according to a SQL result */
 public abstract class ResponseGenerator {
-  protected static final Logger log
+  private static final Logger log
       = Logger.getLogger(ResponseGenerator.class.getName());
   
   protected final Map<String, String> cfg;
@@ -199,9 +199,13 @@ public abstract class ResponseGenerator {
   }
 
   private abstract static class SingleColumnContent extends ResponseGenerator {
-    final String col;
+    private final String col;
     private final String contentTypeOverride; // can be null
     private final String contentTypeCol; // can be null
+
+    String getContentColumnName() {
+      return col;
+    }
 
     SingleColumnContent(Map<String, String> config) {
       super(config);
@@ -209,6 +213,7 @@ public abstract class ResponseGenerator {
       if (null == col) {
         throw new NullPointerException("columnName needs to be provided");
       }
+      log.config("col=" + col);
       contentTypeOverride = cfg.get("contentTypeOverride");
       contentTypeCol = cfg.get("contentTypeCol");
       log.config("contentTypeOverride=" + contentTypeOverride);
@@ -245,7 +250,7 @@ public abstract class ResponseGenerator {
     @Override
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
-      String urlStr = rs.getString(col);
+      String urlStr = rs.getString(getContentColumnName());
       URL url = new URL(urlStr);
       java.net.URLConnection con = url.openConnection();
       if (!overrideContentType(rs, resp)) {
@@ -282,7 +287,7 @@ public abstract class ResponseGenerator {
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
       overrideContentType(rs, resp);
-      String path = rs.getString(col);
+      String path = rs.getString(getContentColumnName());
       InputStream in = null;
       try {
         in = new FileInputStream(path);
@@ -305,7 +310,7 @@ public abstract class ResponseGenerator {
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
       overrideContentType(rs, resp);
-      Blob blob = rs.getBlob(col);
+      Blob blob = rs.getBlob(getContentColumnName());
       InputStream in = blob.getBinaryStream();
       OutputStream out = resp.getOutputStream();
       com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
