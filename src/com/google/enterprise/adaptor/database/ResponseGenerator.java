@@ -52,13 +52,18 @@ public abstract class ResponseGenerator {
   private static final Logger log
       = Logger.getLogger(ResponseGenerator.class.getName());
   
-  protected final Map<String, String> cfg;
+  private final Map<String, String> cfg;
+
+  protected Map<String, String> getConfig() {
+    return cfg;
+  }
 
   protected ResponseGenerator(Map<String, String> config) {
     if (null == config) {
       throw new NullPointerException();
     }
     this.cfg = Collections.unmodifiableMap(config);
+    log.config("entire config map=" + cfg);
   }
 
   /**
@@ -105,10 +110,10 @@ public abstract class ResponseGenerator {
 
     private final Templates template;
 
-    public RowToHtml(Map<String, String> config)
+    RowToHtml(Map<String, String> config)
         throws TransformerConfigurationException, IOException {
       super(config);
-      String stylesheetFilename = config.get("stylesheet");
+      String stylesheetFilename = getConfig().get("stylesheet");
       InputStream xsl = null;
       if (null != stylesheetFilename) {
         xsl = new FileInputStream(stylesheetFilename);
@@ -147,7 +152,7 @@ public abstract class ResponseGenerator {
     private static final String CONTENT_TYPE = "text/plain; charset=utf-8";
     private static final Charset ENCODING = Charset.forName("UTF-8");
 
-    public RowToText(Map<String, String> config) {
+    RowToText(Map<String, String> config) {
       super(config);
       // no rowToText mode specific configuration
     }
@@ -209,13 +214,13 @@ public abstract class ResponseGenerator {
 
     SingleColumnContent(Map<String, String> config) {
       super(config);
-      col = cfg.get("columnName"); 
+      col = getConfig().get("columnName"); 
       if (null == col) {
         throw new NullPointerException("columnName needs to be provided");
       }
       log.config("col=" + col);
-      contentTypeOverride = cfg.get("contentTypeOverride");
-      contentTypeCol = cfg.get("contentTypeCol");
+      contentTypeOverride = getConfig().get("contentTypeOverride");
+      contentTypeCol = getConfig().get("contentTypeCol");
       log.config("contentTypeOverride=" + contentTypeOverride);
       log.config("contentTypeCol=" + contentTypeCol);
       if (null != contentTypeOverride && null != contentTypeCol) {
@@ -232,18 +237,22 @@ public abstract class ResponseGenerator {
         return true;
       } else if (null != contentTypeCol) {
         String ct = rs.getString(contentTypeCol);
-        if (null != ct) {
+        if (null == ct) {
+          log.log(Level.FINE, "content type at col {0} is null",
+              contentTypeCol);
+        } else {
           res.setContentType(ct);
           log.log(Level.FINE, "overrode content type: {0}", ct);
           return true;
         }
       }
+      log.fine("not overriding content type");
       return false;
     }
   }
 
   private static class UrlColumn extends SingleColumnContent {
-    public UrlColumn(Map<String, String> config) {
+    UrlColumn(Map<String, String> config) {
       super(config);
     }
 
@@ -279,7 +288,7 @@ public abstract class ResponseGenerator {
   }
 
   private static class FilepathColumn extends SingleColumnContent {
-    public FilepathColumn(Map<String, String> config) {
+    FilepathColumn(Map<String, String> config) {
       super(config);
     }
 
@@ -302,7 +311,7 @@ public abstract class ResponseGenerator {
   }
 
   private static class BlobColumn extends SingleColumnContent {
-    public BlobColumn(Map<String, String> config) {
+    BlobColumn(Map<String, String> config) {
       super(config);
     }
 
