@@ -66,11 +66,14 @@ class UniqueKey {
     List<String> tmpNames = new ArrayList<String>();
     Map<String, ColumnType> tmpTypes = new TreeMap<String, ColumnType>();
     for (String e : ukDecls.split(",", 0)) {
-      log.fine("element: " + e);
+      log.fine("element: `" + e + "'");
+      e = e.trim();
       String def[] = e.split(":", 2);
       if (2 != def.length) {
-        throw new InvalidConfigurationException("bad def: " + e);
+        throw new InvalidConfigurationException("bad def: `" + e + "'");
       }
+      def[0] = def[0].trim();
+      def[1] = def[1].trim();
       String name = def[0];
       ColumnType type;
       if ("int".equals(def[1].toLowerCase())) {
@@ -86,10 +89,10 @@ class UniqueKey {
       } else if ("long".equals(def[1].toLowerCase())) {
         type = ColumnType.LONG;
       } else {
-        throw new InvalidConfigurationException("bad type: " + def[1]);
+        throw new InvalidConfigurationException("bad type: `" + def[1] + "'");
       } 
       if (tmpTypes.containsKey(name)) {
-        throw new InvalidConfigurationException("name repeat: " + name);
+        throw new InvalidConfigurationException("name repeat: `" + name + "'");
       }
       tmpNames.add(name);
       tmpTypes.put(name, type);
@@ -114,8 +117,9 @@ class UniqueKey {
       Set<String> validNames) {
     List<String> tmpContentCols = new ArrayList<String>();
     for (String name : cols.split(",", 0)) {
+      name = name.trim();
       if (!validNames.contains(name)) {
-        throw new InvalidConfigurationException("unknown name: " + name);
+        throw new InvalidConfigurationException("unknown name: `" + name + "'");
       }
       tmpContentCols.add(name); 
     }
@@ -125,11 +129,6 @@ class UniqueKey {
   @VisibleForTesting
   UniqueKey(String ukDecls) {
     this(ukDecls, "", "");
-  }
-
-  public String toString() {
-    return "UniqueKey(" + names + "," + types + "," + contentSqlCols + ","
-        + aclSqlCols + ")";
   }
 
   String makeUniqueId(ResultSet rs) throws SQLException {
@@ -157,7 +156,7 @@ class UniqueKey {
           part = "" + rs.getLong(name);
           break;
         default:
-          throw new AssertionError("invalid type: " + types.get(name)); 
+          throw new AssertionError("invalid type: `" + types.get(name) + "'"); 
       }
       part = encodeSlashInData(part);
       sb.append("/").append(part);
@@ -201,7 +200,7 @@ class UniqueKey {
           st.setLong(i + 1, Long.parseLong(valueOfCol));
           break;
         default:
-          throw new AssertionError("invalid type: " + typeOfCol); 
+          throw new AssertionError("invalid type: `" + typeOfCol + "'"); 
       }
     }   
   }
@@ -249,5 +248,29 @@ class UniqueKey {
   @VisibleForTesting
   ColumnType typeForTest(int i) {
     return types.get(names.get(i));
+  }
+
+  @Override
+  public String toString() {
+    return "UniqueKey(" + names + "," + types + "," + contentSqlCols + ","
+        + aclSqlCols + ")";
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    boolean same = false;
+    if (other instanceof UniqueKey) {
+      UniqueKey key = (UniqueKey) other;
+      same = names.equals(key.names)
+          && types.equals(key.types)
+          && contentSqlCols.equals(key.contentSqlCols)
+          && aclSqlCols.equals(key.aclSqlCols);
+    }
+    return same;
+  }
+
+  @Override
+  public int hashCode() {
+    return names.hashCode();
   }
 }

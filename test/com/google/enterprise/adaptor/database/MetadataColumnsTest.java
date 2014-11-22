@@ -62,4 +62,25 @@ public class MetadataColumnsTest {
     MetadataColumns mc = new MetadataColumns(configDef);
     assertEquals("MetadataColumns({a=b, xf_date=DATE:CREATE})", "" + mc);
   }
+
+  @Test
+  public void testSpacesBetweenDeclerations() {
+    String configDef = "xf_date:CREATE_DATE,name:AUTHOR";
+    MetadataColumns mc = new MetadataColumns(configDef);
+    assertEquals(mc, new MetadataColumns("xf_date:CREATE_DATE ,name:AUTHOR"));
+    assertEquals(mc, new MetadataColumns("xf_date:CREATE_DATE, name:AUTHOR"));
+    assertEquals(mc, new MetadataColumns("xf_date:CREATE_DATE , name:AUTHOR"));
+    assertEquals(mc, new MetadataColumns(" xf_date:CREATE_DATE ,name:AUTHOR "));
+  }
+
+  @Test
+  public void testSpacesWithinDeclerations() {
+    String configDef = "xf:CREATE_DATE,name:AUTHOR";
+    MetadataColumns mc = new MetadataColumns(configDef);
+    assertEquals(mc, new MetadataColumns("xf :CREATE_DATE,name:AUTHOR"));
+    assertEquals(mc, new MetadataColumns("xf: CREATE_DATE,name:AUTHOR"));
+    assertEquals(mc, new MetadataColumns("xf : CREATE_DATE,name:AUTHOR"));
+    assertEquals(mc, new MetadataColumns("xf  :   CREATE_DATE,name : AUTHOR "));
+    assertEquals(mc, new MetadataColumns(" xf  :  CREATE_DATE, name:AUTHOR "));
+  }
 }

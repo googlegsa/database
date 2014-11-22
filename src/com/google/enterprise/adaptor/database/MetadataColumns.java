@@ -40,14 +40,15 @@ class MetadataColumns {
     Map<String, String> tmp = new TreeMap<String, String>();
     String elements[] = configDef.split(",", 0); // drop trailing empties
     for (String e : elements) {
-      log.fine("element: " + e);
+      log.fine("element: `" + e + "'");
+      e = e.trim(); 
       String def[] = e.split(":", 2);
       if (2 != def.length) {
-        String errmsg = "expected two parts separated by colon: " + e;
+        String errmsg = "expected two parts separated by colon: `" + e + "'";
         throw new InvalidConfigurationException(errmsg);
       }
-      String columnName = def[0];
-      String metadataKey = def[1];
+      String columnName = def[0].trim();
+      String metadataKey = def[1].trim();
       tmp.put(columnName, metadataKey);
     }
     columnNameToMetadataKey = Collections.unmodifiableMap(tmp);
@@ -57,7 +58,23 @@ class MetadataColumns {
     return columnNameToMetadataKey.get(columnName);
   }
 
+  @Override
   public String toString() {
     return "MetadataColumns(" + columnNameToMetadataKey + ")";
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    boolean same = false;
+    if (other instanceof MetadataColumns) {
+      MetadataColumns mc = (MetadataColumns) other;
+      same = columnNameToMetadataKey.equals(mc.columnNameToMetadataKey);
+    }
+    return same;
+  }
+
+  @Override
+  public int hashCode() {
+    return columnNameToMetadataKey.hashCode();
   }
 }

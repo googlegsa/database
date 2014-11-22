@@ -287,4 +287,55 @@ public class UniqueKeyTest {
       assertEquals(fuzz, roundtrip(fuzz));
     }
   }
+
+  @Test
+  public void testSpacesBetweenUniqueKeyDeclerations() {
+    UniqueKey uk = new UniqueKey("numnum:int,other:int");
+    assertEquals(uk, new UniqueKey(" numnum:int,other:int"));
+    assertEquals(uk, new UniqueKey("numnum:int ,other:int"));
+    assertEquals(uk, new UniqueKey("numnum:int, other:int"));
+    assertEquals(uk, new UniqueKey("numnum:int , other:int"));
+    assertEquals(uk, new UniqueKey("   numnum:int  ,  other:int   "));
+  }
+
+  @Test
+  public void testSpacesWithinUniqueKeyDeclerations() {
+    UniqueKey uk = new UniqueKey("numnum:int,other:int");
+    assertEquals(uk, new UniqueKey("numnum :int,other:int"));
+    assertEquals(uk, new UniqueKey("numnum: int,other:int"));
+    assertEquals(uk, new UniqueKey("numnum : int,other:int"));
+    assertEquals(uk, new UniqueKey("numnum : int,other   :    int"));
+  }
+
+  @Test
+  public void testSpacesBetweenContentSqlCols() {
+    UniqueKey uk = new UniqueKey("numnum:int,strstr:string",
+        "numnum,numnum,strstr,numnum,strstr,strstr,numnum", "");
+    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+        "numnum ,numnum,strstr,numnum,strstr,strstr,numnum", ""));
+    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+        "numnum, numnum,strstr,numnum,strstr,strstr,numnum", ""));
+    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+        "numnum , numnum,strstr,numnum,strstr,strstr,numnum", ""));
+    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+        "numnum  ,   numnum,strstr,numnum,strstr,strstr,numnum", ""));
+    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+        "numnum  ,   numnum , strstr   ,  numnum,strstr,strstr, numnum ", ""));
+  }
+
+  @Test
+  public void testSpacesBetweenAclSqlCols() {
+    UniqueKey uk = new UniqueKey("numnum:int,strstr:string",
+        "", "numnum,numnum,strstr,numnum,strstr,strstr,numnum");
+    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+        "", "numnum ,numnum,strstr,numnum,strstr,strstr,numnum"));
+    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+        "", "numnum, numnum,strstr,numnum,strstr,strstr,numnum"));
+    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+        "", "numnum , numnum,strstr,numnum,strstr,strstr,numnum"));
+    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+        "", "numnum  ,   numnum,strstr,numnum,strstr,strstr,numnum"));
+    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+        "", "numnum  ,   numnum , strstr   ,  numnum,strstr,strstr, numnum "));
+  }
 }
