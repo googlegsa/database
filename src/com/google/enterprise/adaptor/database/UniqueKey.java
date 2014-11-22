@@ -271,6 +271,6 @@ class UniqueKey {
 
   @Override
   public int hashCode() {
-    return names.hashCode();
+    return java.util.Objects.hash(names, types, contentSqlCols, aclSqlCols);
   }
 }
