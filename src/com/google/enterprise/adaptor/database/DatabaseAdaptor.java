@@ -56,6 +56,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private ResponseGenerator respGenerator;
   private String aclSql;
   private String aclPrincipalDelimiter;
+  private boolean disableStreaming;
 
   @Override
   public void initConfig(Config config) {
@@ -79,6 +80,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     //   " , ", it means to split with one leading whitespace, one comma, and
     //          one trailing whitespace
     config.addKey("db.aclPrincipalDelimiter", ",");
+    config.addKey("db.disableStreaming", "false");
   }
 
   @Override
@@ -133,6 +135,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       aclPrincipalDelimiter = cfg.getValue("db.aclPrincipalDelimiter");
       log.config("aclPrincipalDelimiter: '" + aclPrincipalDelimiter + "'");
     }
+
+    disableStreaming = new Boolean(cfg.getValue("db.disableStreaming"));
+    log.config("disableStreaming: " + disableStreaming);
   }
 
   /** Get all doc ids from database. */
@@ -362,9 +367,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
   private StatementAndResult getStreamFromDb(Connection conn,
       String query) throws SQLException {
-    Statement st = conn.createStatement(
-        /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
-        /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
+    Statement st;
+    if (disableStreaming) {
+      st = conn.createStatement();
+    } else {
+      st = conn.createStatement(
+          /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
+          /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
+    }
     st.setFetchSize(maxIdsPerFeedFile);  // Integer.MIN_VALUE for MySQL?
     log.log(Level.FINER, "about to query for stream: {0}", query);
     ResultSet rs = st.executeQuery(query);
@@ -542,9 +552,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     private StatementAndResult getUpdateStreamFromDb(Connection conn)
         throws SQLException {
-      PreparedStatement st = conn.prepareStatement(updateSql,
-          /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
-          /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
+      PreparedStatement st;
+      if (disableStreaming) {
+        st = conn.prepareStatement(updateSql);
+      } else {
+        st = conn.prepareStatement(updateSql,
+            /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
+            /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
+      }
       st.setTimestamp(1, new java.sql.Timestamp(lastUpdateTimestampInMillis));
       ResultSet rs = st.executeQuery();
       return new StatementAndResult(st, rs);
