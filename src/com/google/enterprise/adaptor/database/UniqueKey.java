@@ -167,9 +167,9 @@ class UniqueKey {
 
   private void setSqlValues(PreparedStatement st, String uniqueId,
       List<String> sqlCols) throws SQLException {
-    // parse on / that isn't preceded by \
-    // because a / that is preceded by \ is part of column value
-    String parts[] = uniqueId.split("(?<!\\\\)/", -1);
+    // parse on / that isn't preceded by escape char _
+    // (a / that is preceded by _ is part of column value)
+    String parts[] = uniqueId.split("(?<!_)/", -1);
     if (parts.length != names.size()) {
       throw new IllegalStateException(
           "wrong number of values for primary key: "
@@ -221,47 +221,45 @@ class UniqueKey {
 
   @VisibleForTesting
   static String encodeSlashInData(String data) {
-    // TODO: change escape character from \ to some other character
-    // because browsers convert \ to /
-    if (-1 == data.indexOf('/') && -1 == data.indexOf('\\')) {
+    if (-1 == data.indexOf('/') && -1 == data.indexOf('_')) {
       return data;
     }
     char lastChar = data.charAt(data.length() - 1);
-    // Don't let data end with \, because then a \ would
+    // Don't let data end with _, because then a _ would
     // precede the seperator /.  If column value ends with
-    // \ then append a / and take it away when decoding.
-    // Since, data could also end with / that we wouldn't
-    // want taken away during decoding, append a second /
-    // when data ends with / too.
+    // _ then append a / and take it away when decoding.
+    // Since, column value could also end with / that we 
+    // wouldn't want taken away during decoding, append a
+    // second / when column value ends with / too.
 
-    if ('\\' == lastChar || '/' == lastChar) {
-      // For \ case:
-      // Suppose unique key values are 5\ and 6\. Without this code here
-      // the unique keys would be encoded into DocId "5\\/6\\".  Then when
-      // parsing DocId, the slash would not be used as a // splitter because
-      // it preceded by \.
+    if ('_' == lastChar || '/' == lastChar) {
+      // For _ case:
+      // Suppose unique key values are 5_ and 6_. Without this code here
+      // the unique keys would be encoded into DocId "5__/6__".  Then when
+      // parsing DocId, the slash would not be used as a splitter because
+      // it is preceded by _.
       // For / case:
       // Suppose unique key values are 5/ and 6/. Without appending another
-      //  /, DocId will be 5\//6\/, which will be split and decoded as 5 
+      //  /, DocId will be 5_//6_/, which will be split and decoded as 5 
       // and 6.
       data += '/';
     }
-    data = data.replace("\\", "\\\\");
-    data = data.replace("/", "\\/");
+    data = data.replace("_", "__");
+    data = data.replace("/", "_/");
     return data;
   }
 
   @VisibleForTesting
   static String decodeSlashInData(String id) {
-    // If column value ends with / (encoded as \/)
-    // we know that it was appended because colulmn
-    // value ended with either \ or /. We take away
-    // this last added / character.
-    if (id.endsWith("\\/")) {
+    // If id value ends with / (encoded as _/) we know that
+    // this last / was appended because collumn value ended
+    // with either _ or /. We take away this last added / 
+    // character.
+    if (id.endsWith("_/")) {
       id = id.substring(0, id.length() - 2);
     }
-    id = id.replace("\\/", "/");
-    id = id.replace("\\\\", "\\");
+    id = id.replace("_/", "/");
+    id = id.replace("__", "_");
     return id;
   }
 

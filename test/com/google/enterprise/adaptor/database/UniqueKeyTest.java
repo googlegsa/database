@@ -150,7 +150,7 @@ public class UniqueKeyTest {
   @Test
   public void testProcessingDocIdWithSlash() throws SQLException {
     UniqueKey uk = new UniqueKey("a:string,b:string");
-    assertEquals("5\\/5/6\\/6", uk.makeUniqueId(makeMockResultSet(
+    assertEquals("5_/5/6_/6", uk.makeUniqueId(makeMockResultSet(
         new HashMap<String, Object>(){{
             put("a", "5/5");
             put("b", "6/6");
@@ -161,7 +161,7 @@ public class UniqueKeyTest {
   @Test
   public void testProcessingDocIdWithMoreSlashes() throws SQLException {
     UniqueKey uk = new UniqueKey("a:string,b:string");
-    assertEquals("5\\/5\\/\\/\\//\\/\\/6\\/6",
+    assertEquals("5_/5_/_/_//_/_/6_/6",
         uk.makeUniqueId(makeMockResultSet(
             new HashMap<String, Object>(){{
                 put("a", "5/5//");
@@ -260,7 +260,7 @@ public class UniqueKeyTest {
         new Class[] { PreparedStatement.class }, psh);
     UniqueKey uk = new UniqueKey("a:string,b:string",
         "a,b,a", "");
-    uk.setContentSqlValues(ps, "5\\/5/6\\/6");
+    uk.setContentSqlValues(ps, "5_/5/6_/6");
     List<String> golden = Arrays.asList(
         "setString", "1", "5/5",
         "setString", "2", "6/6",
@@ -280,20 +280,17 @@ public class UniqueKeyTest {
   }
 
   private static String makeRandomId() {
-    char choices[] = "13/\\45\\97%^&%$^)*(/<>|P{UITY*c".toCharArray();
+    char choices[] = "13/\\45\\97_%^&%_$^)*(/<>|P{UI_TY*c".toCharArray();
     return makeId(choices, 100);
   }
 
-  private static String makeSomeSlashes() {
-    return makeId("/\\".toCharArray(), 100);
+  private static String makeSomeIdsWithJustSlashesAndEscapeChar() {
+    return makeId("/_".toCharArray(), 100);
   }
 
-  @Test
-  public void testFuzzSlashes() throws SQLException {
-    for (int fuzzCase = 0; fuzzCase < 1000; fuzzCase++) {
+  private void testUniqueElementsRoundTrip(final String elem1,
+       final String elem2) throws SQLException {
       UniqueKey uk = new UniqueKey("a:string,b:string");
-      final String elem1 = makeSomeSlashes();
-      final String elem2 = makeSomeSlashes();
       String id = uk.makeUniqueId(makeMockResultSet(
         new HashMap<String, Object>(){{
             put("a", elem1);
@@ -321,7 +318,22 @@ public class UniqueKeyTest {
         throw new RuntimeException("elem1: " + elem1 + ", elem2: " + elem2 
             + ", id: " + id + ", golden: " + golden, e);
       }
+  }
+
+  @Test
+  public void testFuzzSlashesAndEscapes() throws SQLException {
+    for (int fuzzCase = 0; fuzzCase < 1000; fuzzCase++) {
+      String elem1 = makeSomeIdsWithJustSlashesAndEscapeChar();
+      String elem2 = makeSomeIdsWithJustSlashesAndEscapeChar();
+      testUniqueElementsRoundTrip(elem1, elem2);
     }
+  }
+
+  @Test
+  public void testEmptiesPreserved() throws SQLException {
+    testUniqueElementsRoundTrip("", "");
+    testUniqueElementsRoundTrip("", "_stuff/");
+    testUniqueElementsRoundTrip("_stuff/", "");
   }
 
   private static String roundtrip(String in) {
@@ -346,27 +358,27 @@ public class UniqueKeyTest {
   }
 
   @Test
-  public void testWithBackSlash() {
-    String id = "my-\\simple-id";
+  public void testWithEscapeChar() {
+    String id = "my-_simple-id";
     assertEquals(id, roundtrip(id));
   }
 
   @Test
-  public void testWithTripleBackSlash() {
-    String id = "\\\\\\";
+  public void testWithTripleEscapeChar() {
+    String id = "___";
     assertEquals(3, id.length());
     assertEquals(id, roundtrip(id));
   }
 
   @Test
-  public void testWithSlashAndBackslash() {
-    String id = "my-\\simp/le-id";
+  public void testWithSlashAndEscapeChar() {
+    String id = "my-_simp/le-id";
     assertEquals(id, roundtrip(id));
   }
 
   @Test
-  public void testWithMessOfSlashAndBackslash() {
-    String id = "/\\/\\my-\\/simp/le-id/\\/\\\\\\//\\";
+  public void testWithMessOfSlashsAndEscapeChars() {
+    String id = "/_/_my-_/simp/le-id/_/______//_";
     assertEquals(id, roundtrip(id));
   }
 
