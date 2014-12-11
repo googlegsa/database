@@ -21,6 +21,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -166,14 +167,17 @@ class UniqueKey {
 
   private void setSqlValues(PreparedStatement st, String uniqueId,
       List<String> sqlCols) throws SQLException {
-    uniqueId = decodeSlashInData(uniqueId);
-    String parts[] = uniqueId.split("/", 0);
+    // parse on / that isn't preceded by \
+    // because a / that is preceded by \ is part of column value
+    String parts[] = uniqueId.split("(?<!\\\\)/", -1);
     if (parts.length != names.size()) {
-      throw new IllegalStateException("wrong number of values for primary key");
+      throw new IllegalStateException(
+          "wrong number of values for primary key: "
+          + "id: " + uniqueId + ", parts: " + Arrays.asList(parts));
     }
     Map<String, String> zip = new TreeMap<String, String>();
     for (int i = 0; i < parts.length; i++) {
-      zip.put(names.get(i), parts[i]);
+      zip.put(names.get(i), decodeSlashInData(parts[i]));
     }
     for (int i = 0; i < sqlCols.size(); i++) {
       String colName = sqlCols.get(i);
@@ -217,16 +221,45 @@ class UniqueKey {
 
   @VisibleForTesting
   static String encodeSlashInData(String data) {
+    // TODO: change escape character from \ to some other character
+    // because browsers convert \ to /
     if (-1 == data.indexOf('/') && -1 == data.indexOf('\\')) {
       return data;
     }
+    char lastChar = data.charAt(data.length() - 1);
+    // Don't let data end with \, because then a \ would
+    // precede the seperator /.  If column value ends with
+    // \ then append a / and take it away when decoding.
+    // Since, data could also end with / that we wouldn't
+    // want taken away during decoding, append a second /
+    // when data ends with / too.
+
+    if ('\\' == lastChar || '/' == lastChar) {
+      // For \ case:
+      // Suppose unique key values are 5\ and 6\. Without this code here
+      // the unique keys would be encoded into DocId "5\\/6\\".  Then when
+      // parsing DocId, the slash would not be used as a // splitter because
+      // it preceded by \.
+      // For / case:
+      // Suppose unique key values are 5/ and 6/. Without appending another
+      //  /, DocId will be 5\//6\/, which will be split and decoded as 5 
+      // and 6.
+      data += '/';
+    }
     data = data.replace("\\", "\\\\");
     data = data.replace("/", "\\/");
-    return data; 
+    return data;
   }
 
   @VisibleForTesting
   static String decodeSlashInData(String id) {
+    // If column value ends with / (encoded as \/)
+    // we know that it was appended because colulmn
+    // value ended with either \ or /. We take away
+    // this last added / character.
+    if (id.endsWith("\\/")) {
+      id = id.substring(0, id.length() - 2);
+    }
     id = id.replace("\\/", "/");
     id = id.replace("\\\\", "\\");
     return id;

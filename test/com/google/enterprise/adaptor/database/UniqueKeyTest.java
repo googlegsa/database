@@ -30,7 +30,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 /** Test cases for {@link UniqueKey}. */
@@ -117,16 +119,16 @@ public class UniqueKeyTest {
   }
 
   /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
-  private ResultSet makeMockResultSet(final int n, final String s) {
+  private ResultSet makeMockResultSet(final Map<String, Object> columnValueMap) {
     ResultSet rs = (ResultSet) Proxy.newProxyInstance(
         ResultSet.class.getClassLoader(), new Class[] { ResultSet.class }, 
         new InvocationHandler() {
           public Object invoke(Object proxy, Method method, Object[] args)
               throws Throwable {
-            switch (args[0].toString()) {
-              case "numnum": return n;
-              case "strstr": return s;
-              default: throw new IllegalStateException();
+            if (columnValueMap.containsKey(args[0])) {
+              return columnValueMap.get(args[0]);
+            } else {
+              throw new IllegalStateException();
             }
           }
         }
@@ -137,7 +139,36 @@ public class UniqueKeyTest {
   @Test
   public void testProcessingDocId() throws SQLException {
     UniqueKey uk = new UniqueKey("numnum:int,strstr:string");
-    assertEquals("345/abc", uk.makeUniqueId(makeMockResultSet(345, "abc")));
+    assertEquals("345/abc", uk.makeUniqueId(makeMockResultSet(
+        new HashMap<String, Object>(){{
+            put("numnum", 345);
+            put("strstr", "abc");
+        }}
+    )));
+  }
+
+  @Test
+  public void testProcessingDocIdWithSlash() throws SQLException {
+    UniqueKey uk = new UniqueKey("a:string,b:string");
+    assertEquals("5\\/5/6\\/6", uk.makeUniqueId(makeMockResultSet(
+        new HashMap<String, Object>(){{
+            put("a", "5/5");
+            put("b", "6/6");
+        }}
+    )));
+  }
+
+  @Test
+  public void testProcessingDocIdWithMoreSlashes() throws SQLException {
+    UniqueKey uk = new UniqueKey("a:string,b:string");
+    assertEquals("5\\/5\\/\\/\\//\\/\\/6\\/6",
+        uk.makeUniqueId(makeMockResultSet(
+            new HashMap<String, Object>(){{
+                put("a", "5/5//");
+                put("b", "//6/6");
+            }}
+        )
+    ));
   }
 
   private static class PreparedStatementHandler implements 
@@ -178,7 +209,6 @@ public class UniqueKeyTest {
     PreparedStatement ps = (PreparedStatement) Proxy.newProxyInstance(
         PreparedStatement.class.getClassLoader(),
         new Class[] { PreparedStatement.class }, psh);
-
     UniqueKey uk = new UniqueKey("numnum:int,strstr:string,"
         + "timestamp:timestamp,date:date,time:time,long:long");
     uk.setContentSqlValues(ps, "888/bluesky/1414701070212/2014-01-01/"
@@ -206,7 +236,6 @@ public class UniqueKeyTest {
     PreparedStatement ps = (PreparedStatement) Proxy.newProxyInstance(
         PreparedStatement.class.getClassLoader(),
         new Class[] { PreparedStatement.class }, psh);
-
     UniqueKey uk = new UniqueKey("numnum:int,strstr:string",
         "numnum,numnum,strstr,numnum,strstr,strstr,numnum", "");
     uk.setContentSqlValues(ps, "888/bluesky");
@@ -220,6 +249,79 @@ public class UniqueKeyTest {
         "setInt", "7", "888"
     );
     assertEquals(golden, psh.callsAndValues);
+  }
+
+  @Test
+  public void testPreserveSlashesInColumnValues() throws SQLException {
+    PreparedStatementHandlerPerDocCols psh
+        = new PreparedStatementHandlerPerDocCols();
+    PreparedStatement ps = (PreparedStatement) Proxy.newProxyInstance(
+        PreparedStatement.class.getClassLoader(),
+        new Class[] { PreparedStatement.class }, psh);
+    UniqueKey uk = new UniqueKey("a:string,b:string",
+        "a,b,a", "");
+    uk.setContentSqlValues(ps, "5\\/5/6\\/6");
+    List<String> golden = Arrays.asList(
+        "setString", "1", "5/5",
+        "setString", "2", "6/6",
+        "setString", "3", "5/5"
+    );
+    assertEquals(golden, psh.callsAndValues);
+  }
+
+  private static String makeId(char choices[], int maxlen) {
+    StringBuilder sb = new StringBuilder();
+    Random r = new Random();
+    int len = r.nextInt(maxlen);
+    for (int i = 0; i < len; i++) {
+      sb.append(choices[r.nextInt(choices.length)]);
+    }
+    return "" + sb;
+  }
+
+  private static String makeRandomId() {
+    char choices[] = "13/\\45\\97%^&%$^)*(/<>|P{UITY*c".toCharArray();
+    return makeId(choices, 100);
+  }
+
+  private static String makeSomeSlashes() {
+    return makeId("/\\".toCharArray(), 100);
+  }
+
+  @Test
+  public void testFuzzSlashes() throws SQLException {
+    for (int fuzzCase = 0; fuzzCase < 1000; fuzzCase++) {
+      UniqueKey uk = new UniqueKey("a:string,b:string");
+      final String elem1 = makeSomeSlashes();
+      final String elem2 = makeSomeSlashes();
+      String id = uk.makeUniqueId(makeMockResultSet(
+        new HashMap<String, Object>(){{
+            put("a", elem1);
+            put("b", elem2);
+        }}
+      ));
+      PreparedStatementHandlerPerDocCols psh
+          = new PreparedStatementHandlerPerDocCols();
+      PreparedStatement ps = (PreparedStatement) Proxy.newProxyInstance(
+          PreparedStatement.class.getClassLoader(),
+          new Class[] { PreparedStatement.class }, psh);
+      try {
+        uk.setContentSqlValues(ps, id);
+      } catch (Exception e) {
+        throw new RuntimeException("elem1: " + elem1 + ", elem2: " + elem2 
+            + ", id: " + id, e);
+      }
+      List<String> golden = Arrays.asList(
+          "setString", "1", elem1,
+          "setString", "2", elem2
+      );
+      try {
+        assertEquals(golden, psh.callsAndValues);
+      } catch (Throwable e) {
+        throw new RuntimeException("elem1: " + elem1 + ", elem2: " + elem2 
+            + ", id: " + id + ", golden: " + golden, e);
+      }
+    }
   }
 
   private static String roundtrip(String in) {
@@ -268,19 +370,8 @@ public class UniqueKeyTest {
     assertEquals(id, roundtrip(id));
   }
 
-  private static String makeRandomId() {
-    char choices[] = "13/\\45\\97%^&%$^)*(/<>|P{UITY*c".toCharArray();
-    StringBuilder sb = new StringBuilder();
-    Random r = new Random();
-    int len = r.nextInt(100);
-    for (int i = 0; i < len; i++) {
-      sb.append(choices[r.nextInt(choices.length)]);
-    }
-    return "" + sb;
-  }
-
   @Test
-  public void testWithFuzz() {
+  public void testFuzzEncodeAndDecode() {
     int ntests = 100;
     for (int i = 0; i < ntests; i++) {
       String fuzz = makeRandomId();
