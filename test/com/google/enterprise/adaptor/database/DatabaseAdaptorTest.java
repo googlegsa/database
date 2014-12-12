@@ -18,7 +18,6 @@ import static org.junit.Assert.*;
 
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Config;
-import com.google.enterprise.adaptor.DocId;
 import com.google.enterprise.adaptor.GroupPrincipal;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
@@ -183,125 +182,6 @@ public class DatabaseAdaptorTest {
     assertEquals(golden, acl);
   }
   
-  @Test
-  public void testAclSqlResultSetWithInheritFrom() throws SQLException {
-    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
-    Map<String, String> record = new TreeMap<String, String>();
-    record.put(GsaSpecialColumns.GSA_PERMIT_USERS.toString(), "puser1, puser2");
-    record.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser1, duser2");
-    record.put(
-        GsaSpecialColumns.GSA_PERMIT_GROUPS.toString(), "pgroup1, pgroup2");
-    record.put(
-        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup2");
-    record.put(GsaSpecialColumns.GSA_INHERIT_FROM.toString(), "parent");
-    record.put(GsaSpecialColumns.GSA_INHERITANCE_TYPE.toString(),
-        "PARENT_OVERRIDES");
-    mockResultSet.addRecord(record);
-
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, mockResultSet);
-    ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
-
-    Acl golden = new Acl.Builder()
-        .setPermitUsers(Arrays.asList(
-            new UserPrincipal("puser2"),
-            new UserPrincipal("puser1")))
-        .setDenyUsers(Arrays.asList(
-            new UserPrincipal("duser1"),
-            new UserPrincipal("duser2")))
-        .setPermitGroups(Arrays.asList(
-            new GroupPrincipal("pgroup1"),
-            new GroupPrincipal("pgroup2")))
-        .setDenyGroups(Arrays.asList(
-            new GroupPrincipal("dgroup2"),
-            new GroupPrincipal("dgroup1")))
-        .setInheritFrom(new DocId("parent"))
-        .setInheritanceType(Acl.InheritanceType.PARENT_OVERRIDES)
-        .build();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
-
-    assertEquals(golden, acl);
-  }
-
-  @Test
-  public void testAclSqlResultSetWithMultipleInheritFrom() throws SQLException {
-    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
-    Map<String, String> record1 = new TreeMap<String, String>();
-    record1.put(GsaSpecialColumns.GSA_INHERIT_FROM.toString(), "parent1");
-    mockResultSet.addRecord(record1);
-    Map<String, String> record2 = new TreeMap<String, String>();
-    record2.put(GsaSpecialColumns.GSA_INHERIT_FROM.toString(), "parent2");
-    mockResultSet.addRecord(record2);
-    Map<String, String> record3 = new TreeMap<String, String>();
-    record3.put(GsaSpecialColumns.GSA_INHERIT_FROM.toString(), "PARENT1");
-    mockResultSet.addRecord(record3);
-
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, mockResultSet);
-    ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
-
-    thrown.expect(IllegalStateException.class);
-    DatabaseAdaptor.buildAcl(rs, metadata, ",");
-  }
-
-  @Test
-  public void testAclSqlResultSetWithMultipleInheritanceType()
-      throws SQLException {
-    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
-    Map<String, String> record1 = new TreeMap<String, String>();
-    record1.put(GsaSpecialColumns.GSA_INHERITANCE_TYPE.toString(),
-        "PARENT_OVERRIDES");
-    mockResultSet.addRecord(record1);
-    Map<String, String> record2 = new TreeMap<String, String>();
-    record2.put(GsaSpecialColumns.GSA_INHERIT_FROM.toString(),
-        "PARENT_OVERRIDES");
-    mockResultSet.addRecord(record2);
-    Map<String, String> record3 = new TreeMap<String, String>();
-    record3.put(GsaSpecialColumns.GSA_INHERIT_FROM.toString(), "LEAF_NODE");
-    mockResultSet.addRecord(record3);
-
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, mockResultSet);
-    ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
-
-    thrown.expect(IllegalStateException.class);
-    DatabaseAdaptor.buildAcl(rs, metadata, ",");
-  }
-
-  @Test
-  public void testAclSqlResultSetWithOverlappingInheritanceData()
-      throws SQLException {
-    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
-    Map<String, String> record1 = new TreeMap<String, String>();
-    record1.put(GsaSpecialColumns.GSA_INHERITANCE_TYPE.toString(),
-        "PARENT_OVERRIDES");
-    record1.put(GsaSpecialColumns.GSA_INHERIT_FROM.toString(),
-        "ROOT");
-    mockResultSet.addRecord(record1);
-    Map<String, String> record2 = new TreeMap<String, String>();
-    record2.put(GsaSpecialColumns.GSA_INHERITANCE_TYPE.toString(),
-        "PARENT_OVERRIDES");
-    record2.put(GsaSpecialColumns.GSA_INHERIT_FROM.toString(),
-        "ROOT");
-    mockResultSet.addRecord(record2);
-
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, mockResultSet);
-    ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
-
-    Acl golden = new Acl.Builder()
-        .setInheritanceType(Acl.InheritanceType.PARENT_OVERRIDES)
-        .setInheritFrom(new DocId("ROOT"))
-        .build();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
-
-    assertEquals(golden, acl);
-  }
-
   @Test
   public void testAclSqlResultSetHasNonOverlappingTwoRecord()
       throws SQLException {
@@ -564,9 +444,10 @@ public class DatabaseAdaptorTest {
   private static ResultSetMetaData getResultSetMetaDataHasAllAclColumns() {
     MockAclSqlResultSetMetaData mockMetadata =
         new MockAclSqlResultSetMetaData();
-    for (GsaSpecialColumns column : GsaSpecialColumns.values()) {
-      mockMetadata.addColumn(column.toString());
-    }
+    mockMetadata.addColumn(GsaSpecialColumns.GSA_PERMIT_USERS.toString());
+    mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_USERS.toString());
+    mockMetadata.addColumn(GsaSpecialColumns.GSA_PERMIT_GROUPS.toString());
+    mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_GROUPS.toString());
 
     return (ResultSetMetaData) Proxy.newProxyInstance(
         ResultSetMetaData.class.getClassLoader(),

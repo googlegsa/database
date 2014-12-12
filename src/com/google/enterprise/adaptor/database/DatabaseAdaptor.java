@@ -240,8 +240,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     ArrayList<UserPrincipal> denyUsers = new ArrayList<UserPrincipal>();
     ArrayList<GroupPrincipal> permitGroups = new ArrayList<GroupPrincipal>();
     ArrayList<GroupPrincipal> denyGroups = new ArrayList<GroupPrincipal>();
-    String inheritFrom = null;
-    Acl.InheritanceType inheritanceType = null;
     boolean hasPermitUsers =
         hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_USERS.toString());
     boolean hasDenyUsers =
@@ -250,10 +248,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_GROUPS.toString());
     boolean hasDenyGroups =
         hasColumn(metadata, GsaSpecialColumns.GSA_DENY_GROUPS.toString());
-    boolean hasInheritFrom =
-        hasColumn(metadata, GsaSpecialColumns.GSA_INHERIT_FROM.toString());
-    boolean hasInheritanceType =
-        hasColumn(metadata, GsaSpecialColumns.GSA_INHERITANCE_TYPE.toString());
     do {
       if (hasPermitUsers) {
         permitUsers.addAll(getUserPrincipalsFromResultSet(rs,
@@ -271,39 +265,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         denyGroups.addAll(getGroupPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_GROUPS, delim));
       }
-      if (hasInheritFrom) {
-        String parent =
-            rs.getString(GsaSpecialColumns.GSA_INHERIT_FROM.toString());
-        if (isNullOrEmptyString(parent) || parent.equals(inheritFrom)) {
-          // do nothing.
-        } else if (inheritFrom != null) {
-          throw new IllegalStateException(
-              "Inheriting permissions from more than 1 parent.");
-        } else {
-          inheritFrom = parent;
-        }
-      }
-      if (hasInheritanceType) {
-        String aclInheritanceType =
-            rs.getString(GsaSpecialColumns.GSA_INHERITANCE_TYPE.toString());
-        if (isNullOrEmptyString(aclInheritanceType)
-            || Acl.InheritanceType.valueOf(aclInheritanceType)
-                .equals(inheritanceType)) {
-          // do nothing.
-        } else if (inheritanceType != null) {
-          throw new IllegalStateException(
-                "Multiple inheritance types available");
-        } else {
-          inheritanceType = Acl.InheritanceType.valueOf(aclInheritanceType);
-        }
-      }
     } while (rs.next());
-    if (!isNullOrEmptyString(inheritFrom)) {
-      builder.setInheritFrom(new DocId(inheritFrom));
-    }
-    if (inheritanceType != null) {
-      builder.setInheritanceType(inheritanceType);
-    }
     return builder
         .setPermitUsers(permitUsers)
         .setDenyUsers(denyUsers)
@@ -619,9 +581,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     GSA_PERMIT_USERS("GSA_PERMIT_USERS"),
     GSA_DENY_USERS("GSA_DENY_USERS"),
     GSA_PERMIT_GROUPS("GSA_PERMIT_GROUPS"),
-    GSA_DENY_GROUPS("GSA_DENY_GROUPS"),
-    GSA_INHERIT_FROM("GSA_INHERIT_FROM"),
-    GSA_INHERITANCE_TYPE("GSA_INHERITANCE_TYPE")
+    GSA_DENY_GROUPS("GSA_DENY_GROUPS")
     ;
 
     private final String text;
