@@ -177,7 +177,8 @@ class UniqueKey {
     }
     Map<String, String> zip = new TreeMap<String, String>();
     for (int i = 0; i < parts.length; i++) {
-      zip.put(names.get(i), decodeSlashInData(parts[i]));
+      String columnValue = decodeSlashInData(parts[i]);
+      zip.put(names.get(i), columnValue);
     }
     for (int i = 0; i < sqlCols.size(); i++) {
       String colName = sqlCols.get(i);
