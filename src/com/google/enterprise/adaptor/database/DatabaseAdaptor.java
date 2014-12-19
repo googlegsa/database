@@ -202,6 +202,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         }
       }
       // Generate response body.
+      // In database adaptor's case, we almost never want to follow the URLs.
+      // One record means one document.
+      resp.setNoFollow(true); 
       respGenerator.generateResponse(rs, resp);
     } catch (SQLException ex) {
       throw new IOException("retrieval error", ex);
