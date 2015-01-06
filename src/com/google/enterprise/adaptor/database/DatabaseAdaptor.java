@@ -57,6 +57,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String aclSql;
   private String aclPrincipalDelimiter;
   private boolean disableStreaming;
+  private Calendar databaseTimezone;
 
   @Override
   public void initConfig(Config config) {
@@ -81,6 +82,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     //          one trailing whitespace
     config.addKey("db.aclPrincipalDelimiter", ",");
     config.addKey("db.disableStreaming", "false");
+    // see java.util.TimeZone javadoc for valid values for TimeZone
+    config.addKey("db.databaseTimezone", "GMT");
   }
 
   @Override
@@ -138,6 +141,12 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     disableStreaming = new Boolean(cfg.getValue("db.disableStreaming"));
     log.config("disableStreaming: " + disableStreaming);
+
+    databaseTimezone =
+        Calendar.getInstance(TimeZone.getTimeZone(cfg
+            .getValue("db.databaseTimezone")));
+    log.config("databaseTimezone: "
+        + databaseTimezone.getTimeZone().getDisplayName());
   }
 
   /** Get all doc ids from database. */
@@ -563,7 +572,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
             /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
       }
-      st.setTimestamp(1, new java.sql.Timestamp(lastUpdateTimestampInMillis));
+      st.setTimestamp(1, new java.sql.Timestamp(lastUpdateTimestampInMillis),
+          databaseTimezone);
       ResultSet rs = st.executeQuery();
       return new StatementAndResult(st, rs);
     }
