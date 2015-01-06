@@ -82,8 +82,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     //          one trailing whitespace
     config.addKey("db.aclPrincipalDelimiter", ",");
     config.addKey("db.disableStreaming", "false");
+    // for databaseTimezone, the default value will be empty string. Timezone
+    // conversions are required only when there is a mismatch between adaptor
+    // and database server timezone.
     // see java.util.TimeZone javadoc for valid values for TimeZone
-    config.addKey("db.databaseTimezone", "GMT");
+    config.addKey("db.databaseTimezone", "");
   }
 
   @Override
@@ -142,9 +145,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     disableStreaming = new Boolean(cfg.getValue("db.disableStreaming"));
     log.config("disableStreaming: " + disableStreaming);
 
-    databaseTimezone =
-        Calendar.getInstance(TimeZone.getTimeZone(cfg
-            .getValue("db.databaseTimezone")));
+    String tzString = cfg.getValue("db.databaseTimezone");
+    if (isNullOrEmptyString(tzString)) {
+      databaseTimezone = Calendar.getInstance();
+    } else {
+      databaseTimezone =
+          Calendar.getInstance(TimeZone.getTimeZone(cfg
+              .getValue("db.databaseTimezone")));
+    }
     log.config("databaseTimezone: "
         + databaseTimezone.getTimeZone().getDisplayName());
   }
