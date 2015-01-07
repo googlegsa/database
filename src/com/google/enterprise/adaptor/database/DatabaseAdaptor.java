@@ -32,7 +32,10 @@ import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.*;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.Date;
 import java.util.logging.*;
 
 /** Puts SQL database into GSA index. */
@@ -128,12 +131,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     log.config("metadata columns: " + metadataColumns);
 
     respGenerator = loadResponseGenerator(cfg);
-
-    DbAdaptorIncrementalLister incrementalLister
-        = initDbAdaptorIncrementalLister(cfg);
-    if (incrementalLister != null) {
-      context.setPollingIncrementalLister(incrementalLister);
-    }
     
     if (!isNullOrEmptyString(cfg.getValue("db.aclSql"))) {
       aclSql = cfg.getValue("db.aclSql");
@@ -155,6 +152,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
     log.config("databaseTimezone: "
         + databaseTimezone.getTimeZone().getDisplayName());
+
+    // incremental lister has to be initiated after databaseTimezone because
+    // its formatter member variable depends on databaseTimezone to be set.
+    DbAdaptorIncrementalLister incrementalLister
+        = initDbAdaptorIncrementalLister(cfg);
+    if (incrementalLister != null) {
+      context.setPollingIncrementalLister(incrementalLister);
+    }
   }
 
   /** Get all doc ids from database. */
@@ -531,14 +536,20 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     return respGenerator;
   }
 
+  // Incremental pushing in Database Adaptor based on Timestamp does NOT
+  // guarantee to pick ALL updates. Some updates might still need to wait for 
+  // next full push to be sent to GSA.
   private class DbAdaptorIncrementalLister implements PollingIncrementalLister {
     private final String updateSql;
-    private long lastUpdateTimestampInMillis;
+    private Timestamp lastUpdateTimestamp;
+    private final DateFormat formatter;
 
     public DbAdaptorIncrementalLister(String updateSql) {
       this.updateSql = updateSql;
       log.config("update sql: " + this.updateSql);
-      this.lastUpdateTimestampInMillis = System.currentTimeMillis();
+      this.lastUpdateTimestamp = new Timestamp(System.currentTimeMillis());
+      formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z");
+      formatter.setTimeZone(databaseTimezone.getTimeZone());
     }
 
     @Override
@@ -547,10 +558,19 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       BufferedPusher outstream = new BufferedPusher(pusher);
       Connection conn = null;
       StatementAndResult statementAndResult = null;
+      // latestTimestamp will be used to update lastUpdateTimestampInMillis
+      // if GSA_TIMESTAMP column is present in the ResultSet and there is at 
+      // least one non-null value of that column in the ResultSet.
+      Timestamp latestTimestamp = null;
+      boolean hasTimestamp = false;
       try {
         conn = makeNewConnection();
         statementAndResult = getUpdateStreamFromDb(conn);
         ResultSet rs = statementAndResult.resultSet;
+        hasTimestamp =
+            hasColumn(rs.getMetaData(),
+                GsaSpecialColumns.GSA_TIMESTAMP.toString());
+        log.log(Level.FINEST, "hasTimestamp: {0}", hasTimestamp);
         while (rs.next()) {
           DocId id = new DocId(uniqueKey.makeUniqueId(rs));
           DocIdPusher.Record record =
@@ -558,6 +578,20 @@ public class DatabaseAdaptor extends AbstractAdaptor {
                   .build();
           log.log(Level.FINEST, "doc id: {0}", id);
           outstream.add(record);
+          
+          // update latestTimestamp
+          if (hasTimestamp) {
+            Timestamp ts =
+                rs.getTimestamp(GsaSpecialColumns.GSA_TIMESTAMP.toString(),
+                    databaseTimezone);
+            if (ts != null) {
+              if (latestTimestamp == null || ts.after(latestTimestamp)) {
+                latestTimestamp = ts;
+                log.log(Level.FINE, "latestTimestamp updated: {0}",
+                    formatter.format(new Date(latestTimestamp.getTime())));
+              }
+            }
+          }
         }
       } catch (SQLException ex) {
         throw new IOException(ex);
@@ -566,8 +600,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         tryClosingConnection(conn);
       }
       outstream.forcePush();
-      lastUpdateTimestampInMillis = System.currentTimeMillis();
-      log.fine("last pushing timestamp set to: " + lastUpdateTimestampInMillis);
+      if (!hasTimestamp) {
+        lastUpdateTimestamp = new Timestamp(System.currentTimeMillis());
+      } else if (latestTimestamp != null) {
+        lastUpdateTimestamp = latestTimestamp;
+      }
+      // The Timestamp here will be printed in database timezone.
+      log.fine("last pushing timestamp set to: "
+          + formatter.format(new Date(lastUpdateTimestamp.getTime())));
     }
 
     private StatementAndResult getUpdateStreamFromDb(Connection conn)
@@ -580,8 +620,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
             /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
       }
-      st.setTimestamp(1, new java.sql.Timestamp(lastUpdateTimestampInMillis),
-          databaseTimezone);
+      st.setTimestamp(1, lastUpdateTimestamp, databaseTimezone);
       ResultSet rs = st.executeQuery();
       return new StatementAndResult(st, rs);
     }
@@ -602,7 +641,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     GSA_PERMIT_USERS("GSA_PERMIT_USERS"),
     GSA_DENY_USERS("GSA_DENY_USERS"),
     GSA_PERMIT_GROUPS("GSA_PERMIT_GROUPS"),
-    GSA_DENY_GROUPS("GSA_DENY_GROUPS")
+    GSA_DENY_GROUPS("GSA_DENY_GROUPS"),
+    GSA_TIMESTAMP("GSA_TIMESTAMP")
     ;
 
     private final String text;

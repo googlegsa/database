@@ -166,6 +166,8 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           }
           break;
         case Types.TIMESTAMP:
+          // TODO: probably need to change to calling getTimestamp with Calendar
+          // parameter.
           Timestamp tsValue = resultSet.getTimestamp(col);
           if (tsValue != null) {
             handler.startElement("", columnName, columnName, atts);
