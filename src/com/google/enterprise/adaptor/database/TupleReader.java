@@ -129,12 +129,6 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
     }
   }
 
-  private void emitNull(ContentHandler handler, String columnName,
-      AttributesImpl atts) throws SAXException {
-    atts.addAttribute("", "ISNULL", "ISNULL", "NMTOKEN", "true");
-    handler.startElement("", columnName, columnName, atts);
-  }
-
   protected void emitRow(ResultSet resultSet, ContentHandler handler)
       throws SQLException, SAXException, IOException {
     AttributesImpl atts = new AttributesImpl();
@@ -154,61 +148,52 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         atts.addAttribute("", "SQLType", "SQLType", "NMTOKEN", sqlTypeName);
       }
       log.fine("sqlTypeName: " + sqlTypeName);
-      boolean columnSkipped = false;
+      if (resultSet.getObject(col) == null) {
+        atts.addAttribute("", "ISNULL", "ISNULL", "NMTOKEN", "true");
+        handler.startElement("", columnName, columnName, atts);
+        // TODO: Re-examine this need for flush.
+        outWriter.flush();
+        handler.endElement("", columnName, columnName);
+        continue;
+      }
       switch (sqlType) {
         case Types.DATE:
           Date dateValue = resultSet.getDate(col);
-          if (dateValue != null) {
-            handler.startElement("", columnName, columnName, atts);
-            outWriter.write(DATEFMT.format(dateValue));
-          } else {
-            emitNull(handler, columnName, atts);
-          }
+          handler.startElement("", columnName, columnName, atts);
+          outWriter.write(DATEFMT.format(dateValue));
           break;
         case Types.TIMESTAMP:
           // TODO: probably need to change to calling getTimestamp with Calendar
           // parameter.
           Timestamp tsValue = resultSet.getTimestamp(col);
-          if (tsValue != null) {
-            handler.startElement("", columnName, columnName, atts);
-            String timezone = TIMEZONEFMT.format(tsValue);
-            // java timezone not ISO compliant
-            timezone =
-                timezone.substring(0, timezone.length() - 2) + ":"
-                    + timezone.substring(timezone.length() - 2);
-            outWriter.write(DATEFMT.format(tsValue) + "T"
-                + TIMEFMT.format(tsValue) + timezone);
-          } else {
-            emitNull(handler, columnName, atts);
-          }
+          handler.startElement("", columnName, columnName, atts);
+          String timezone = TIMEZONEFMT.format(tsValue);
+          // java timezone not ISO compliant
+          timezone =
+              timezone.substring(0, timezone.length() - 2) + ":"
+                  + timezone.substring(timezone.length() - 2);
+          outWriter.write(DATEFMT.format(tsValue) + "T"
+              + TIMEFMT.format(tsValue) + timezone);
           break;
         case Types.TIME:
           Time timeValue = resultSet.getTime(col);
-          if (timeValue != null) {
-            handler.startElement("", columnName, columnName, atts);
-            String timezone = TIMEZONEFMT.format(timeValue);
-            // java timezone not ISO compliant
-            timezone =
-                timezone.substring(0, timezone.length() - 2) + ":"
-                    + timezone.substring(timezone.length() - 2);
-            outWriter.write(TIMEFMT.format(timeValue) + timezone);
-          } else {
-            emitNull(handler, columnName, atts);
-          }
+          handler.startElement("", columnName, columnName, atts);
+          timezone = TIMEZONEFMT.format(timeValue);
+          // java timezone not ISO compliant
+          timezone =
+              timezone.substring(0, timezone.length() - 2) + ":"
+                  + timezone.substring(timezone.length() - 2);
+          outWriter.write(TIMEFMT.format(timeValue) + timezone);
           break;
         case Types.BLOB:
         case Types.VARBINARY:
         case Types.LONGVARBINARY:
           InputStream lob = resultSet.getBinaryStream(col);
-          if (lob != null) {
-            // so encode using Base64
-            atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
-                "base64binary");
-            handler.startElement("", columnName, columnName, atts);
-            encode(lob, outWriter);
-          } else {
-            emitNull(handler, columnName, atts);
-          }
+          // so encode using Base64
+          atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
+              "base64binary");
+          handler.startElement("", columnName, columnName, atts);
+          encode(lob, outWriter);
           break;
         case Types.SMALLINT:
         case Types.TINYINT:
@@ -218,37 +203,42 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.DOUBLE:
         case Types.INTEGER:
           String string = resultSet.getString(col);
-          if (string != null) {
-            handler.startElement("", columnName, columnName, atts);
-            outWriter.write(string);
-          } else {
-            emitNull(handler, columnName, atts);
-          }
+          handler.startElement("", columnName, columnName, atts);
+          outWriter.write(string);
           break;
         case Types.CHAR:
         case Types.CLOB:
         case Types.VARCHAR:
         case Types.LONGVARCHAR:
           Reader reader = resultSet.getCharacterStream(col);
-          if (reader != null) {
-            handler.startElement("", columnName, columnName, atts);
-            copyValidXMLCharacters(reader, outWriter);
-          } else {
-            emitNull(handler, columnName, atts);
-          }
+          handler.startElement("", columnName, columnName, atts);
+          copyValidXMLCharacters(reader, outWriter);
+          reader.close();
+          break;
+        case Types.NCHAR:
+        case Types.NCLOB:
+        case Types.NVARCHAR:
+        case Types.LONGNVARCHAR:
+          Reader nReader = resultSet.getNCharacterStream(col);
+          handler.startElement("", columnName, columnName, atts);
+          copyValidXMLCharacters(nReader, outWriter);
+          nReader.close();
+          break;
+        case Types.BIT:
+        case Types.BOOLEAN:
+          Boolean value = resultSet.getBoolean(col);
+          handler.startElement("", columnName, columnName, atts);
+          outWriter.write(String.valueOf(value));
           break;
         case Types.OTHER:
         default:
-          log.info("skip column of type " + sqlTypeName);
-          columnSkipped = true;
+          string = "" + resultSet.getObject(col);
+          handler.startElement("", columnName, columnName, atts);
+          outWriter.write(string);
           break;
       }
-      if (columnSkipped == false) {
-        outWriter.flush();
-        // if we try to end a not-existing element, an EmptyStackException will
-        // be thrown
-        handler.endElement("", columnName, columnName);
-      }
+      outWriter.flush();
+      handler.endElement("", columnName, columnName);
     }
     outWriter.close();
     if (recordElement != null) {
@@ -327,8 +317,16 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         return "DATALINK";
       case Types.BOOLEAN:
         return "BOOLEAN";
+      case Types.NCHAR:
+        return "NCHAR";
+      case Types.NVARCHAR:
+        return "NVARCHAR";
+      case Types.NCLOB:
+        return "NCLOB";
+      case Types.LONGNVARCHAR:
+        return "LONGNVARCHAR";
       default:
-        return null;
+        return String.valueOf(sqlType);
     }
   }
 

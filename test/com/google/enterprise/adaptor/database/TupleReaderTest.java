@@ -354,6 +354,8 @@ public class TupleReaderTest {
         return (String) sqlObjectValue;
       } else if ("getCharacterStream".equals(methodName)) {
         return (Reader) sqlObjectValue;
+      } else if ("getObject".equals(methodName)) {
+        return sqlObjectValue;
       } else {
         throw new IllegalStateException("unexpected call: " + methodName);
       }
