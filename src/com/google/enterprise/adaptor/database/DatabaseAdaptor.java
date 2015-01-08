@@ -60,7 +60,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String aclSql;
   private String aclPrincipalDelimiter;
   private boolean disableStreaming;
-  private Calendar databaseTimezone;
+  private Calendar updateTimestampTimezone;
 
   @Override
   public void initConfig(Config config) {
@@ -77,7 +77,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.updateSql", "");
     config.addKey("db.aclSql", "");
     config.addKey("db.aclSqlParameters", "");
-    // by default, the delimiter is a single comma. This delimiter will be taken
+    // By default, the delimiter is a single comma. This delimiter will be taken
     // from admin's config as is. For example, if the delimiter is
     //   "", it means no splitting
     //   "  ", it means to split with exactly two whitespaces
@@ -85,11 +85,23 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     //          one trailing whitespace
     config.addKey("db.aclPrincipalDelimiter", ",");
     config.addKey("db.disableStreaming", "false");
-    // for databaseTimezone, the default value will be empty string. Timezone
-    // conversions are required only when there is a mismatch between adaptor
-    // and database server timezone.
-    // see java.util.TimeZone javadoc for valid values for TimeZone
-    config.addKey("db.databaseTimezone", "");
+    // For updateTimestampTimezone, the default value will be empty string,
+    // which means it ends up being adaptor machine's timezone.
+    // 
+    // Timezone conversions are required in two cases:
+    //  1) the database column used as timestamp doesn't preserve timezone
+    //     information, such as datetime in MS SQL Server and TIMESTAMP in
+    //     Oracle. In this case, updateTimestampTimezone needs be set according
+    //     to database server's timezone.
+    //  2) the database column used as timestamp does preserve timezone
+    //     information, such as datetimeoffset in MS SQL Server and
+    //     TIMESTAMP WITH TIME ZONE in Oracle. In this case,
+    //     updateTimestampTimezone needs to be set to UTC or GMT or any
+    //     equivalent.
+    // 
+    // See java.util.TimeZone javadoc for valid values for TimeZone.
+    // http://docs.oracle.com/javase/7/docs/api/java/util/TimeZone.html
+    config.addKey("db.updateTimestampTimezone", "");
   }
 
   @Override
@@ -142,19 +154,20 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     disableStreaming = new Boolean(cfg.getValue("db.disableStreaming"));
     log.config("disableStreaming: " + disableStreaming);
 
-    String tzString = cfg.getValue("db.databaseTimezone");
+    String tzString = cfg.getValue("db.updateTimestampTimezone");
     if (isNullOrEmptyString(tzString)) {
-      databaseTimezone = Calendar.getInstance();
+      updateTimestampTimezone = Calendar.getInstance();
     } else {
-      databaseTimezone =
+      updateTimestampTimezone =
           Calendar.getInstance(TimeZone.getTimeZone(cfg
-              .getValue("db.databaseTimezone")));
+              .getValue("db.updateTimestampTimezone")));
     }
-    log.config("databaseTimezone: "
-        + databaseTimezone.getTimeZone().getDisplayName());
+    log.config("updateTimestampTimezone: "
+        + updateTimestampTimezone.getTimeZone().getDisplayName());
 
-    // incremental lister has to be initiated after databaseTimezone because
-    // its formatter member variable depends on databaseTimezone to be set.
+    // incremental lister has to be initiated after updateTimestampTimezone
+    // because its formatter member variable depends on updateTimestampTimezone
+    // to be set.
     DbAdaptorIncrementalLister incrementalLister
         = initDbAdaptorIncrementalLister(cfg);
     if (incrementalLister != null) {
@@ -549,7 +562,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       log.config("update sql: " + this.updateSql);
       this.lastUpdateTimestamp = new Timestamp(System.currentTimeMillis());
       formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z");
-      formatter.setTimeZone(databaseTimezone.getTimeZone());
+      formatter.setTimeZone(updateTimestampTimezone.getTimeZone());
     }
 
     @Override
@@ -583,7 +596,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           if (hasTimestamp) {
             Timestamp ts =
                 rs.getTimestamp(GsaSpecialColumns.GSA_TIMESTAMP.toString(),
-                    databaseTimezone);
+                    updateTimestampTimezone);
             if (ts != null) {
               if (latestTimestamp == null || ts.after(latestTimestamp)) {
                 latestTimestamp = ts;
@@ -620,7 +633,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
             /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
       }
-      st.setTimestamp(1, lastUpdateTimestamp, databaseTimezone);
+      st.setTimestamp(1, lastUpdateTimestamp, updateTimestampTimezone);
       ResultSet rs = st.executeQuery();
       return new StatementAndResult(st, rs);
     }
