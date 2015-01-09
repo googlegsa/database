@@ -87,18 +87,23 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.disableStreaming", "false");
     // For updateTimestampTimezone, the default value will be empty string,
     // which means it ends up being adaptor machine's timezone.
-    // 
-    // Timezone conversions are required in two cases:
-    //  1) the database column used as timestamp doesn't preserve timezone
-    //     information, such as datetime in MS SQL Server and TIMESTAMP in
-    //     Oracle. In this case, updateTimestampTimezone needs be set according
-    //     to database server's timezone.
-    //  2) the database column used as timestamp does preserve timezone
-    //     information, such as datetimeoffset in MS SQL Server and
-    //     TIMESTAMP WITH TIME ZONE in Oracle. In this case,
-    //     updateTimestampTimezone needs to be set to UTC or GMT or any
-    //     equivalent.
-    // 
+    //
+    // Different values should be picked for this config based on the database
+    // the adaptor is connecting to and based on the column type used as
+    // timestamp.
+    //
+    // For MS SQL Server,
+    //  datetime, datetime2 : use database server's timezone.
+    //  datetimeoffset : use UTC or GMT or any equivalent.
+    //
+    // For Oracle,
+    //  DATE, TIMESTAMP, TIMESTAMP WITH TIME ZONE : use database server's
+    //      timezone.
+    //  TIMESTAMP WITH LOCAL TIME ZONE : NOT supported now. The call to
+    //      getTimestamp will throw exception. This is Oracle specific thing.
+    //      To fix, we need to call
+    //      oracle.jdbc.driver.OracleConnection.setSessionTimeZone().
+    //
     // See java.util.TimeZone javadoc for valid values for TimeZone.
     // http://docs.oracle.com/javase/7/docs/api/java/util/TimeZone.html
     config.addKey("db.updateTimestampTimezone", "");
