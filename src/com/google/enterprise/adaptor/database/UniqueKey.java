@@ -132,7 +132,13 @@ class UniqueKey {
     this(ukDecls, "", "");
   }
 
-  String makeUniqueId(ResultSet rs) throws SQLException {
+  String makeUniqueId(ResultSet rs, boolean encode) throws SQLException {
+    if (!encode) {
+      if (names.size() == 1) {
+        return rs.getString(1);
+      }
+      throw new AssertionError("not encoding implies exactly one parameter");
+    }
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < names.size(); i++) {
       String name = names.get(i);
@@ -159,14 +165,24 @@ class UniqueKey {
         default:
           throw new AssertionError("invalid type: `" + types.get(name) + "'"); 
       }
-      part = encodeSlashInData(part);
+      if (encode) {
+        part = encodeSlashInData(part);
+      }
       sb.append("/").append(part);
     }
     return sb.toString().substring(1);
   }
 
   private void setSqlValues(PreparedStatement st, String uniqueId,
-      List<String> sqlCols) throws SQLException {
+      List<String> sqlCols, boolean isEncoded) throws SQLException {
+    if (!isEncoded) {
+      int nparams = st.getParameterMetaData().getParameterCount();
+      if (1 == nparams) {
+        st.setString(1, uniqueId);
+        return;
+      }
+      throw new AssertionError("not encoding implies exactly one parameter");
+    }
     // parse on / that isn't preceded by escape char _
     // (a / that is preceded by _ is part of column value)
     String parts[] = uniqueId.split("(?<!_)/", -1);
@@ -210,14 +226,14 @@ class UniqueKey {
     }   
   }
 
-  void setContentSqlValues(PreparedStatement st, String uniqueId)
-      throws SQLException {
-    setSqlValues(st, uniqueId, contentSqlCols);
+  void setContentSqlValues(PreparedStatement st, String uniqueId,
+      boolean dataIsEncoded) throws SQLException {
+    setSqlValues(st, uniqueId, contentSqlCols, dataIsEncoded);
   }
 
-  void setAclSqlValues(PreparedStatement st, String uniqueId)
-      throws SQLException {
-    setSqlValues(st, uniqueId, aclSqlCols);
+  void setAclSqlValues(PreparedStatement st, String uniqueId,
+      boolean dataIsEncoded) throws SQLException {
+    setSqlValues(st, uniqueId, aclSqlCols, dataIsEncoded);
   }
 
   @VisibleForTesting

@@ -57,6 +57,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String aclSql;
   private String aclPrincipalDelimiter;
   private boolean disableStreaming;
+  private boolean encodeDocId;
 
   @Override
   public void initConfig(Config config) {
@@ -138,6 +139,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     disableStreaming = new Boolean(cfg.getValue("db.disableStreaming"));
     log.config("disableStreaming: " + disableStreaming);
+
+    boolean leaveIdAlone = new Boolean(cfg.getValue("docId.isUrl"));
+    encodeDocId = !leaveIdAlone;
+    log.config("encodeDocId: " + encodeDocId);
   }
 
   /** Get all doc ids from database. */
@@ -152,7 +157,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       statementAndResult = getStreamFromDb(conn, everyDocIdSql);
       ResultSet rs = statementAndResult.resultSet;
       while (rs.next()) {
-        DocId id = new DocId(uniqueKey.makeUniqueId(rs));
+        DocId id = new DocId(uniqueKey.makeUniqueId(rs, encodeDocId));
         DocIdPusher.Record record =
             new DocIdPusher.Record.Builder(id).build();
         log.log(Level.FINEST, "doc id: {0}", id);
@@ -348,7 +353,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private StatementAndResult getDocFromDb(Connection conn,
       String uniqueId) throws SQLException {
     PreparedStatement st = conn.prepareStatement(singleDocContentSql);
-    uniqueKey.setContentSqlValues(st, uniqueId);  
+    uniqueKey.setContentSqlValues(st, uniqueId, encodeDocId);  
     log.log(Level.FINER, "about to get doc: {0}",  uniqueId);
     ResultSet rs = st.executeQuery();
     log.finer("got doc");
@@ -358,7 +363,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private StatementAndResult getAclFromDb(Connection conn,
       String uniqueId) throws SQLException {
     PreparedStatement st = conn.prepareStatement(aclSql);
-    uniqueKey.setAclSqlValues(st, uniqueId);  
+    uniqueKey.setAclSqlValues(st, uniqueId, encodeDocId);  
     log.log(Level.FINER, "about to get acl: {0}",  uniqueId);
     ResultSet rs = st.executeQuery();
     log.finer("got acl");
@@ -532,7 +537,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         statementAndResult = getUpdateStreamFromDb(conn);
         ResultSet rs = statementAndResult.resultSet;
         while (rs.next()) {
-          DocId id = new DocId(uniqueKey.makeUniqueId(rs));
+          DocId id = new DocId(uniqueKey.makeUniqueId(rs, encodeDocId));
           DocIdPusher.Record record =
               new DocIdPusher.Record.Builder(id).setCrawlImmediately(true)
                   .build();

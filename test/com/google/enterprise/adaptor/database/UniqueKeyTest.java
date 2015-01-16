@@ -25,6 +25,7 @@ import org.junit.rules.ExpectedException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -144,7 +145,7 @@ public class UniqueKeyTest {
             put("numnum", 345);
             put("strstr", "abc");
         }}
-    )));
+    ), /*encode=*/ true));
   }
 
   @Test
@@ -155,7 +156,7 @@ public class UniqueKeyTest {
             put("a", "5/5");
             put("b", "6/6");
         }}
-    )));
+    ), /*encode=*/ true));
   }
 
   @Test
@@ -168,7 +169,7 @@ public class UniqueKeyTest {
                 put("b", "//6/6");
             }}
         )
-    ));
+    , /*encode=*/ true));
   }
 
   private static class PreparedStatementHandler implements 
@@ -212,8 +213,20 @@ public class UniqueKeyTest {
     UniqueKey uk = new UniqueKey("numnum:int,strstr:string,"
         + "timestamp:timestamp,date:date,time:time,long:long");
     uk.setContentSqlValues(ps, "888/bluesky/1414701070212/2014-01-01/"
-        + "02:03:04/123");
+        + "02:03:04/123", /*encoded=*/ true);
     assertEquals(6, psh.ncalls);
+  }
+
+  private static class ParameterMetaDataHandler implements 
+      InvocationHandler {
+    public Object invoke(Object proxy, Method method, Object[] args)
+        throws Throwable {
+      String methodName = method.getName();
+      if ("getParameterCount".equals(methodName)) {
+        return 1;
+      }
+      throw new AssertionError("invalid method name: " + methodName); 
+    }
   }
 
   private static class PreparedStatementHandlerPerDocCols implements 
@@ -222,6 +235,14 @@ public class UniqueKeyTest {
     public Object invoke(Object proxy, Method method, Object[] args)
         throws Throwable {
       String methodName = method.getName();
+      if ("getParameterMetaData".equals(methodName)) {
+        ParameterMetaDataHandler pmh = new ParameterMetaDataHandler();
+        ParameterMetaData pmd = (ParameterMetaData) Proxy.newProxyInstance(
+            ParameterMetaData.class.getClassLoader(),
+            new Class[] { ParameterMetaData.class }, pmh);
+        return pmd;
+      }
+      // Assumes calls like setString and setInt with 2 args
       callsAndValues.add(methodName);
       callsAndValues.add("" + args[0]);
       callsAndValues.add("" + args[1]);
@@ -238,7 +259,7 @@ public class UniqueKeyTest {
         new Class[] { PreparedStatement.class }, psh);
     UniqueKey uk = new UniqueKey("numnum:int,strstr:string",
         "numnum,numnum,strstr,numnum,strstr,strstr,numnum", "");
-    uk.setContentSqlValues(ps, "888/bluesky");
+    uk.setContentSqlValues(ps, "888/bluesky", /*encoded=*/ true);
     List<String> golden = Arrays.asList(
         "setInt", "1", "888",
         "setInt", "2", "888",
@@ -260,12 +281,41 @@ public class UniqueKeyTest {
         new Class[] { PreparedStatement.class }, psh);
     UniqueKey uk = new UniqueKey("a:string,b:string",
         "a,b,a", "");
-    uk.setContentSqlValues(ps, "5_/5/6_/6");
+    uk.setContentSqlValues(ps, "5_/5/6_/6", /*encoded=*/ true);
     List<String> golden = Arrays.asList(
         "setString", "1", "5/5",
         "setString", "2", "6/6",
         "setString", "3", "5/5"
     );
+    assertEquals(golden, psh.callsAndValues);
+  }
+
+  @Test
+  public void testEncodingIsOffSnippet() throws SQLException {
+    PreparedStatementHandlerPerDocCols psh
+        = new PreparedStatementHandlerPerDocCols();
+    PreparedStatement ps = (PreparedStatement) Proxy.newProxyInstance(
+        PreparedStatement.class.getClassLoader(),
+        new Class[] { PreparedStatement.class }, psh);
+    UniqueKey uk = new UniqueKey("url:string");
+    uk.setContentSqlValues(ps, "5_/5/6_/6", /*encoded=*/ false);
+    List<String> golden = Arrays.asList(
+        "setString", "1", "5_/5/6_/6"
+    );
+    assertEquals(golden, psh.callsAndValues);
+  }
+
+  @Test
+  public void testEncodingIsOffUrl() throws SQLException {
+    PreparedStatementHandlerPerDocCols psh
+        = new PreparedStatementHandlerPerDocCols();
+    PreparedStatement ps = (PreparedStatement) Proxy.newProxyInstance(
+        PreparedStatement.class.getClassLoader(),
+        new Class[] { PreparedStatement.class }, psh);
+    UniqueKey uk = new UniqueKey("url:string");
+    final String urlStr = "http://myspecs.net/shoe.html?boot=yes";
+    uk.setContentSqlValues(ps, urlStr, /*encoded=*/ false);
+    List<String> golden = Arrays.asList("setString", "1", urlStr);
     assertEquals(golden, psh.callsAndValues);
   }
 
@@ -296,14 +346,14 @@ public class UniqueKeyTest {
             put("a", elem1);
             put("b", elem2);
         }}
-      ));
+      ), /*encode=*/ true);
       PreparedStatementHandlerPerDocCols psh
           = new PreparedStatementHandlerPerDocCols();
       PreparedStatement ps = (PreparedStatement) Proxy.newProxyInstance(
           PreparedStatement.class.getClassLoader(),
           new Class[] { PreparedStatement.class }, psh);
       try {
-        uk.setContentSqlValues(ps, id);
+        uk.setContentSqlValues(ps, id, /*encoded=*/ true);
       } catch (Exception e) {
         throw new RuntimeException("elem1: " + elem1 + ", elem2: " + elem2 
             + ", id: " + id, e);
