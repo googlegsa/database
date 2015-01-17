@@ -135,7 +135,7 @@ class UniqueKey {
   String makeUniqueId(ResultSet rs, boolean encode) throws SQLException {
     if (!encode) {
       if (names.size() == 1) {
-        return rs.getString(1);
+        return rs.getString(names.get(0));
       }
       throw new AssertionError("not encoding implies exactly one parameter");
     }
