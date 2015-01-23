@@ -174,15 +174,7 @@ class UniqueKey {
   }
 
   private void setSqlValues(PreparedStatement st, String uniqueId,
-      List<String> sqlCols, boolean isEncoded) throws SQLException {
-    if (!isEncoded) {
-      int nparams = st.getParameterMetaData().getParameterCount();
-      if (1 == nparams) {
-        st.setString(1, uniqueId);
-        return;
-      }
-      throw new AssertionError("not encoding implies exactly one parameter");
-    }
+      List<String> sqlCols) throws SQLException {
     // parse on / that isn't preceded by escape char _
     // (a / that is preceded by _ is part of column value)
     String parts[] = uniqueId.split("(?<!_)/", -1);
@@ -226,14 +218,14 @@ class UniqueKey {
     }   
   }
 
-  void setContentSqlValues(PreparedStatement st, String uniqueId,
-      boolean dataIsEncoded) throws SQLException {
-    setSqlValues(st, uniqueId, contentSqlCols, dataIsEncoded);
+  void setContentSqlValues(PreparedStatement st, String uniqueId)
+      throws SQLException {
+    setSqlValues(st, uniqueId, contentSqlCols);
   }
 
-  void setAclSqlValues(PreparedStatement st, String uniqueId,
-      boolean dataIsEncoded) throws SQLException {
-    setSqlValues(st, uniqueId, aclSqlCols, dataIsEncoded);
+  void setAclSqlValues(PreparedStatement st, String uniqueId)
+      throws SQLException {
+    setSqlValues(st, uniqueId, aclSqlCols);
   }
 
   @VisibleForTesting

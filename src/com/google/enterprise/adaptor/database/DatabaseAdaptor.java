@@ -143,6 +143,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     boolean leaveIdAlone = new Boolean(cfg.getValue("docId.isUrl"));
     encodeDocId = !leaveIdAlone;
     log.config("encodeDocId: " + encodeDocId);
+    if (encodeDocId) {
+      log.config("adaptor runs in lister-only mode");
+    }
   }
 
   /** Get all doc ids from database. */
@@ -175,6 +178,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   /** Gives the bytes of a document referenced with id. */
   @Override
   public void getDocContent(Request req, Response resp) throws IOException {
+    if (!encodeDocId) {
+      // adaptor operating in lister-only mode 
+      resp.respondNotFound();
+      return;
+    }
     DocId id = req.getDocId();
     Connection conn = null;
     StatementAndResult statementAndResult = null;
@@ -353,7 +361,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private StatementAndResult getDocFromDb(Connection conn,
       String uniqueId) throws SQLException {
     PreparedStatement st = conn.prepareStatement(singleDocContentSql);
-    uniqueKey.setContentSqlValues(st, uniqueId, encodeDocId);  
+    uniqueKey.setContentSqlValues(st, uniqueId);  
     log.log(Level.FINER, "about to get doc: {0}",  uniqueId);
     ResultSet rs = st.executeQuery();
     log.finer("got doc");
@@ -363,7 +371,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private StatementAndResult getAclFromDb(Connection conn,
       String uniqueId) throws SQLException {
     PreparedStatement st = conn.prepareStatement(aclSql);
-    uniqueKey.setAclSqlValues(st, uniqueId, encodeDocId);  
+    uniqueKey.setAclSqlValues(st, uniqueId);  
     log.log(Level.FINER, "about to get acl: {0}",  uniqueId);
     ResultSet rs = st.executeQuery();
     log.finer("got acl");
