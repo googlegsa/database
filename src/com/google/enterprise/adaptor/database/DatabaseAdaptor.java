@@ -18,6 +18,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.enterprise.adaptor.AbstractAdaptor;
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.AdaptorContext;
+import com.google.enterprise.adaptor.AuthnIdentity;
+import com.google.enterprise.adaptor.AuthzAuthority;
+import com.google.enterprise.adaptor.AuthzStatus;
 import com.google.enterprise.adaptor.Config;
 import com.google.enterprise.adaptor.DocId;
 import com.google.enterprise.adaptor.DocIdPusher;
@@ -185,6 +188,12 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     log.config("encodeDocId: " + encodeDocId);
     if (encodeDocId) {
       log.config("adaptor runs in lister-only mode");
+    }
+
+    if (aclSql == null) {
+      context.setAuthzAuthority(new AllPublic());
+    } else {
+      context.setAuthzAuthority(new AllPrivate());
     }
   }
 
@@ -685,6 +694,30 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     @Override
     public String toString() {
       return text;
+    }
+  }
+
+  private static class AllPublic implements AuthzAuthority {
+    public Map<DocId, AuthzStatus> isUserAuthorized(AuthnIdentity userIdentity,
+        Collection<DocId> ids) throws IOException {
+      Map<DocId, AuthzStatus> result =
+          new HashMap<DocId, AuthzStatus>(ids.size() * 2);
+      for (DocId docId : ids) {
+        result.put(docId, AuthzStatus.PERMIT);
+      }
+      return Collections.unmodifiableMap(result);
+    }
+  }
+
+  private static class AllPrivate implements AuthzAuthority {
+    public Map<DocId, AuthzStatus> isUserAuthorized(AuthnIdentity userIdentity,
+        Collection<DocId> ids) throws IOException {
+      Map<DocId, AuthzStatus> result =
+          new HashMap<DocId, AuthzStatus>(ids.size() * 2);
+      for (DocId docId : ids) {
+        result.put(docId, AuthzStatus.DENY);
+      }
+      return Collections.unmodifiableMap(result);
     }
   }
 }
