@@ -232,7 +232,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           break;
         case Types.OTHER:
         default:
-          string = "" + resultSet.getObject(col);
+          string = resultSet.getString(col);
           handler.startElement("", columnName, columnName, atts);
           outWriter.write(string);
           break;
