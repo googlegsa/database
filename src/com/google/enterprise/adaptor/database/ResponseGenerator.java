@@ -199,13 +199,13 @@ public abstract class ResponseGenerator {
       for (int i = 1; i < (numberOfColumns + 1); i++) {
         String tableName = rsMetaData.getTableName(i);
         String columnName = rsMetaData.getColumnName(i);
-        Object value = rs.getObject(i);
+        String value = rs.getString(i);
         line1.append(",");
         line1.append(makeIntoCsvField(tableName));
         line2.append(",");
         line2.append(makeIntoCsvField(columnName));
         line3.append(",");
-        line3.append(makeIntoCsvField("" + value));
+        line3.append(makeIntoCsvField(value));
       }
       String document = line1.substring(1) + "\n" + line2.substring(1) + "\n"
           + line3.substring(1) + "\n";
