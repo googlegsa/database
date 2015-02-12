@@ -1,35 +1,17 @@
 <body>
-<h3> Deployment of Database Adaptor </h3>
+<center>
+<br>
+<br>
+<br>
+<br>
+<h2> Documentation</h2>
 
-<p>A single instance of Database adaptor can acquire
-content from single SQL Database.
+<p><h4>
+Please visit <a href="http://googlegsa.github.io/adaptor/index.html">
+http://googlegsa.github.io/adaptor/index.html</a> <br>
+and select latest "Administration Guide for Connectors" <br>
+and "Deploying Connector for Database" documents.
+</h4>
 
-<h4>Requirements</h4>
-<ul>
-  <li>GSA 7.2 or higher
-  <li>Java JRE 1.7 or higher installed on computer that runs adaptor
-  <li>Database Adaptor JAR executable
-  <li>Driver jar for your database (eg. ojdbc6 or sqljdbc4)
-  <li>Credentials for your database
-</ul>
-
-<h4>Configure GSA for Adaptor</h4>
-<ol>
-  <li>Add the IP address of the computer that hosts the adaptor to the <b>List
-    of Trusted IP Addresses</b> on the GSA.
-    <p>In the GSA's Admin Console, go to <b>Content Sources &gt; Feeds</b>,
-    and scroll down to <b>List of Trusted IP Addresses</b>. Add the IP address
-    for the adaptor to the list.
-  <li>Add the URLs provided by the adaptor to the <b>Follow Patterns</b> on the GSA.
-    <p>In the Admin console, go to <b>Content Sources &gt; Web Crawl &gt;
-    Start and Block URLs</b>, and scroll down to <b>Follow Patterns</b>.
-    Add an entry like <code>http://adaptor.example.com:5678/doc/
-    </code> where <code>adaptor.example.com</code> is the hostname of the
-    machine that hosts the adaptor. By default the adaptor runs on port 5678.
-</ol>
-
-<h4>Configure Adaptor</h4>
-<ol>
-</ol>
-
+</center>
 </body>
