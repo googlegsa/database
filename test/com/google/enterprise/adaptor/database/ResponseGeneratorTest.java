@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.net.URI;
 import java.net.URL;
 import java.sql.ResultSet;
 import java.util.Collections;
@@ -76,6 +77,8 @@ public class ResponseGeneratorTest {
             if ("getString".equals(method.getName())) {
               if ("this-blob-col-has-CT".equals(args[0])) {
                 return "hard-coded-blob-content-type";
+              } else if ("this-blob-col-has-disp-url".equals(args[0])) {
+                return "hard-coded-blob-display-url";
               } else {
                 throw new java.sql.SQLException("no column named: " + args[0]);
               }
@@ -116,6 +119,8 @@ public class ResponseGeneratorTest {
             Assert.assertEquals("getString", method.getName());
             if ("my-url-is-in-col".equals(args[0])) {
               return url.toString();
+            } else if ("my-disp-url-is-in-col-2".equals(args[0])) {
+              return "hard-coded-disp-url";
             } else {
               throw new java.sql.SQLException("no column named: " + args[0]);
             }
@@ -128,7 +133,7 @@ public class ResponseGeneratorTest {
   private static class MockResponse implements InvocationHandler {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     String contentType = null;
-    String displayUrl = null;
+    URI displayUrl = null;
 
     public Object invoke(Object proxy, Method method, Object[] args)
         throws Throwable {
@@ -139,7 +144,7 @@ public class ResponseGeneratorTest {
         contentType = "" + args[0];
         return null;
       } else if ("setDisplayUrl".equals(methodName)) {
-        displayUrl = "" + args[0];
+        displayUrl = (URI) args[0];
         return null;
       }
       throw new AssertionError("misused response proxy");
@@ -266,7 +271,7 @@ public class ResponseGeneratorTest {
       String responseMsg = new String(uar.baos.toByteArray(), "UTF-8");
       Assert.assertEquals(content, responseMsg);
       Assert.assertEquals("text/plain", uar.contentType);
-      Assert.assertEquals(testUrl.toString(), uar.displayUrl);
+      Assert.assertEquals(testUrl.toURI(), uar.displayUrl);
     } finally {
       if (null != testFile) {
         testFile.delete();
@@ -280,10 +285,8 @@ public class ResponseGeneratorTest {
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, far);
-    
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-url-went-that-way");
-
     File testFile = null;
     try {
       testFile = File.createTempFile("db.rg.test", ".txt");
@@ -342,7 +345,7 @@ public class ResponseGeneratorTest {
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, bar);
-    
+
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
     cfg.put("contentTypeCol", "this-blob-col-has-CT");
@@ -355,4 +358,52 @@ public class ResponseGeneratorTest {
     Assert.assertEquals("hard-coded-blob-content-type", bar.contentType);
   }
 
+  @Test
+  public void testBlobColumnModeDisplayUrlCol() throws Exception {
+    MockResponse bar = new MockResponse();
+    Response response = (Response) Proxy.newProxyInstance(
+        Response.class.getClassLoader(),
+        new Class[] { Response.class }, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "my-blob-col");
+    cfg.put("displayUrlCol", "this-blob-col-has-disp-url");
+    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
+    String content = "hello world";
+    byte b[] = content.getBytes("US-ASCII");
+    resgen.generateResponse(makeMockBlobResultSet(b), response);
+    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
+    Assert.assertEquals(content, responseMsg);
+    Assert.assertEquals(new URI("hard-coded-blob-display-url"), bar.displayUrl);
+  }
+
+  @Test
+  public void testUrlColumnModeDisplayUrlCol() throws Exception {
+    MockResponse uar = new MockResponse();
+    Response response = (Response) Proxy.newProxyInstance(
+        Response.class.getClassLoader(),
+        new Class[] { Response.class }, uar);
+    
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "my-url-is-in-col");
+    cfg.put("displayUrlCol", "my-disp-url-is-in-col-2");
+
+    File testFile = null;
+    try {
+      testFile = File.createTempFile("db.rg.test", ".txt");
+      String content = "from a yellow url connection comes monty python";
+      writeDataToFile(testFile, content);
+      ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
+      URL testUrl = testFile.toURI().toURL();
+      ResultSet rs = makeMockUrlResultSet(testUrl);
+      resgen.generateResponse(rs, response);
+      String responseMsg = new String(uar.baos.toByteArray(), "UTF-8");
+      Assert.assertEquals(content, responseMsg);
+      Assert.assertEquals("text/plain", uar.contentType);
+      Assert.assertEquals(new URI("hard-coded-disp-url"), uar.displayUrl);
+    } finally {
+      if (null != testFile) {
+        testFile.delete();
+      }
+    }
+  }
 }

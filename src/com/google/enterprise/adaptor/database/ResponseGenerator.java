@@ -23,6 +23,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.Charset;
@@ -53,6 +54,7 @@ public abstract class ResponseGenerator {
       = Logger.getLogger(ResponseGenerator.class.getName());
   
   private final Map<String, String> cfg;
+  private final String displayUrlCol; // can be null
 
   protected Map<String, String> getConfig() {
     return cfg;
@@ -64,6 +66,32 @@ public abstract class ResponseGenerator {
     }
     this.cfg = Collections.unmodifiableMap(config);
     log.config("entire config map=" + cfg);
+    displayUrlCol = getConfig().get("displayUrlCol");
+    log.config("displayUrlCol=" + displayUrlCol);
+  }
+
+  /** true if display url gets set */
+  protected boolean overrideDisplayUrl(ResultSet rs, Response res)
+      throws SQLException {
+    if (null != displayUrlCol) {
+      String dispUrl = rs.getString(displayUrlCol);
+      if (null == dispUrl) {
+        log.log(Level.FINE, "display url at col {0} is null",
+            displayUrlCol);
+      } else {
+        try {
+          URI dispUri = new URI(dispUrl);
+          res.setDisplayUrl(dispUri);
+          log.log(Level.FINE, "overrode display url: {0}", dispUrl);
+          return true;
+        } catch (URISyntaxException uriException) {
+          log.log(Level.WARNING, "override display url invalid: {0} {1}",
+              new Object[] {dispUrl, uriException});
+        }
+      }
+    }
+    log.finest("not overriding display url");
+    return false;
   }
 
   /**
@@ -134,6 +162,7 @@ public abstract class ResponseGenerator {
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
       resp.setContentType(CONTENT_TYPE);
+      overrideDisplayUrl(rs, resp);
       TupleReader reader = new TupleReader(rs);
       Source source = new SAXSource(reader, /*ignored*/new InputSource());
       Result des = new StreamResult(resp.getOutputStream());
@@ -182,6 +211,7 @@ public abstract class ResponseGenerator {
           + line3.substring(1) + "\n";
 
       resp.setContentType(CONTENT_TYPE);
+      overrideDisplayUrl(rs, resp);
       resp.getOutputStream().write(document.getBytes(ENCODING));
     }
 
@@ -269,7 +299,9 @@ public abstract class ResponseGenerator {
         }
       }
       try {
-        resp.setDisplayUrl(url.toURI());
+        if (!overrideDisplayUrl(rs, resp)) {
+          resp.setDisplayUrl(url.toURI());
+        }
       } catch (URISyntaxException ex) {
         String errmsg = urlStr + " is not a valid URI";
         throw new IllegalStateException(errmsg, ex);
@@ -296,6 +328,7 @@ public abstract class ResponseGenerator {
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
       overrideContentType(rs, resp);
+      overrideDisplayUrl(rs, resp);
       String path = rs.getString(getContentColumnName());
       InputStream in = null;
       try {
@@ -319,6 +352,7 @@ public abstract class ResponseGenerator {
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
       overrideContentType(rs, resp);
+      overrideDisplayUrl(rs, resp);
       Blob blob = rs.getBlob(getContentColumnName());
       InputStream in = blob.getBinaryStream();
       OutputStream out = resp.getOutputStream();
