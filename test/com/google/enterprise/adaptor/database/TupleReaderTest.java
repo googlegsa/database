@@ -342,7 +342,7 @@ public class TupleReaderTest {
       } else if ("getObject".equals(methodName)) {
         return sqlObjectValue;
       } else {
-        throw new IllegalStateException("unexpected call: " + methodName);
+        throw new AssertionError("unexpected call: " + methodName);
       }
     }
   }
@@ -355,7 +355,6 @@ public class TupleReaderTest {
       assertNotNull(columnType);
       assertNotNull(columnName);
       assertEquals(columnType.length, columnName.length);
-      
       this.columnType = columnType;
       this.columnName = columnName;
     }
@@ -371,7 +370,7 @@ public class TupleReaderTest {
       } else if ("getColumnType".equals(methodName)) {
         return columnType[(Integer) args[0] - 1];
       } else {
-        throw new IllegalStateException("unexpected call: " + methodName);
+        throw new AssertionError("unexpected call: " + methodName);
       }
     }
   }

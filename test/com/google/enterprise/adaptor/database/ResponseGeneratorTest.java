@@ -201,10 +201,8 @@ public class ResponseGeneratorTest {
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, far);
-    
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-filepath-col");
-
     File testFile = null;
     try {
       testFile = File.createTempFile("db.rg.test", ".txt");
