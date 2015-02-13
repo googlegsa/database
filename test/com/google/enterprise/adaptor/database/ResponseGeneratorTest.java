@@ -66,7 +66,6 @@ public class ResponseGeneratorTest {
         new InvocationHandler() {
           public Object invoke(Object proxy, Method method, Object[] args)
               throws Throwable {
-            
             if ("getBlob".equals(method.getName())) {
               if ("my-blob-col".equals(args[0])) {
                 return new javax.sql.rowset.serial.SerialBlob(b);
@@ -157,7 +156,6 @@ public class ResponseGeneratorTest {
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, bar);
-    
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
     ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
@@ -174,7 +172,6 @@ public class ResponseGeneratorTest {
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, bar);
-    
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-col-name-is-wrong");
     ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
@@ -230,10 +227,8 @@ public class ResponseGeneratorTest {
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, far);
-    
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-filepath-is-not-in-this-col");
-
     File testFile = null;
     try {
       testFile = File.createTempFile("db.rg.test", ".txt");
@@ -255,10 +250,8 @@ public class ResponseGeneratorTest {
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, uar);
-    
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-url-is-in-col");
-
     File testFile = null;
     try {
       testFile = File.createTempFile("db.rg.test", ".txt");
@@ -311,7 +304,6 @@ public class ResponseGeneratorTest {
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, bar);
-    
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
     cfg.put("contentTypeOverride", "dev/rubish");
@@ -326,7 +318,6 @@ public class ResponseGeneratorTest {
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, bar);
-    
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
     cfg.put("contentTypeOverride", "dev/rubish");
@@ -345,7 +336,6 @@ public class ResponseGeneratorTest {
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, bar);
-
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
     cfg.put("contentTypeCol", "this-blob-col-has-CT");
@@ -382,11 +372,9 @@ public class ResponseGeneratorTest {
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, uar);
-    
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-url-is-in-col");
     cfg.put("displayUrlCol", "my-disp-url-is-in-col-2");
-
     File testFile = null;
     try {
       testFile = File.createTempFile("db.rg.test", ".txt");

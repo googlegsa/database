@@ -74,7 +74,6 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    
     int[] columnType = {Types.VARCHAR};
     String[] columnName = {"colname"};
     MockResultSetMetaData metadata =
@@ -104,7 +103,6 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    
     int[] columnType = {Types.VARCHAR};
     String[] columnName = {"colname"};
     MockResultSetMetaData metadata =
@@ -135,7 +133,6 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    
     int[] columnType = {Types.INTEGER};
     String[] columnName = {"colname"};
     MockResultSetMetaData metadata =
@@ -165,7 +162,6 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    
     int[] columnType = {Types.DATE};
     String[] columnName = {"colname"};
     MockResultSetMetaData metadata =
@@ -174,13 +170,11 @@ public class TupleReaderTest {
         (ResultSetMetaData) Proxy.newProxyInstance(
             ResultSetMetaData.class.getClassLoader(),
             new Class[] {ResultSetMetaData.class}, metadata);
-    
     Calendar cal = Calendar.getInstance();
     cal.set(Calendar.YEAR, 2004);
     cal.set(Calendar.MONTH, Calendar.OCTOBER);
     cal.set(Calendar.DATE, 6);
     java.sql.Date retDate = new java.sql.Date(cal.getTime().getTime());
-    
     MockResultSet resultSet = new MockResultSet(rsMetadata, retDate);
     ResultSet rs =
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
@@ -202,7 +196,6 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    
     int[] columnType = {Types.TIMESTAMP};
     String[] columnName = {"colname"};
     MockResultSetMetaData metadata =
@@ -211,7 +204,6 @@ public class TupleReaderTest {
         (ResultSetMetaData) Proxy.newProxyInstance(
             ResultSetMetaData.class.getClassLoader(),
             new Class[] {ResultSetMetaData.class}, metadata);
-    
     Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
     cal.set(Calendar.YEAR, 2004);
     cal.set(Calendar.MONTH, Calendar.OCTOBER);
@@ -222,7 +214,6 @@ public class TupleReaderTest {
     long gmtTime = cal.getTime().getTime()
         + TimeZone.getTimeZone("Etc/GMT-7").getRawOffset();
     java.sql.Timestamp retDate = new java.sql.Timestamp(gmtTime);
-    
     MockResultSet resultSet = new MockResultSet(rsMetadata, retDate);
     ResultSet rs =
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
@@ -244,7 +235,6 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    
     int[] columnType = {Types.TIME};
     String[] columnName = {"colname"};
     MockResultSetMetaData metadata =
@@ -253,7 +243,6 @@ public class TupleReaderTest {
         (ResultSetMetaData) Proxy.newProxyInstance(
             ResultSetMetaData.class.getClassLoader(),
             new Class[] {ResultSetMetaData.class}, metadata);
-    
     Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
     cal.set(Calendar.YEAR, 2004);
     cal.set(Calendar.MONTH, Calendar.OCTOBER);
@@ -264,7 +253,6 @@ public class TupleReaderTest {
     long gmtTime = cal.getTime().getTime()
         + TimeZone.getTimeZone("Etc/GMT-7").getRawOffset();
     java.sql.Time retDate = new java.sql.Time(gmtTime);
-
     MockResultSet resultSet = new MockResultSet(rsMetadata, retDate);
     ResultSet rs =
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
@@ -298,7 +286,6 @@ public class TupleReaderTest {
             + " again in a relatively short amount of time.";
     String base64BlobData = DatatypeConverter.printBase64Binary(
         blobData.getBytes());
-
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -309,7 +296,6 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    
     int[] columnType = {Types.LONGVARBINARY};
     String[] columnName = {"colname"};
     MockResultSetMetaData metadata =
@@ -330,7 +316,6 @@ public class TupleReaderTest {
   private static class MockResultSet implements InvocationHandler {
     private ResultSetMetaData metadata;
     private Object sqlObjectValue;
-    
     public MockResultSet(ResultSetMetaData metadata, Object value) {
       this.metadata = metadata;
       this.sqlObjectValue = value;

@@ -82,7 +82,6 @@ public class DatabaseAdaptorTest {
     for (Map.Entry<String, String> entry : configEntries.entrySet()) {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
-
     thrown.expect(InvalidConfigurationException.class);
     DatabaseAdaptor.loadResponseGenerator(config);
   }
@@ -97,7 +96,6 @@ public class DatabaseAdaptorTest {
     for (Map.Entry<String, String> entry : configEntries.entrySet()) {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
-
     thrown.expect(InvalidConfigurationException.class);
     DatabaseAdaptor.loadResponseGenerator(config);
   }
@@ -110,7 +108,6 @@ public class DatabaseAdaptorTest {
     for (Map.Entry<String, String> entry : configEntries.entrySet()) {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
-
     thrown.expect(InvalidConfigurationException.class);
     DatabaseAdaptor.loadResponseGenerator(config);
   }
@@ -123,7 +120,6 @@ public class DatabaseAdaptorTest {
     public DummyResponseGenerator(Map<String, String> config) {
       super(config);
     }
-
     @Override
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
@@ -134,15 +130,12 @@ public class DatabaseAdaptorTest {
   @Test
   public void testAclSqlResultSetHasNoRecord() throws SQLException {
     MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
-
     ResultSet rs =
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
             new Class[] {ResultSet.class}, mockResultSet);
     ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
-
     Acl golden = Acl.EMPTY;
     Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
-    
     assertEquals(golden, acl);
   }
   
@@ -157,12 +150,10 @@ public class DatabaseAdaptorTest {
     record.put(
         GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup2");
     mockResultSet.addRecord(record);
-
     ResultSet rs =
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
             new Class[] {ResultSet.class}, mockResultSet);
     ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
-
     Acl golden = new Acl.Builder()
         .setPermitUsers(Arrays.asList(
             new UserPrincipal("puser2"),
@@ -178,7 +169,6 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup1")))
         .build();
     Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
-    
     assertEquals(golden, acl);
   }
   
@@ -203,12 +193,10 @@ public class DatabaseAdaptorTest {
     record2.put(
         GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup3, dgroup4");
     mockResultSet.addRecord(record2);
-
     ResultSet rs =
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
             new Class[] {ResultSet.class}, mockResultSet);
     ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
-
     Acl golden = new Acl.Builder()
         .setPermitUsers(Arrays.asList(
             new UserPrincipal("puser2"),
@@ -232,7 +220,6 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2")))
         .build();
     Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
-    
     assertEquals(golden, acl);
   }
   
@@ -257,12 +244,10 @@ public class DatabaseAdaptorTest {
     record2.put(
         GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup2, dgroup2");
     mockResultSet.addRecord(record2);
-
     ResultSet rs =
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
             new Class[] {ResultSet.class}, mockResultSet);
     ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
-
     Acl golden = new Acl.Builder()
         .setPermitUsers(Arrays.asList(
             new UserPrincipal("puser2"),
@@ -278,7 +263,6 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2")))
         .build();
     Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
-    
     assertEquals(golden, acl);
   }
   
@@ -292,22 +276,18 @@ public class DatabaseAdaptorTest {
     record.put(
         GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup2");
     mockResultSet.addRecord(record);
-
     ResultSet rs =
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
             new Class[] {ResultSet.class}, mockResultSet);
-    
     MockAclSqlResultSetMetaData mockMetadata =
         new MockAclSqlResultSetMetaData();
     mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_USERS.toString());
     mockMetadata.addColumn(GsaSpecialColumns.GSA_PERMIT_GROUPS.toString());
     mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_GROUPS.toString());
-
     ResultSetMetaData metadata =
         (ResultSetMetaData) Proxy.newProxyInstance(
             ResultSetMetaData.class.getClassLoader(),
             new Class[] {ResultSetMetaData.class}, mockMetadata);
-
     Acl golden = new Acl.Builder()
         .setDenyUsers(Arrays.asList(
             new UserPrincipal("duser1"),
@@ -320,7 +300,6 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup1")))
         .build();
     Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
-    
     assertEquals(golden, acl);
   }
   
@@ -332,24 +311,20 @@ public class DatabaseAdaptorTest {
     record.put(
         GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup2");
     mockResultSet.addRecord(record);
-
     ResultSet rs =
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
             new Class[] {ResultSet.class}, mockResultSet);
     rs.next();
-    
     List<UserPrincipal> goldenUsers = Arrays.asList(
         new UserPrincipal("duser1, duser2"));
     List<GroupPrincipal> goldenGroups = Arrays.asList(
         new GroupPrincipal("dgroup1, dgroup2"));
-
     ArrayList<UserPrincipal> users =
         DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_USERS, "");
     ArrayList<GroupPrincipal> groups =
         DatabaseAdaptor.getGroupPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_GROUPS, "");
-    
     assertEquals(goldenUsers, users);
     assertEquals(goldenGroups, groups);
   }
@@ -362,26 +337,22 @@ public class DatabaseAdaptorTest {
     record.put(
         GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1 ; dgroup2");
     mockResultSet.addRecord(record);
-
     ResultSet rs =
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
             new Class[] {ResultSet.class}, mockResultSet);
     rs.next();
-    
     List<UserPrincipal> goldenUsers = Arrays.asList(
         new UserPrincipal("duser1"), 
         new UserPrincipal("duser2"));
     List<GroupPrincipal> goldenGroups = Arrays.asList(
         new GroupPrincipal("dgroup1"),
         new GroupPrincipal("dgroup2"));
-
     ArrayList<UserPrincipal> users =
         DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_USERS, " ; ");
     ArrayList<GroupPrincipal> groups =
         DatabaseAdaptor.getGroupPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_GROUPS, " ; ");
-    
     assertEquals(goldenUsers, users);
     assertEquals(goldenGroups, groups);
   }
@@ -448,7 +419,6 @@ public class DatabaseAdaptorTest {
     mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_USERS.toString());
     mockMetadata.addColumn(GsaSpecialColumns.GSA_PERMIT_GROUPS.toString());
     mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_GROUPS.toString());
-
     return (ResultSetMetaData) Proxy.newProxyInstance(
         ResultSetMetaData.class.getClassLoader(),
         new Class[] {ResultSetMetaData.class}, mockMetadata);
