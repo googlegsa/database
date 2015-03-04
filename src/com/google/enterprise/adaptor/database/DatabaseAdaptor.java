@@ -193,7 +193,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     if (aclSql == null) {
       context.setAuthzAuthority(new AllPublic());
     } else {
-      context.setAuthzAuthority(new AllPrivate());
+      context.setAuthzAuthority(new AccessChecker());
     }
   }
 
@@ -709,13 +709,25 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
   }
 
-  private static class AllPrivate implements AuthzAuthority {
+  private class AccessChecker implements AuthzAuthority {
     public Map<DocId, AuthzStatus> isUserAuthorized(AuthnIdentity userIdentity,
         Collection<DocId> ids) throws IOException {
-      Map<DocId, AuthzStatus> result =
-          new HashMap<DocId, AuthzStatus>(ids.size() * 2);
-      for (DocId docId : ids) {
-        result.put(docId, AuthzStatus.DENY);
+      Map<DocId, AuthzStatus> result
+          = new HashMap<DocId, AuthzStatus>(ids.size() * 2);
+      Connection conn = null;
+      try {
+        conn = makeNewConnection();
+        for (DocId id : ids) {
+          Acl acl = getAcl(conn, id.getUniqueId());
+          // TODO: consider supporting ACL inheritance in this adaptor
+          List<Acl> aclChain = Arrays.asList(acl);
+          AuthzStatus decision = Acl.isAuthorized(userIdentity, aclChain); 
+          result.put(id, decision);
+        }
+      } catch (SQLException ex) {
+        throw new IOException("authz retrieval error", ex);
+      } finally {
+        tryClosingConnection(conn);
       }
       return Collections.unmodifiableMap(result);
     }
