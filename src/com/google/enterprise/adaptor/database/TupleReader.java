@@ -233,6 +233,9 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.OTHER:
         default:
           string = resultSet.getString(col);
+          if (null == string) {
+            string = "" + resultSet.getObject(col);
+          }
           handler.startElement("", columnName, columnName, atts);
           outWriter.write(string);
           break;

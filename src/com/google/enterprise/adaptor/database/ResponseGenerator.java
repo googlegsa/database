@@ -200,6 +200,9 @@ public abstract class ResponseGenerator {
         String tableName = rsMetaData.getTableName(i);
         String columnName = rsMetaData.getColumnName(i);
         String value = rs.getString(i);
+        if (null == value) {
+          value = "" + rs.getObject(i);
+        }
         line1.append(",");
         line1.append(makeIntoCsvField(tableName));
         line2.append(",");
@@ -216,6 +219,9 @@ public abstract class ResponseGenerator {
     }
 
     private static String makeIntoCsvField(String s) {
+      if (null == s) {
+        throw new NullPointerException();
+      }
       /*
        * Fields that contain a special character (comma, newline,
        * or double quote), must be enclosed in double quotes.
