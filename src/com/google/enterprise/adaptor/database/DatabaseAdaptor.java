@@ -64,7 +64,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String aclPrincipalDelimiter;
   private boolean disableStreaming;
   private boolean encodeDocId;
-  private Calendar updateTimestampTimezone;
 
   @Override
   public void initConfig(Config config) {
@@ -163,20 +162,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     disableStreaming = new Boolean(cfg.getValue("db.disableStreaming"));
     log.config("disableStreaming: " + disableStreaming);
 
-    String tzString = cfg.getValue("db.updateTimestampTimezone");
-    if (isNullOrEmptyString(tzString)) {
-      updateTimestampTimezone = Calendar.getInstance();
-    } else {
-      updateTimestampTimezone =
-          Calendar.getInstance(TimeZone.getTimeZone(cfg
-              .getValue("db.updateTimestampTimezone")));
-    }
-    log.config("updateTimestampTimezone: "
-        + updateTimestampTimezone.getTimeZone().getDisplayName());
-
-    // incremental lister has to be initiated after updateTimestampTimezone
-    // because its formatter member variable depends on updateTimestampTimezone
-    // to be set.
     DbAdaptorIncrementalLister incrementalLister
         = initDbAdaptorIncrementalLister(cfg);
     if (incrementalLister != null) {
@@ -581,11 +566,13 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   // next full push to be sent to GSA.
   private class DbAdaptorIncrementalLister implements PollingIncrementalLister {
     private final String updateSql;
+    private Calendar updateTimestampTimezone;
     private Timestamp lastUpdateTimestamp;
     private final DateFormat formatter;
 
-    public DbAdaptorIncrementalLister(String updateSql) {
+    public DbAdaptorIncrementalLister(String updateSql, Calendar updateTsTz) {
       this.updateSql = updateSql;
+      this.updateTimestampTimezone = updateTsTz;
       log.config("update sql: " + this.updateSql);
       this.lastUpdateTimestamp = new Timestamp(System.currentTimeMillis());
       formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z");
@@ -668,9 +655,19 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
   private DbAdaptorIncrementalLister initDbAdaptorIncrementalLister(
       Config config) {
+    String tzString = config.getValue("db.updateTimestampTimezone");
+    final Calendar updateTimestampTimezone;
+    if (isNullOrEmptyString(tzString)) {
+      updateTimestampTimezone = Calendar.getInstance();
+    } else {
+      updateTimestampTimezone =
+          Calendar.getInstance(TimeZone.getTimeZone(tzString));
+    }
+    log.config("updateTimestampTimezone: "
+        + updateTimestampTimezone.getTimeZone().getDisplayName());
     String updateSql = config.getValue("db.updateSql");
     if (!isNullOrEmptyString(updateSql)) {
-      return new DbAdaptorIncrementalLister(updateSql);
+      return new DbAdaptorIncrementalLister(updateSql, updateTimestampTimezone);
     } else {
       return null;
     }
