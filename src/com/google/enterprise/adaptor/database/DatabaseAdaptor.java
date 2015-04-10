@@ -27,6 +27,7 @@ import com.google.enterprise.adaptor.DocIdPusher;
 import com.google.enterprise.adaptor.GroupPrincipal;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.PollingIncrementalLister;
+import com.google.enterprise.adaptor.Principal;
 import com.google.enterprise.adaptor.Request;
 import com.google.enterprise.adaptor.Response;
 import com.google.enterprise.adaptor.UserPrincipal;
@@ -62,6 +63,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private ResponseGenerator respGenerator;
   private String aclSql;
   private String aclPrincipalDelimiter;
+  private String aclNamespace;
   private boolean disableStreaming;
   private boolean encodeDocId;
 
@@ -110,6 +112,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     // See java.util.TimeZone javadoc for valid values for TimeZone.
     // http://docs.oracle.com/javase/7/docs/api/java/util/TimeZone.html
     config.addKey("db.updateTimestampTimezone", "");
+    config.addKey("adaptor.namespace", Principal.DEFAULT_NAMESPACE);
   }
 
   @Override
@@ -180,6 +183,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     } else {
       context.setAuthzAuthority(new AccessChecker());
     }
+  
+    aclNamespace = cfg.getValue("adaptor.namespace");
+    log.config("namespace: " + aclNamespace);
   }
 
   /** Get all doc ids from database. */
@@ -271,15 +277,15 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       statementAndResult = getAclFromDb(conn, uniqueId);
       ResultSet rs = statementAndResult.resultSet;
       ResultSetMetaData metadata = rs.getMetaData();
-      return buildAcl(rs, metadata, aclPrincipalDelimiter);
+      return buildAcl(rs, metadata, aclPrincipalDelimiter, aclNamespace);
     } finally {
       tryClosingStatementAndResult(statementAndResult);
     }
   }
   
   @VisibleForTesting
-  static Acl buildAcl(ResultSet rs, ResultSetMetaData metadata, String delim)
-      throws SQLException {
+  static Acl buildAcl(ResultSet rs, ResultSetMetaData metadata, String delim,
+      String namespace) throws SQLException {
     boolean hasResult = rs.next();
     if (!hasResult) {
       // empty Acl ensures adaptor will mark this document as secure
@@ -301,19 +307,19 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     do {
       if (hasPermitUsers) {
         permitUsers.addAll(getUserPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_PERMIT_USERS, delim));
+            GsaSpecialColumns.GSA_PERMIT_USERS, delim, namespace));
       }
       if (hasDenyUsers) {
         denyUsers.addAll(getUserPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_DENY_USERS, delim));
+            GsaSpecialColumns.GSA_DENY_USERS, delim, namespace));
       }
       if (hasPermitGroups) {
         permitGroups.addAll(getGroupPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_PERMIT_GROUPS, delim));
+            GsaSpecialColumns.GSA_PERMIT_GROUPS, delim, namespace));
       }
       if (hasDenyGroups) {
         denyGroups.addAll(getGroupPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_DENY_GROUPS, delim));
+            GsaSpecialColumns.GSA_DENY_GROUPS, delim, namespace));
       }
     } while (rs.next());
     return builder
@@ -326,17 +332,18 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   
   @VisibleForTesting
   static ArrayList<UserPrincipal> getUserPrincipalsFromResultSet(ResultSet rs,
-      GsaSpecialColumns column, String delim) throws SQLException {
+      GsaSpecialColumns column, String delim, String namespace)
+      throws SQLException {
     ArrayList<UserPrincipal> principals = new ArrayList<UserPrincipal>();
     String value = rs.getString(column.toString());
     if (!isNullOrEmptyString(value)) {
       if ("".equals(delim)) {
-        principals.add(new UserPrincipal(value.trim()));
+        principals.add(new UserPrincipal(value.trim(), namespace));
       } else {
         // drop trailing empties
         String principalNames[] = value.split(delim, 0);
         for (String principalName : principalNames) {
-          principals.add(new UserPrincipal(principalName.trim()));
+          principals.add(new UserPrincipal(principalName.trim(), namespace));
         }
       }
     }
@@ -345,17 +352,17 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
   @VisibleForTesting
   static ArrayList<GroupPrincipal> getGroupPrincipalsFromResultSet(ResultSet rs,
-      GsaSpecialColumns column, String delim) throws SQLException {
+      GsaSpecialColumns column, String delim, String namespace) throws SQLException {
     ArrayList<GroupPrincipal> principals = new ArrayList<GroupPrincipal>();
     String value = rs.getString(column.toString());
     if (!isNullOrEmptyString(value)) {
       if ("".equals(delim)) {
-        principals.add(new GroupPrincipal(value.trim()));
+        principals.add(new GroupPrincipal(value.trim(), namespace));
       } else {
         // drop trailing empties
         String principalNames[] = value.split(delim, 0);
         for (String principalName : principalNames) {
-          principals.add(new GroupPrincipal(principalName.trim()));
+          principals.add(new GroupPrincipal(principalName.trim(), namespace));
         }
       }
     }

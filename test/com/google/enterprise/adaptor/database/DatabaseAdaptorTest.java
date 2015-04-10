@@ -14,6 +14,7 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
 import static org.junit.Assert.*;
 
 import com.google.enterprise.adaptor.Acl;
@@ -135,7 +136,7 @@ public class DatabaseAdaptorTest {
             new Class[] {ResultSet.class}, mockResultSet);
     ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
     Acl golden = Acl.EMPTY;
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -168,7 +169,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2"),
             new GroupPrincipal("dgroup1")))
         .build();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -219,7 +220,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup4"),
             new GroupPrincipal("dgroup2")))
         .build();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -262,7 +263,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup1"),
             new GroupPrincipal("dgroup2")))
         .build();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -299,7 +300,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2"),
             new GroupPrincipal("dgroup1")))
         .build();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",");
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -321,10 +322,10 @@ public class DatabaseAdaptorTest {
         new GroupPrincipal("dgroup1, dgroup2"));
     ArrayList<UserPrincipal> users =
         DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_DENY_USERS, "");
+            GsaSpecialColumns.GSA_DENY_USERS, "", DEFAULT_NAMESPACE);
     ArrayList<GroupPrincipal> groups =
         DatabaseAdaptor.getGroupPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_DENY_GROUPS, "");
+            GsaSpecialColumns.GSA_DENY_GROUPS, "", DEFAULT_NAMESPACE);
     assertEquals(goldenUsers, users);
     assertEquals(goldenGroups, groups);
   }
@@ -349,10 +350,10 @@ public class DatabaseAdaptorTest {
         new GroupPrincipal("dgroup2"));
     ArrayList<UserPrincipal> users =
         DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_DENY_USERS, " ; ");
+            GsaSpecialColumns.GSA_DENY_USERS, " ; ", DEFAULT_NAMESPACE);
     ArrayList<GroupPrincipal> groups =
         DatabaseAdaptor.getGroupPrincipalsFromResultSet(rs,
-            GsaSpecialColumns.GSA_DENY_GROUPS, " ; ");
+            GsaSpecialColumns.GSA_DENY_GROUPS, " ; ", DEFAULT_NAMESPACE);
     assertEquals(goldenUsers, users);
     assertEquals(goldenGroups, groups);
   }
