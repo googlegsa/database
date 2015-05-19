@@ -713,19 +713,45 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
   }
 
+  private static Map<DocId, AuthzStatus> allDeny(Collection<DocId> ids) {
+    Map<DocId, AuthzStatus> result
+        = new HashMap<DocId, AuthzStatus>(ids.size() * 2);
+    for (DocId id : ids) {
+      result.put(id, AuthzStatus.DENY); 
+    }
+    return Collections.unmodifiableMap(result);  
+  }
+
   private class AccessChecker implements AuthzAuthority {
     public Map<DocId, AuthzStatus> isUserAuthorized(AuthnIdentity userIdentity,
         Collection<DocId> ids) throws IOException {
+     if (null == userIdentity) {
+        log.info("null identity to authorize");
+        return allDeny(ids);  // TODO: consider way to permit public
+      }
+      UserPrincipal user = userIdentity.getUser();
+      if (null == user) {
+        log.info("null user to authorize");
+        return allDeny(ids);  // TODO: consider way to permit public
+      }
+      log.log(Level.INFO, "about to authorize {0} {1}",
+          new Object[]{user, userIdentity.getGroups()});
       Map<DocId, AuthzStatus> result
           = new HashMap<DocId, AuthzStatus>(ids.size() * 2);
       Connection conn = null;
       try {
         conn = makeNewConnection();
         for (DocId id : ids) {
+          log.log(Level.FINE, "about to get acl of doc {0}", id);
           Acl acl = getAcl(conn, id.getUniqueId());
-          // TODO: consider supporting ACL inheritance in this adaptor
           List<Acl> aclChain = Arrays.asList(acl);
+          log.log(Level.FINE,
+              "about to autorize user {0} for doc {1} and acl {2}",
+              new Object[]{user, id, acl});
           AuthzStatus decision = Acl.isAuthorized(userIdentity, aclChain); 
+          log.log(Level.FINE,
+              "authorization decision {0} for user {1} and doc {2}",
+              new Object[]{decision, user, id});
           result.put(id, decision);
         }
       } catch (SQLException ex) {
