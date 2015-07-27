@@ -22,7 +22,9 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.Calendar;
+import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.text.DateFormat;
 import java.util.TimeZone;
 
 import javax.xml.bind.DatatypeConverter;
@@ -188,11 +190,15 @@ public class TupleReaderTest {
    */
   @Test
   public void testTIMESTAMP() throws Exception {
-    final String golden = ""
+    final DateFormat TIMEZONEFMT = new SimpleDateFormat("X");
+    Date date = new Date();
+    String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<colname SQLType=\"TIMESTAMP\">2004-10-06T09:15:30-07:00</colname>"
+        + "<colname SQLType=\"TIMESTAMP\">2004-10-06T09:15:30"
+        + TIMEZONEFMT.format(date) + ":00"
+        + "</colname>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -204,21 +210,21 @@ public class TupleReaderTest {
         (ResultSetMetaData) Proxy.newProxyInstance(
             ResultSetMetaData.class.getClassLoader(),
             new Class[] {ResultSetMetaData.class}, metadata);
-    Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+    Calendar cal = Calendar.getInstance(TimeZone.getDefault());
     cal.set(Calendar.YEAR, 2004);
     cal.set(Calendar.MONTH, Calendar.OCTOBER);
     cal.set(Calendar.DATE, 6);
     cal.set(Calendar.HOUR, 9);
     cal.set(Calendar.MINUTE, 15);
     cal.set(Calendar.SECOND, 30);
-    long gmtTime = cal.getTime().getTime()
-        + TimeZone.getTimeZone("Etc/GMT-7").getRawOffset();
+    long gmtTime = cal.getTime().getTime();
     java.sql.Timestamp retDate = new java.sql.Timestamp(gmtTime);
     MockResultSet resultSet = new MockResultSet(rsMetadata, retDate);
     ResultSet rs =
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
             new Class[] {ResultSet.class}, resultSet);
     String result = generateXml(rs);
+    System.out.println("result: " + result);
     assertEquals(golden, result);
   }
 
@@ -227,11 +233,15 @@ public class TupleReaderTest {
    */
   @Test
   public void testTIME() throws Exception {
+    final DateFormat TIMEZONEFMT = new SimpleDateFormat("X");
+    Date date = new Date();
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<colname SQLType=\"TIME\">09:15:30-07:00</colname>"
+        + "<colname SQLType=\"TIME\">09:15:30"
+        + TIMEZONEFMT.format(date) + ":00"
+        + "</colname>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -243,15 +253,14 @@ public class TupleReaderTest {
         (ResultSetMetaData) Proxy.newProxyInstance(
             ResultSetMetaData.class.getClassLoader(),
             new Class[] {ResultSetMetaData.class}, metadata);
-    Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+    Calendar cal = Calendar.getInstance(TimeZone.getDefault());
     cal.set(Calendar.YEAR, 2004);
     cal.set(Calendar.MONTH, Calendar.OCTOBER);
     cal.set(Calendar.DATE, 6);
     cal.set(Calendar.HOUR, 9);
     cal.set(Calendar.MINUTE, 15);
     cal.set(Calendar.SECOND, 30);
-    long gmtTime = cal.getTime().getTime()
-        + TimeZone.getTimeZone("Etc/GMT-7").getRawOffset();
+    long gmtTime = cal.getTime().getTime();
     java.sql.Time retDate = new java.sql.Time(gmtTime);
     MockResultSet resultSet = new MockResultSet(rsMetadata, retDate);
     ResultSet rs =
