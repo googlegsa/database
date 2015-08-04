@@ -224,7 +224,6 @@ public class TupleReaderTest {
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
             new Class[] {ResultSet.class}, resultSet);
     String result = generateXml(rs);
-    System.out.println("result: " + result);
     assertEquals(golden, result);
   }
 
