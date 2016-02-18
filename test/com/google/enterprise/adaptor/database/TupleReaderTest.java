@@ -191,7 +191,14 @@ public class TupleReaderTest {
   @Test
   public void testTIMESTAMP() throws Exception {
     final DateFormat TIMEZONEFMT = new SimpleDateFormat("X");
-    Date date = new Date();
+    Calendar cal = Calendar.getInstance(TimeZone.getDefault());
+    cal.set(Calendar.YEAR, 2004);
+    cal.set(Calendar.MONTH, Calendar.OCTOBER);
+    cal.set(Calendar.DATE, 6);
+    cal.set(Calendar.HOUR, 9);
+    cal.set(Calendar.MINUTE, 15);
+    cal.set(Calendar.SECOND, 30);
+    Date date = cal.getTime();
     String golden = ""
         + "<database>"
         + "<table>"
@@ -210,13 +217,6 @@ public class TupleReaderTest {
         (ResultSetMetaData) Proxy.newProxyInstance(
             ResultSetMetaData.class.getClassLoader(),
             new Class[] {ResultSetMetaData.class}, metadata);
-    Calendar cal = Calendar.getInstance(TimeZone.getDefault());
-    cal.set(Calendar.YEAR, 2004);
-    cal.set(Calendar.MONTH, Calendar.OCTOBER);
-    cal.set(Calendar.DATE, 6);
-    cal.set(Calendar.HOUR, 9);
-    cal.set(Calendar.MINUTE, 15);
-    cal.set(Calendar.SECOND, 30);
     long gmtTime = cal.getTime().getTime();
     java.sql.Timestamp retDate = new java.sql.Timestamp(gmtTime);
     MockResultSet resultSet = new MockResultSet(rsMetadata, retDate);
@@ -233,7 +233,14 @@ public class TupleReaderTest {
   @Test
   public void testTIME() throws Exception {
     final DateFormat TIMEZONEFMT = new SimpleDateFormat("X");
-    Date date = new Date();
+    Calendar cal = Calendar.getInstance(TimeZone.getDefault());
+    cal.set(Calendar.YEAR, 2004);
+    cal.set(Calendar.MONTH, Calendar.OCTOBER);
+    cal.set(Calendar.DATE, 6);
+    cal.set(Calendar.HOUR, 9);
+    cal.set(Calendar.MINUTE, 15);
+    cal.set(Calendar.SECOND, 30);
+    Date date = cal.getTime();
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -252,13 +259,6 @@ public class TupleReaderTest {
         (ResultSetMetaData) Proxy.newProxyInstance(
             ResultSetMetaData.class.getClassLoader(),
             new Class[] {ResultSetMetaData.class}, metadata);
-    Calendar cal = Calendar.getInstance(TimeZone.getDefault());
-    cal.set(Calendar.YEAR, 2004);
-    cal.set(Calendar.MONTH, Calendar.OCTOBER);
-    cal.set(Calendar.DATE, 6);
-    cal.set(Calendar.HOUR, 9);
-    cal.set(Calendar.MINUTE, 15);
-    cal.set(Calendar.SECOND, 30);
     long gmtTime = cal.getTime().getTime();
     java.sql.Time retDate = new java.sql.Time(gmtTime);
     MockResultSet resultSet = new MockResultSet(rsMetadata, retDate);
