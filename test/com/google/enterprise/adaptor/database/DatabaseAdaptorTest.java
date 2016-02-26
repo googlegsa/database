@@ -113,6 +113,78 @@ public class DatabaseAdaptorTest {
     DatabaseAdaptor.loadResponseGenerator(config);
   }
 
+  @Test
+  public void testInitOfUrlMetadataListerNoDocIdIsUrl() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName", "ur");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    try {
+      adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    } catch (InvalidConfigurationException ice) {
+      assertTrue(ice.getMessage().contains(
+          "requires docId.isUrl to be \"true\""));
+    }
+  }
+
+  @Test
+  public void testInitOfUrlMetadataListerDocIdIsUrlFalse() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName", "ur");
+    moreEntries.put("docId.isUrl", "false");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    try {
+      adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    } catch (InvalidConfigurationException ice) {
+      assertTrue(ice.getMessage().contains(
+          "requires docId.isUrl to be \"true\""));
+    }
+  }
+
+  @Test
+  public void testInitOfUrlMetadataListerDocIdIsUrlTrue() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName", "ur");
+    moreEntries.put("docId.isUrl", "true");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.initConfig(config);
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  private Config createStandardConfig(Map<String, String> moreEntries) {
+    Map<String, String> configEntries = new HashMap<String, String>();
+    // driverClass must be specified, but (other than it pointing at a valid
+    // class), the value does not matther.
+    configEntries.put("db.driverClass",
+        "com.google.enterprise.adaptor.database.DatabaseAdaptor");
+    configEntries.put("db.url", "must be set");
+    configEntries.put("db.user", "must be set");
+    configEntries.put("db.password", "must be set");
+    configEntries.put("db.uniqueKey", "must be set:string");
+    configEntries.put("db.everyDocIdSql", "must be set");
+    configEntries.put("db.singleDocContentSqlParameters", "must be set");
+    configEntries.put("db.singleDocContentSql", "must be set");
+    configEntries.put("db.aclSqlParameters", "must be set");
+    configEntries.put("db.metadataColumns", "table_col:gsa_col");
+    // configEntries.put("db.aclSql", "table_col:gsa_col");
+    configEntries.put("db.aclSql", "");
+    configEntries.put("db.aclPrincipalDelimiter", ",");
+    configEntries.put("db.disableStreaming", "true");
+    configEntries.put("db.updateTimestampTimezone", "");
+    configEntries.put("db.updateSql", "");
+    configEntries.putAll(moreEntries);
+    final Config config = new Config();
+    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
+      TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
+    }
+    return config;
+  }
+
   static ResponseGenerator createDummy(Map<String, String> config) {
     return new DummyResponseGenerator(config);
   }

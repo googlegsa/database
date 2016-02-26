@@ -119,6 +119,11 @@ public abstract class ResponseGenerator {
     return new UrlColumn(config);
   }
 
+  public static ResponseGenerator urlAndMetadataLister(
+      Map<String, String> config) {
+    return new UrlAndMetadataLister(config);
+  }
+
   public static ResponseGenerator filepathColumn(Map<String, String> config) {
     return new FilepathColumn(config);
   }
@@ -322,6 +327,20 @@ public abstract class ResponseGenerator {
           in.close();
         }
       }
+    }
+  }
+
+  private static class UrlAndMetadataLister extends SingleColumnContent {
+    UrlAndMetadataLister(Map<String, String> config) {
+      super(config);
+    }
+
+    @Override
+    public void generateResponse(ResultSet rs, Response resp)
+        throws IOException, SQLException {
+      log.info("calling generateResponse for urlAndMetadataLister!");
+      resp.respondNotFound();
+      return;
     }
   }
 

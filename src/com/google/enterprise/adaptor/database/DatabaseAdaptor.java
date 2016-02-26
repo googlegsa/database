@@ -66,6 +66,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String aclNamespace;
   private boolean disableStreaming;
   private boolean encodeDocId;
+  private String modeOfOperation;
 
   @Override
   public void initConfig(Config config) {
@@ -174,8 +175,15 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     boolean leaveIdAlone = new Boolean(cfg.getValue("docId.isUrl"));
     encodeDocId = !leaveIdAlone;
     log.config("encodeDocId: " + encodeDocId);
-    if (encodeDocId) {
+    if (leaveIdAlone) {
       log.config("adaptor runs in lister-only mode");
+    }
+
+    modeOfOperation = cfg.getValue("db.modeOfOperation");
+    if ("urlAndMetadataLister".equals(modeOfOperation) && encodeDocId) {
+      String errmsg = "db.modeOfOperation of \"" + modeOfOperation
+          + "\" requires docId.isUrl to be \"true\"";
+      throw new InvalidConfigurationException(errmsg);
     }
 
     if (aclSql == null) {
@@ -201,8 +209,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       ResultSet rs = statementAndResult.resultSet;
       while (rs.next()) {
         DocId id = new DocId(uniqueKey.makeUniqueId(rs, encodeDocId));
-        DocIdPusher.Record record =
-            new DocIdPusher.Record.Builder(id).build();
+        DocIdPusher.Record.Builder builder = new DocIdPusher.Record.Builder(id);
+        if ("urlAndMetadataLister".equals(modeOfOperation)) {
+          addMetadataToRecordBuilder(builder, rs);
+        }
+        DocIdPusher.Record record = builder.build();
         log.log(Level.FINEST, "doc id: {0}", id);
         outstream.add(record);
       }
@@ -213,6 +224,25 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       tryClosingConnection(conn);
     }
     outstream.forcePush();
+  }
+
+  /**
+   * Adds all specified metadata columns to the {@code DocIdPusher.Record} being
+   * built.
+   */
+  @VisibleForTesting
+  void addMetadataToRecordBuilder(DocIdPusher.Record.Builder builder,
+      ResultSet rs) throws SQLException {
+    ResultSetMetaData rsMetaData = rs.getMetaData();
+    int numberOfColumns = rsMetaData.getColumnCount();
+    for (int i = 1; i < (numberOfColumns + 1); i++) {
+      String columnName = rsMetaData.getColumnName(i);
+      Object value = rs.getObject(i);
+      String key = metadataColumns.getMetadataName(columnName);
+      if (key != null) {
+        builder.addMetadata(key, "" + value);
+      }
+    }
   }
 
   /** Gives the bytes of a document referenced with id. */
@@ -515,7 +545,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       return loadResponseGeneratorInternal(method,
           config.getValuesWithPrefix("db.modeOfOperation." + mode + "."));
     } catch (NoSuchMethodException ex) {
-      log.fine("did not find" + mode + " in ResponseGenerator, going to look"
+      log.fine("did not find " + mode + " in ResponseGenerator, going to look"
           + " for fully qualified name");
     }
     log.fine("about to try " + mode + " as a fully qualified method name");
@@ -607,9 +637,12 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         log.log(Level.FINEST, "hasTimestamp: {0}", hasTimestamp);
         while (rs.next()) {
           DocId id = new DocId(uniqueKey.makeUniqueId(rs, encodeDocId));
-          DocIdPusher.Record record =
-              new DocIdPusher.Record.Builder(id).setCrawlImmediately(true)
-                  .build();
+          DocIdPusher.Record.Builder builder =
+              new DocIdPusher.Record.Builder(id).setCrawlImmediately(true);
+          if ("urlAndMetadataLister".equals(modeOfOperation)) {
+            addMetadataToRecordBuilder(builder, rs);
+          }
+          DocIdPusher.Record record = builder.build();
           log.log(Level.FINEST, "doc id: {0}", id);
           outstream.add(record);
           

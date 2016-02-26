@@ -48,6 +48,13 @@ public class ResponseGeneratorTest {
   }
 
   @Test
+  public void testMissingColumnNameForUrlAndMetadataListerMode() {
+    thrown.expect(NullPointerException.class);
+    ResponseGenerator.urlAndMetadataLister(
+        Collections.<String, String>emptyMap());
+  }
+
+  @Test
   public void testMissingColumnNameForFilepathMode() {
     thrown.expect(NullPointerException.class);
     ResponseGenerator.filepathColumn(Collections.<String, String>emptyMap());

@@ -54,6 +54,11 @@ public class TestHelper {
       public SensitiveValueDecoder getSensitiveValueDecoder() {
         return SENSITIVE_VALUE_DECODER;
       }
+
+      @Override
+      public void setAuthzAuthority(AuthzAuthority authzAuthority) {
+        // do nothing
+      }
     };
   }
 }
