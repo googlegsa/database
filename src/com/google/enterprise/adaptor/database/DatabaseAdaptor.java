@@ -59,7 +59,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private UniqueKey uniqueKey;
   private String everyDocIdSql;
   private String singleDocContentSql;
-  private MetadataColumns metadataColumns;
+  @VisibleForTesting
+  MetadataColumns metadataColumns;
   private ResponseGenerator respGenerator;
   private String aclSql;
   private String aclPrincipalDelimiter;
@@ -79,6 +80,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.singleDocContentSql", null);
     config.addKey("db.singleDocContentSqlParameters", "");
     config.addKey("db.metadataColumns", "");
+    // when set to true, if "db.metadataColumns" is blank, it will use all
+    // returned columns as metadata.
+    config.addKey("db.includeAllColumnsAsMetadata", "false");
     config.addKey("db.modeOfOperation", null);
     config.addKey("db.updateSql", "");
     config.addKey("db.aclSql", "");
@@ -151,7 +155,17 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     singleDocContentSql = cfg.getValue("db.singleDocContentSql");
     log.config("single doc content sql: " + singleDocContentSql);
 
-    metadataColumns = new MetadataColumns(cfg.getValue("db.metadataColumns"));
+    Boolean includeAllColumnsAsMetadata = new Boolean(cfg.getValue(
+        "db.includeAllColumnsAsMetadata"));
+    log.config("include all columns as metadata: "
+        + includeAllColumnsAsMetadata);
+
+    String metadataColumnsConfig = cfg.getValue("db.metadataColumns");
+    if (includeAllColumnsAsMetadata && "".equals(metadataColumnsConfig)) {
+      metadataColumns = new MetadataColumns.AllColumns();
+    } else {
+      metadataColumns = new MetadataColumns(metadataColumnsConfig);
+    }
     log.config("metadata columns: " + metadataColumns);
 
     respGenerator = loadResponseGenerator(cfg);

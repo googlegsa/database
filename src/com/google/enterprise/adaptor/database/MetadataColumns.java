@@ -66,7 +66,10 @@ class MetadataColumns {
   @Override
   public boolean equals(Object other) {
     boolean same = false;
-    if (other instanceof MetadataColumns) {
+    if (other instanceof MetadataColumns.AllColumns) {
+      return same;
+    }
+    else if (other instanceof MetadataColumns) {
       MetadataColumns mc = (MetadataColumns) other;
       same = columnNameToMetadataKey.equals(mc.columnNameToMetadataKey);
     }
@@ -77,4 +80,28 @@ class MetadataColumns {
   public int hashCode() {
     return columnNameToMetadataKey.hashCode();
   }
+
+  /**
+   * Passes through all columns from the resultSet as Metadata.
+   */
+  static class AllColumns extends MetadataColumns {
+    public AllColumns() {
+      super("");
+    }
+
+    @Override
+    public String getMetadataName(String columnName) {
+      return columnName;
+    }
+
+    @Override
+    public String toString() {
+      return "MetadataColumns.AllColumns()";
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      return (other instanceof MetadataColumns.AllColumns);
+    }
+  };
 }

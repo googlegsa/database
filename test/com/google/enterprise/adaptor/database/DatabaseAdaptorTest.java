@@ -170,6 +170,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.singleDocContentSqlParameters", "must be set");
     configEntries.put("db.singleDocContentSql", "must be set");
     configEntries.put("db.aclSqlParameters", "must be set");
+    configEntries.put("db.includeAllColumnsAsMetadata", "false");
     configEntries.put("db.metadataColumns", "table_col:gsa_col");
     // configEntries.put("db.aclSql", "table_col:gsa_col");
     configEntries.put("db.aclSql", "");
@@ -429,7 +430,73 @@ public class DatabaseAdaptorTest {
     assertEquals(goldenUsers, users);
     assertEquals(goldenGroups, groups);
   }
-  
+
+  @Test
+  public void testIncludeAllColumnsAsMetadata_mcBlank() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.includeAllColumnsAsMetadata", "true");
+    moreEntries.put("db.metadataColumns", "");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    assertEquals("MetadataColumns.AllColumns()",
+        adaptor.metadataColumns.toString());
+    assertEquals("fake column",
+        adaptor.metadataColumns.getMetadataName("fake column"));
+    MetadataColumns emptyMetadataColumns = new MetadataColumns("");
+    assertFalse(emptyMetadataColumns.equals(adaptor.metadataColumns));
+    assertFalse(adaptor.metadataColumns.equals(emptyMetadataColumns));
+  }
+
+  @Test
+  public void testIncludeAllColumnsAsMetadata_mcSet() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.includeAllColumnsAsMetadata", "true");
+    moreEntries.put("db.metadataColumns", "");
+    moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    assertEquals("MetadataColumns({col2=gsa2, db_col1=gsa1})",
+        adaptor.metadataColumns.toString());
+    assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
+    assertEquals("gsa1", adaptor.metadataColumns.getMetadataName("db_col1"));
+    assertEquals("gsa2", adaptor.metadataColumns.getMetadataName("col2"));
+  }
+
+  @Test
+  public void testIncludeAllColumnsAsMetadataFalse_mcBlank() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    assertEquals("MetadataColumns({})", adaptor.metadataColumns.toString());
+    assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
+  }
+
+  @Test
+  public void testIncludeAllColumnsAsMetadataFalse_mcSet() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    assertEquals("MetadataColumns({col2=gsa2, db_col1=gsa1})",
+        adaptor.metadataColumns.toString());
+    assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
+    assertEquals("gsa1", adaptor.metadataColumns.getMetadataName("db_col1"));
+    assertEquals("gsa2", adaptor.metadataColumns.getMetadataName("col2"));
+  }
+
   private static class MockAclSqlResultSet implements InvocationHandler {
     private ArrayList<Map<String, String>> records;
     private int cursor;
