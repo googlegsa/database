@@ -213,8 +213,7 @@ lib/plexi submodule or add the the command line argument
   </target>
 
   <target name="javadoc" description="Build JavaDocs">
-    <javadoc sourcepath="${src.dir}" destdir="${javadoc.dir}"
-        overview="${src.dir}/overview.html">
+    <javadoc sourcepath="${src.dir}" destdir="${javadoc.dir}">
       <classpath refid="adaptor.build.classpath"/>
       <arg value="-quiet"/>
       <arg value="-notimestamp"/>

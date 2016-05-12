@@ -70,7 +70,15 @@ public abstract class ResponseGenerator {
     log.config("displayUrlCol=" + displayUrlCol);
   }
 
-  /** true if display url gets set */
+  /**
+   * This method will generate the Response according to the data returned by
+   * SQL statements.
+   *
+   * @param rs the content for this Response will be fetched out of this object
+   * @param res the Response to fill into
+   * @return true if display url gets set
+   * @throws SQLException when call to getString() goes awry
+   */
   protected boolean overrideDisplayUrl(ResultSet rs, Response res)
       throws SQLException {
     if (null != displayUrlCol) {
@@ -100,8 +108,8 @@ public abstract class ResponseGenerator {
    *
    * @param rs the content for this Response will be fetched out of this object
    * @param resp the Response to fill into
-   * @throws IOException
-   * @throws SQLException
+   * @throws IOException when things go awry
+   * @throws SQLException when things go awry
    */
   public abstract void generateResponse(ResultSet rs, Response resp)
       throws IOException, SQLException;
