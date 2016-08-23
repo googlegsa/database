@@ -141,7 +141,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
     Writer outWriter = new BufferedWriter(new ContentHandlerWriter(handler));
     for (int col = 1; col <= colCount; col++) {
       atts.clear();
-      String columnName = rsmd.getColumnName(col);
+      String columnName = rsmd.getColumnLabel(col);
       int sqlType = rsmd.getColumnType(col);
       String sqlTypeName = getColumnTypeName(sqlType);
       if (sqlTypeName != null) {

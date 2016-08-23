@@ -250,7 +250,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     ResultSetMetaData rsMetaData = rs.getMetaData();
     int numberOfColumns = rsMetaData.getColumnCount();
     for (int i = 1; i < (numberOfColumns + 1); i++) {
-      String columnName = rsMetaData.getColumnName(i);
+      String columnName = rsMetaData.getColumnLabel(i);
       Object value = rs.getObject(i);
       String key = metadataColumns.getMetadataName(columnName);
       if (key != null) {
@@ -284,7 +284,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       ResultSetMetaData rsMetaData = rs.getMetaData();
       int numberOfColumns = rsMetaData.getColumnCount();
       for (int i = 1; i < (numberOfColumns + 1); i++) {
-        String columnName = rsMetaData.getColumnName(i);
+        String columnName = rsMetaData.getColumnLabel(i);
         Object value = rs.getObject(i);
         String key = metadataColumns.getMetadataName(columnName);
         if (key != null) {
@@ -417,7 +417,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       throws SQLException {
     int columns = metadata.getColumnCount();
     for (int x = 1; x <= columns; x++) {
-      if (column.equals(metadata.getColumnName(x))) {
+      if (column.equals(metadata.getColumnLabel(x))) {
         return true;
       }
     }

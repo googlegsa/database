@@ -373,7 +373,7 @@ public class TupleReaderTest {
       String methodName = method.getName();
       if ("getColumnCount".equals(methodName)) {
         return columnType.length;
-      } else if ("getColumnName".equals(methodName)) {
+      } else if ("getColumnLabel".equals(methodName)) {
         return columnName[(Integer) args[0] - 1];
       } else if ("getColumnType".equals(methodName)) {
         return columnType[(Integer) args[0] - 1];

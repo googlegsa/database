@@ -211,7 +211,7 @@ public abstract class ResponseGenerator {
       StringBuilder line3 = new StringBuilder();
       for (int i = 1; i < (numberOfColumns + 1); i++) {
         String tableName = rsMetaData.getTableName(i);
-        String columnName = rsMetaData.getColumnName(i);
+        String columnName = rsMetaData.getColumnLabel(i);
         String value = rs.getString(i);
         if (null == value) {
           value = "" + rs.getObject(i);

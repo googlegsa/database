@@ -544,8 +544,10 @@ public class DatabaseAdaptorTest {
       String methodName = method.getName(); 
       if ("getColumnCount".equals(methodName)) {
         return columns.size() - 1; // don't count the first empty string
-      } else if ("getColumnName".equals(methodName)) {
+      } else if ("getColumnLabel".equals(methodName)) {
         return columns.get((Integer) args[0]);
+      } else if ("getColumnName".equals(methodName)) {
+        throw new IllegalStateException("use getColumnLabel method instead");
       } else {
         throw new IllegalStateException("unexpected call: " + methodName);
       }
