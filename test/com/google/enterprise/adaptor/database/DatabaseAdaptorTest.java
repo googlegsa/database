@@ -15,7 +15,11 @@
 package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Config;
@@ -25,11 +29,6 @@ import com.google.enterprise.adaptor.Response;
 import com.google.enterprise.adaptor.TestHelper;
 import com.google.enterprise.adaptor.UserPrincipal;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -43,6 +42,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 /** Test cases for {@link DatabaseAdaptor}. */
 public class DatabaseAdaptorTest {
@@ -122,9 +124,11 @@ public class DatabaseAdaptorTest {
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     try {
       adaptor.init(TestHelper.createConfigAdaptorContext(config));
+      fail("Expected an InvalidConfigurationException");
     } catch (InvalidConfigurationException ice) {
-      assertTrue(ice.getMessage().contains(
-          "requires docId.isUrl to be \"true\""));
+      if (!ice.getMessage().contains("requires docId.isUrl to be \"true\"")) {
+        throw new RuntimeException("Error message doesn't match expected", ice);
+      }
     }
   }
 
@@ -138,9 +142,11 @@ public class DatabaseAdaptorTest {
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     try {
       adaptor.init(TestHelper.createConfigAdaptorContext(config));
+      fail("Expected an InvalidConfigurationException");
     } catch (InvalidConfigurationException ice) {
-      assertTrue(ice.getMessage().contains(
-          "requires docId.isUrl to be \"true\""));
+      if (!ice.getMessage().contains("requires docId.isUrl to be \"true\"")) {
+        throw new RuntimeException("Error message doesn't match expected", ice);
+      }
     }
   }
 
