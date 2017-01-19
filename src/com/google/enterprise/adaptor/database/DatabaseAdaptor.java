@@ -793,7 +793,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           Acl acl = getAcl(conn, id.getUniqueId());
           List<Acl> aclChain = Arrays.asList(acl);
           log.log(Level.FINE,
-              "about to autorize user {0} for doc {1} and acl {2}",
+              "about to authorize user {0} for doc {1} and acl {2}",
               new Object[]{user, id, acl});
           AuthzStatus decision = Acl.isAuthorized(userIdentity, aclChain); 
           log.log(Level.FINE,
