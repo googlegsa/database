@@ -113,15 +113,43 @@ public class TupleReaderTest {
         (ResultSetMetaData) Proxy.newProxyInstance(
             ResultSetMetaData.class.getClassLoader(),
             new Class[] {ResultSetMetaData.class}, metadata);
-    MockResultSet resultSet = new MockResultSet(rsMetadata, 
-        new StringReader("onevalue"));
+    MockResultSet resultSet = new MockResultSet(rsMetadata, "onevalue");
     ResultSet rs =
         (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
             new Class[] {ResultSet.class}, resultSet);
     String result = generateXml(rs);
     assertEquals(golden, result);
   }
-  
+
+  /**
+   * Test Char column.
+   */
+  @Test
+  public void testChar() throws Exception {
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<colname SQLType=\"CHAR\">onevalue</colname>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    int[] columnType = {Types.CHAR};
+    String[] columnName = {"colname"};
+    MockResultSetMetaData metadata =
+        new MockResultSetMetaData(columnType, columnName);
+    ResultSetMetaData rsMetadata =
+        (ResultSetMetaData) Proxy.newProxyInstance(
+            ResultSetMetaData.class.getClassLoader(),
+            new Class[] {ResultSetMetaData.class}, metadata);
+    MockResultSet resultSet = new MockResultSet(rsMetadata, "onevalue");
+    ResultSet rs =
+        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
+            new Class[] {ResultSet.class}, resultSet);
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
   /**
    * Test integer column.
    */

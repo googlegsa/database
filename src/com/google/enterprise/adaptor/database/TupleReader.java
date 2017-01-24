@@ -202,13 +202,13 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.NUMERIC:
         case Types.DOUBLE:
         case Types.INTEGER:
+        case Types.CHAR:
+        case Types.VARCHAR:
           String string = resultSet.getString(col);
           handler.startElement("", columnName, columnName, atts);
           outWriter.write(string);
           break;
-        case Types.CHAR:
         case Types.CLOB:
-        case Types.VARCHAR:
         case Types.LONGVARCHAR:
           Reader reader = resultSet.getCharacterStream(col);
           handler.startElement("", columnName, columnName, atts);
