@@ -1,5 +1,5 @@
 <project name="plexi.database" default="build" basedir=".">
-  <description>Database Adaptor</description>
+  <description>Connector for Databases</description>
   <tstamp/>
   <property name="src.dir" location="src"/>
   <property name="test.dir" location="test"/>
@@ -167,7 +167,7 @@ lib/plexi submodule or add the the command line argument
         <attribute name="Class-Path" value="${tmp.adaptor.classpath}"/>
         <section name="com/google/enterprise/adaptor/database/">
           <attribute name="Implementation-Title"
-            value="Google Database Adaptor"/>
+            value="Google Search Appliance Connector for Databases"/>
           <attribute name="Implementation-Vendor" value="Google Inc."/>
           <attribute name="Implementation-Version"
             value="${adaptor.version}"/>
