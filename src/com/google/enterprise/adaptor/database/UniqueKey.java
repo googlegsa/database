@@ -61,7 +61,9 @@ class UniqueKey {
     }
 
     if ("".equals(ukDecls.trim())) {
-      throw new InvalidConfigurationException("unique key can't be empty");
+      String errmsg = "Invalid db.uniqueKey parameter: value cannot be empty";
+      log.fine(errmsg);
+      throw new InvalidConfigurationException(errmsg);
     }
 
     List<String> tmpNames = new ArrayList<String>();
@@ -71,7 +73,11 @@ class UniqueKey {
       e = e.trim();
       String def[] = e.split(":", 2);
       if (2 != def.length) {
-        throw new InvalidConfigurationException("bad def: `" + e + "'");
+        String errmsg = "Invalid UniqueKey definition for '" + e + "'. Valid "
+            +" definition is 'column_name:type' where types can be int, string,"
+            +" timestamp, date, time and long.";
+        log.fine(errmsg);
+        throw new InvalidConfigurationException(errmsg);
       }
       def[0] = def[0].trim();
       def[1] = def[1].trim();
@@ -90,10 +96,16 @@ class UniqueKey {
       } else if ("long".equals(def[1].toLowerCase())) {
         type = ColumnType.LONG;
       } else {
-        throw new InvalidConfigurationException("bad type: `" + def[1] + "'");
-      } 
+        String errmsg = "Invalid UniqueKey type for '" + def[1] + "'. Valid "
+            +" types are: int, string, timestamp, date, time, and long.";
+        log.fine(errmsg);
+        throw new InvalidConfigurationException(errmsg);
+      }
       if (tmpTypes.containsKey(name)) {
-        throw new InvalidConfigurationException("name repeat: `" + name + "'");
+        String errmsg = "Invalid db.uniqueKey configuration: key name '"
+            + name + "' was repeated.";
+        log.fine(errmsg);
+        throw new InvalidConfigurationException(errmsg);
       }
       tmpNames.add(name);
       tmpTypes.put(name, type);
@@ -120,9 +132,11 @@ class UniqueKey {
     for (String name : cols.split(",", 0)) {
       name = name.trim();
       if (!validNames.contains(name)) {
-        throw new InvalidConfigurationException("unknown name: `" + name + "'");
+        String errmsg = "Unknown column name: '" + name + "'";
+        log.fine(errmsg);
+        throw new InvalidConfigurationException(errmsg);
       }
-      tmpContentCols.add(name); 
+      tmpContentCols.add(name);
     }
     return Collections.unmodifiableList(tmpContentCols);
   }
@@ -163,7 +177,11 @@ class UniqueKey {
           part = "" + rs.getLong(name);
           break;
         default:
-          throw new AssertionError("invalid type: `" + types.get(name) + "'"); 
+          String errmsg = "Invalid type '" + types.get(name) + "' for '"
+              + name + "'. Valid types are: int, string, timestamp, date"
+              + ", time and long.";
+          log.fine(errmsg);
+          throw new AssertionError(errmsg);
       }
       if (encode) {
         part = encodeSlashInData(part);
@@ -179,9 +197,10 @@ class UniqueKey {
     // (a / that is preceded by _ is part of column value)
     String parts[] = uniqueId.split("(?<!_)/", -1);
     if (parts.length != names.size()) {
-      throw new IllegalStateException(
-          "wrong number of values for primary key: "
-          + "id: " + uniqueId + ", parts: " + Arrays.asList(parts));
+      String errmsg = "Wrong number of values for primary key: "
+          + "id: " + uniqueId + ", parts: " + Arrays.asList(parts);
+      log.fine(errmsg);
+      throw new IllegalStateException(errmsg);
     }
     Map<String, String> zip = new TreeMap<String, String>();
     for (int i = 0; i < parts.length; i++) {
@@ -213,9 +232,13 @@ class UniqueKey {
           st.setLong(i + 1, Long.parseLong(valueOfCol));
           break;
         default:
-          throw new AssertionError("invalid type: `" + typeOfCol + "'"); 
+          String errmsg = "Invalid column type: `" + typeOfCol + "' for '"
+              + colName + "'. Valid column types are int, string, timestamp"
+              + ", date, time and long.";
+          log.fine(errmsg);
+          throw new AssertionError(errmsg);
       }
-    }   
+    }
   }
 
   void setContentSqlValues(PreparedStatement st, String uniqueId)
