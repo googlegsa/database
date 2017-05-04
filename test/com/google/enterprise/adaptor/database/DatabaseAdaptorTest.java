@@ -85,8 +85,14 @@ public class DatabaseAdaptorTest {
     for (Map.Entry<String, String> entry : configEntries.entrySet()) {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
-    thrown.expect(InvalidConfigurationException.class);
-    DatabaseAdaptor.loadResponseGenerator(config);
+    try {
+      DatabaseAdaptor.loadResponseGenerator(config);
+      fail("Expected an InvalidConfigurationException");
+    } catch (InvalidConfigurationException ice) {
+       if (!ice.getMessage().contains("noThisMethod cannot be parsed as a fully qualified method")) {
+         throw new RuntimeException("Error message doesn't match expected", ice);
+       }
+    }
   }
 
   @Test
@@ -485,6 +491,27 @@ public class DatabaseAdaptorTest {
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
     assertEquals("MetadataColumns({})", adaptor.metadataColumns.toString());
     assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
+  }
+
+  @Test
+  public void testUniqueKey() throws Exception {
+    // mpaggi here
+    // db.uniqueKey=productid is wrong, should be db.uniqueKey=productid:int
+    // type accepted are int, string, timestamp, date, time, and long
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "productid");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    try {
+      adaptor.init(TestHelper.createConfigAdaptorContext(config));
+      fail("Expected an InvalidConfigurationException");
+    } catch (InvalidConfigurationException ice) {
+      if (!ice.getMessage().contains("Invalid UniqueKey definition")) {
+        throw new RuntimeException("Error message doesn't match expected", ice);
+      }
+    }
   }
 
   @Test
