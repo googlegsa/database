@@ -61,8 +61,7 @@ class UniqueKey {
     }
 
     if ("".equals(ukDecls.trim())) {
-      String errmsg = "Invalid db.uniqueKey parameter: value cannot be empty";
-      log.fine(errmsg);
+      String errmsg = "Invalid db.uniqueKey parameter: value cannot be empty.";
       throw new InvalidConfigurationException(errmsg);
     }
 
@@ -73,10 +72,9 @@ class UniqueKey {
       e = e.trim();
       String def[] = e.split(":", 2);
       if (2 != def.length) {
-        String errmsg = "Invalid UniqueKey definition for '" + e + "'. Valid "
-            +" definition is 'column_name:type' where types can be int, string,"
-            +" timestamp, date, time and long.";
-        log.fine(errmsg);
+        String errmsg = "Invalid UniqueKey definition for '" + e + "'. Valid"
+            + " definition is 'column_name:type' where types can be int, string,"
+            + " timestamp, date, time and long.";
         throw new InvalidConfigurationException(errmsg);
       }
       def[0] = def[0].trim();
@@ -96,15 +94,13 @@ class UniqueKey {
       } else if ("long".equals(def[1].toLowerCase())) {
         type = ColumnType.LONG;
       } else {
-        String errmsg = "Invalid UniqueKey type for '" + def[1] + "'. Valid "
-            +" types are: int, string, timestamp, date, time, and long.";
-        log.fine(errmsg);
+        String errmsg = "Invalid UniqueKey type '" + def[1] + "'. Valid"
+            + " types are: int, string, timestamp, date, time, and long.";
         throw new InvalidConfigurationException(errmsg);
       }
       if (tmpTypes.containsKey(name)) {
         String errmsg = "Invalid db.uniqueKey configuration: key name '"
             + name + "' was repeated.";
-        log.fine(errmsg);
         throw new InvalidConfigurationException(errmsg);
       }
       tmpNames.add(name);
@@ -133,7 +129,6 @@ class UniqueKey {
       name = name.trim();
       if (!validNames.contains(name)) {
         String errmsg = "Unknown column name: '" + name + "'";
-        log.fine(errmsg);
         throw new InvalidConfigurationException(errmsg);
       }
       tmpContentCols.add(name);
@@ -180,7 +175,6 @@ class UniqueKey {
           String errmsg = "Invalid type '" + types.get(name) + "' for '"
               + name + "'. Valid types are: int, string, timestamp, date"
               + ", time and long.";
-          log.fine(errmsg);
           throw new AssertionError(errmsg);
       }
       if (encode) {
@@ -199,7 +193,6 @@ class UniqueKey {
     if (parts.length != names.size()) {
       String errmsg = "Wrong number of values for primary key: "
           + "id: " + uniqueId + ", parts: " + Arrays.asList(parts);
-      log.fine(errmsg);
       throw new IllegalStateException(errmsg);
     }
     Map<String, String> zip = new TreeMap<String, String>();
@@ -233,9 +226,8 @@ class UniqueKey {
           break;
         default:
           String errmsg = "Invalid column type: `" + typeOfCol + "' for '"
-              + colName + "'. Valid column types are int, string, timestamp"
-              + ", date, time and long.";
-          log.fine(errmsg);
+              + colName + "'. Valid column types are int, string, timestamp,"
+              + "date, time and long.";
           throw new AssertionError(errmsg);
       }
     }
