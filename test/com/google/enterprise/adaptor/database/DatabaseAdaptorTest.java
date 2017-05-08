@@ -495,9 +495,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testUniqueKey() throws Exception {
-    // mpaggi here
-    // db.uniqueKey=productid is wrong, should be db.uniqueKey=productid:int
-    // type accepted are int, string, timestamp, date, time, and long
+    // Value if unique id cannot be "productid", because that is missing type.
+    // The value has to be something like "productid:int"
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("adaptor.namespace", "Default");
     moreEntries.put("db.modeOfOperation", "rowToText");
