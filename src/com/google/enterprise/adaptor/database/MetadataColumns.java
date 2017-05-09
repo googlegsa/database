@@ -68,8 +68,7 @@ class MetadataColumns {
     boolean same = false;
     if (other instanceof MetadataColumns.AllColumns) {
       return same;
-    }
-    else if (other instanceof MetadataColumns) {
+    } else if (other instanceof MetadataColumns) {
       MetadataColumns mc = (MetadataColumns) other;
       same = columnNameToMetadataKey.equals(mc.columnNameToMetadataKey);
     }

@@ -14,11 +14,11 @@
 
 package com.google.enterprise.adaptor.database;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 
-import org.junit.*;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 

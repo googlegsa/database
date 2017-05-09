@@ -395,8 +395,8 @@ public abstract class ResponseGenerator {
         // SerialBlob is adamant about not supporting free
         try {
           blob.free();
-        } catch (java.sql.SQLFeatureNotSupportedException | 
-            UnsupportedOperationException unsupported) {
+        } catch (java.sql.SQLFeatureNotSupportedException
+            | UnsupportedOperationException unsupported) {
           // let JVM garbage collection deal with it
         }
       }
