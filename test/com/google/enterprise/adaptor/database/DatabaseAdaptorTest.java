@@ -494,8 +494,8 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testUniqueKey() throws Exception {
-    // Value if unique id cannot be "productid", because that is missing type.
+  public void testUniqueKeyMissingType() throws Exception {
+    // Value of unique id cannot be "productid", because that is missing type.
     // The value has to be something like "productid:int"
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("adaptor.namespace", "Default");
@@ -508,6 +508,65 @@ public class DatabaseAdaptorTest {
       fail("Expected an InvalidConfigurationException");
     } catch (InvalidConfigurationException ice) {
       if (!ice.getMessage().contains("Invalid UniqueKey definition")) {
+        throw new RuntimeException("Error message doesn't match expected", ice);
+      }
+    }
+  }
+
+  @Test
+  public void testUniqueKeyInvalidType() throws Exception {
+    // Type of unique key id value cannot be "notvalid", since it's invalid.
+    // That cat be int, string, timestamp, date, time, and long.
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "productid:notvalid");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    try {
+      adaptor.init(TestHelper.createConfigAdaptorContext(config));
+      fail("Expected an InvalidConfigurationException");
+    } catch (InvalidConfigurationException ice) {
+      if (!ice.getMessage().contains("Invalid UniqueKey type 'notvalid'")) {
+        throw new RuntimeException("Error message doesn't match expected", ice);
+      }
+    }
+  }
+
+  @Test
+  public void testUniqueKeyContainsRepeatedKeyName() throws Exception {
+    // Value of unique key cannot contain repeated key name.
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "productid:int,productid:string");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    try {
+      adaptor.init(TestHelper.createConfigAdaptorContext(config));
+      fail("Expected an InvalidConfigurationException");
+    } catch (InvalidConfigurationException ice) {
+      if (!ice.getMessage().contains("key name 'productid' was repeated")) {
+        throw new RuntimeException("Error message doesn't match expected", ice);
+      }
+    }
+  }
+
+  @Test
+  public void testUniqueKeyEmpty() throws Exception {
+    // Value of unique id cannot be empty.
+    // The value has to be something like "keyname:type"
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    try {
+      adaptor.init(TestHelper.createConfigAdaptorContext(config));
+      fail("Expected an InvalidConfigurationException");
+    } catch (InvalidConfigurationException ice) {
+      if (!ice.getMessage().contains("db.uniqueKey parameter: value cannot be empty")) {
         throw new RuntimeException("Error message doesn't match expected", ice);
       }
     }
