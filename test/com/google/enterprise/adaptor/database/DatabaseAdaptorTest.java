@@ -85,14 +85,10 @@ public class DatabaseAdaptorTest {
     for (Map.Entry<String, String> entry : configEntries.entrySet()) {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
-    try {
-      DatabaseAdaptor.loadResponseGenerator(config);
-      fail("Expected an InvalidConfigurationException");
-    } catch (InvalidConfigurationException ice) {
-       if (!ice.getMessage().contains("noThisMethod cannot be parsed as a fully qualified method")) {
-         throw new RuntimeException("Error message doesn't match expected", ice);
-       }
-    }
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage(
+        "noThisMethod cannot be parsed as a fully qualified method");
+    DatabaseAdaptor.loadResponseGenerator(config);
   }
 
   @Test
@@ -566,7 +562,8 @@ public class DatabaseAdaptorTest {
       adaptor.init(TestHelper.createConfigAdaptorContext(config));
       fail("Expected an InvalidConfigurationException");
     } catch (InvalidConfigurationException ice) {
-      if (!ice.getMessage().contains("db.uniqueKey parameter: value cannot be empty")) {
+      if (!ice.getMessage().contains(
+          "db.uniqueKey parameter: value cannot be empty")) {
         throw new RuntimeException("Error message doesn't match expected", ice);
       }
     }
