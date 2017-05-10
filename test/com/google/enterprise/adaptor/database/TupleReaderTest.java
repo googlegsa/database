@@ -11,7 +11,6 @@ import org.xml.sax.InputSource;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.Reader;
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -218,7 +217,7 @@ public class TupleReaderTest {
    */
   @Test
   public void testTIMESTAMP() throws Exception {
-    final DateFormat TIMEZONEFMT = new SimpleDateFormat("X");
+    DateFormat timeZoneFmt = new SimpleDateFormat("X");
     Calendar cal = Calendar.getInstance(TimeZone.getDefault());
     cal.set(Calendar.YEAR, 2004);
     cal.set(Calendar.MONTH, Calendar.OCTOBER);
@@ -232,7 +231,7 @@ public class TupleReaderTest {
         + "<table>"
         + "<table_rec>"
         + "<colname SQLType=\"TIMESTAMP\">2004-10-06T09:15:30"
-        + TIMEZONEFMT.format(date) + ":00"
+        + timeZoneFmt.format(date) + ":00"
         + "</colname>"
         + "</table_rec>"
         + "</table>"
@@ -260,7 +259,7 @@ public class TupleReaderTest {
    */
   @Test
   public void testTIME() throws Exception {
-    final DateFormat TIMEZONEFMT = new SimpleDateFormat("X");
+    final DateFormat timeZoneFmt = new SimpleDateFormat("X");
     Calendar cal = Calendar.getInstance(TimeZone.getDefault());
     cal.set(Calendar.YEAR, 2004);
     cal.set(Calendar.MONTH, Calendar.OCTOBER);
@@ -274,7 +273,7 @@ public class TupleReaderTest {
         + "<table>"
         + "<table_rec>"
         + "<colname SQLType=\"TIME\">09:15:30"
-        + TIMEZONEFMT.format(date) + ":00"
+        + timeZoneFmt.format(date) + ":00"
         + "</colname>"
         + "</table_rec>"
         + "</table>"

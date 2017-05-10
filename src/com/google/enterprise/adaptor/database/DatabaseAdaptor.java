@@ -32,15 +32,31 @@ import com.google.enterprise.adaptor.Request;
 import com.google.enterprise.adaptor.Response;
 import com.google.enterprise.adaptor.UserPrincipal;
 
-import java.io.*;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
-import java.util.logging.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TimeZone;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /** Puts SQL database into GSA index. */
 public class DatabaseAdaptor extends AbstractAdaptor {
