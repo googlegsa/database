@@ -205,7 +205,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       String errmsg = "Invalid modeOfOperation value '" + modeOfOperation
           + "'. Supported types are: blobColumn, filepathColumn, rowToHtml"
           + ", rowToText, urlColumn, urlAndMetadataLister";
-      log.fine(errmsg);
       throw new InvalidConfigurationException(errmsg);
     }
 
