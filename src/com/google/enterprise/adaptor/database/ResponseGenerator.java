@@ -14,23 +14,28 @@
 
 package com.google.enterprise.adaptor.database;
 
+import com.google.common.base.Charsets;
+import com.google.common.io.CharStreams;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
 
 import org.xml.sax.InputSource;
-
+import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.sql.Blob;
+import java.sql.Clob;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.Collections;
 import java.util.Map;
 import java.util.logging.Level;
@@ -137,7 +142,11 @@ public abstract class ResponseGenerator {
   }
 
   public static ResponseGenerator blobColumn(Map<String, String> config) {
-    return new BlobColumn(config);
+    return contentColumn(config);
+  }
+
+  public static ResponseGenerator contentColumn(Map<String, String> config) {
+    return new ContentColumn(config);
   }
 
   public static ResponseGenerator rowToHtml(Map<String, String> config)
@@ -376,8 +385,8 @@ public abstract class ResponseGenerator {
     }
   }
 
-  private static class BlobColumn extends SingleColumnContent {
-    BlobColumn(Map<String, String> config) {
+  private static class ContentColumn extends SingleColumnContent {
+    ContentColumn(Map<String, String> config) {
       super(config);
     }
 
@@ -386,19 +395,80 @@ public abstract class ResponseGenerator {
         throws IOException, SQLException {
       overrideContentType(rs, resp);
       overrideDisplayUrl(rs, resp);
-      Blob blob = rs.getBlob(getContentColumnName());
-      InputStream in = blob.getBinaryStream();
-      OutputStream out = resp.getOutputStream();
-      com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
-      in.close();
-      if (!(blob instanceof javax.sql.rowset.serial.SerialBlob)) {
-        // SerialBlob is adamant about not supporting free
-        try {
-          blob.free();
-        } catch (java.sql.SQLFeatureNotSupportedException | 
-            UnsupportedOperationException unsupported) {
-          // let JVM garbage collection deal with it
+
+      ResultSetMetaData rsMetaData = rs.getMetaData();
+      int columnType = Types.OTHER;
+      int numberOfColumns = rsMetaData.getColumnCount();
+      for (int i = 1; i < (numberOfColumns + 1); i++) {
+        String columnName = rsMetaData.getColumnLabel(i);
+        if (columnName.equals(getContentColumnName())) {
+          columnType = rsMetaData.getColumnType(i);
+          log.log(Level.FINEST, "Name: {0}, Type: {1}", new Object[] {columnName, columnType});
         }
+      }
+
+      InputStream in = null;
+      Clob clob = null;
+      Blob blob = null;
+      switch (columnType) {
+        case Types.VARCHAR:
+          Reader rd = rs.getCharacterStream(getContentColumnName());
+          in = new ByteArrayInputStream(CharStreams.toString(rd).getBytes(Charsets.UTF_8));
+          break;
+        case Types.VARBINARY:
+          in = rs.getBinaryStream(getContentColumnName());
+          break;
+        case Types.CLOB:
+        case Types.LONGVARCHAR:
+          clob = rs.getClob(getContentColumnName());
+          Reader rd1 = clob.getCharacterStream();
+          in = new ByteArrayInputStream(CharStreams.toString(rd1).getBytes(Charsets.UTF_8));
+          break;
+        case Types.BLOB:
+        case Types.LONGVARBINARY:
+          blob = rs.getBlob(getContentColumnName());
+          in = blob.getBinaryStream();
+          break;
+        case Types.NCHAR:
+        case Types.NCLOB:
+        case Types.NVARCHAR:
+        case Types.LONGNVARCHAR:
+          Reader rd2 = rs.getNCharacterStream(getContentColumnName());
+          in = new ByteArrayInputStream(CharStreams.toString(rd2).getBytes(Charsets.UTF_8));
+          break;
+        case Types.SMALLINT:
+        case Types.TINYINT:
+        case Types.FLOAT:
+        case Types.DECIMAL:
+        case Types.NUMERIC:
+        case Types.DOUBLE:
+        case Types.INTEGER:
+        case Types.CHAR:
+          String content = rs.getString(getContentColumnName());
+          in = new ByteArrayInputStream(content.getBytes(Charsets.UTF_8));
+          break;
+        default:
+          break;
+      }
+
+      if (in != null) {
+        OutputStream out = resp.getOutputStream();
+        com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
+        in.close();
+      }
+
+      try {
+        switch (columnType) {
+          case Types.CLOB:
+            clob.free();
+            break;
+          case Types.BLOB:
+            blob.free();
+            break;
+        }
+      } catch (java.sql.SQLFeatureNotSupportedException
+          | UnsupportedOperationException unsupported) {
+        // let JVM garbage collection deal with it
       }
     }
   }

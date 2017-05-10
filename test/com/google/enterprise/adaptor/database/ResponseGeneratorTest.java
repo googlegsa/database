@@ -32,6 +32,10 @@ import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.net.URL;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
@@ -63,11 +67,16 @@ public class ResponseGeneratorTest {
   @Test
   public void testMissingColumnNameForBlobMode() {
     thrown.expect(NullPointerException.class);
-    ResponseGenerator.blobColumn(Collections.<String, String>emptyMap());
+    ResponseGenerator.contentColumn(Collections.<String, String>emptyMap());
+  }
+
+  private ResultSet makeMockBlobResultSet(final byte b[]) {
+    return makeMockBlobResultSet(b, new ArrayList<String>(), new ArrayList<Integer>());
   }
 
   /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
-  private ResultSet makeMockBlobResultSet(final byte b[]) {
+  private ResultSet makeMockBlobResultSet(final byte b[], final ArrayList<String> names,
+      final ArrayList<Integer> types) {
     ResultSet rs = (ResultSet) Proxy.newProxyInstance(
         ResultSet.class.getClassLoader(), new Class[] { ResultSet.class },
         new InvocationHandler() {
@@ -88,6 +97,69 @@ public class ResponseGeneratorTest {
               } else {
                 throw new java.sql.SQLException("no column named: " + args[0]);
               }
+            }
+            if ("getMetaData".equals(method.getName())) {
+              return makeMockResultSetMetaData(names, types);
+            }
+            throw new AssertionError("invalid method: " + method.getName());
+          }
+        }
+    );
+    return rs;
+  }
+
+  private ResultSet makeMockClobResultSet(final char c[]) {
+    return makeMockClobResultSet(c, new ArrayList<String>(), new ArrayList<Integer>());
+  }
+
+  /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
+  private ResultSet makeMockClobResultSet(final char c[], final ArrayList<String> names,
+      final ArrayList<Integer> types) {
+    ResultSet rs = (ResultSet) Proxy.newProxyInstance(
+        ResultSet.class.getClassLoader(), new Class[] { ResultSet.class },
+        new InvocationHandler() {
+          public Object invoke(Object proxy, Method method, Object[] args)
+              throws Throwable {
+            if ("getClob".equals(method.getName())) {
+              if ("my-clob-col".equals(args[0])) {
+                return new javax.sql.rowset.serial.SerialClob(c);
+              } else {
+                throw new java.sql.SQLException("no column named: " + args[0]);
+              }
+            }
+            if ("getString".equals(method.getName())) {
+              if ("this-clob-col-has-CT".equals(args[0])) {
+                return "hard-coded-clob-content-type";
+              } else if ("this-clob-col-has-disp-url".equals(args[0])) {
+                return "hard-coded-clob-display-url";
+              } else {
+                throw new java.sql.SQLException("no column named: " + args[0]);
+              }
+            }
+            if ("getMetaData".equals(method.getName())) {
+              return makeMockResultSetMetaData(names, types);
+            }
+            throw new AssertionError("invalid method: " + method.getName());
+          }
+        }
+    );
+    return rs;
+  }
+
+  private ResultSetMetaData makeMockResultSetMetaData(final ArrayList name, final ArrayList type) {
+    ResultSetMetaData rs = (ResultSetMetaData) Proxy.newProxyInstance(
+        ResultSetMetaData.class.getClassLoader(), new Class[] { ResultSetMetaData.class },
+        new InvocationHandler() {
+          public Object invoke(Object proxy, Method method, Object[] args)
+              throws Throwable {
+            if ("getColumnCount".equals(method.getName())) {
+              return name.size();
+            }
+            if ("getColumnLabel".equals(method.getName())) {
+              return name.get((int) args[0] - 1);
+            }
+            if ("getColumnType".equals(method.getName())) {
+              return type.get((int) args[0] - 1);
             }
             throw new AssertionError("invalid method: " + method.getName());
           }
@@ -165,10 +237,12 @@ public class ResponseGeneratorTest {
         new Class[] { Response.class }, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
-    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
     byte b[] = content.getBytes("US-ASCII");
-    resgen.generateResponse(makeMockBlobResultSet(b), response);
+    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-blob-col"));
+    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.BLOB));
+    resgen.generateResponse(makeMockBlobResultSet(b, names, types), response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals(content, responseMsg);
   }
@@ -181,13 +255,50 @@ public class ResponseGeneratorTest {
         new Class[] { Response.class }, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-col-name-is-wrong");
-    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
+    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-col-name-is-wrong"));
+    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.BLOB));
     byte b[] = content.getBytes("US-ASCII");
     thrown.expect(java.sql.SQLException.class);
-    resgen.generateResponse(makeMockBlobResultSet(b), response);
+    resgen.generateResponse(makeMockBlobResultSet(b, names, types), response);
   }
- 
+
+  @Test
+  public void testClobColumnModeServesResultClob() throws Exception {
+    MockResponse bar = new MockResponse();
+    Response response = (Response) Proxy.newProxyInstance(
+        Response.class.getClassLoader(),
+        new Class[] { Response.class }, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "my-clob-col");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+    String content = "hello world";
+    char c[] = content.toCharArray();
+    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-clob-col"));
+    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.CLOB));
+    resgen.generateResponse(makeMockClobResultSet(c, names, types), response);
+    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
+    Assert.assertEquals(content, responseMsg);
+  }
+
+  @Test
+  public void testClobColumnModeIncorrectColumnName() throws Exception {
+    MockResponse bar = new MockResponse();
+    Response response = (Response) Proxy.newProxyInstance(
+        Response.class.getClassLoader(),
+        new Class[] { Response.class }, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "my-col-name-is-wrong");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+    String content = "hello world";
+    char c[] = content.toCharArray();
+    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-col-name-is-wrong"));
+    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.CLOB));
+    thrown.expect(java.sql.SQLException.class);
+    resgen.generateResponse(makeMockClobResultSet(c, names, types), response);
+  }
+
   private static void writeDataToFile(File f, String content)
       throws IOException {
     FileOutputStream fw = null;
@@ -314,7 +425,7 @@ public class ResponseGeneratorTest {
     cfg.put("contentTypeOverride", "dev/rubish");
     cfg.put("contentTypeCol", "get-ct-here");
     thrown.expect(InvalidConfigurationException.class);
-    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
   }
 
   @Test
@@ -326,10 +437,12 @@ public class ResponseGeneratorTest {
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
     cfg.put("contentTypeOverride", "dev/rubish");
-    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
     byte b[] = content.getBytes("US-ASCII");
-    resgen.generateResponse(makeMockBlobResultSet(b), response);
+    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-blob-col"));
+    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.BLOB));
+    resgen.generateResponse(makeMockBlobResultSet(b, names, types), response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals(content, responseMsg);
     Assert.assertEquals("dev/rubish", bar.contentType);
@@ -344,10 +457,12 @@ public class ResponseGeneratorTest {
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
     cfg.put("contentTypeCol", "this-blob-col-has-CT");
-    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
     byte b[] = content.getBytes("US-ASCII");
-    resgen.generateResponse(makeMockBlobResultSet(b), response);
+    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-blob-col"));
+    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.BLOB));
+    resgen.generateResponse(makeMockBlobResultSet(b, names, types), response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals(content, responseMsg);
     Assert.assertEquals("hard-coded-blob-content-type", bar.contentType);
@@ -362,13 +477,91 @@ public class ResponseGeneratorTest {
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
     cfg.put("displayUrlCol", "this-blob-col-has-disp-url");
-    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
     byte b[] = content.getBytes("US-ASCII");
-    resgen.generateResponse(makeMockBlobResultSet(b), response);
+    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-blob-col"));
+    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.BLOB));
+    resgen.generateResponse(makeMockBlobResultSet(b, names, types), response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals(content, responseMsg);
     Assert.assertEquals(new URI("hard-coded-blob-display-url"), bar.displayUrl);
+  }
+
+
+  @Test
+  public void testClobColumnModeContentTypeOverrideAndContentTypeCol()
+      throws Exception {
+    MockResponse bar = new MockResponse();
+    Response response = (Response) Proxy.newProxyInstance(
+        Response.class.getClassLoader(),
+        new Class[] { Response.class }, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "my-clob-col");
+    cfg.put("contentTypeOverride", "dev/rubish");
+    cfg.put("contentTypeCol", "get-ct-here");
+    thrown.expect(InvalidConfigurationException.class);
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+  }
+
+  @Test
+  public void testClobColumnModeContentTypeOverride() throws Exception {
+    MockResponse bar = new MockResponse();
+    Response response = (Response) Proxy.newProxyInstance(
+        Response.class.getClassLoader(),
+        new Class[] { Response.class }, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "my-clob-col");
+    cfg.put("contentTypeOverride", "dev/rubish");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+    String content = "hello world";
+    char c[] = content.toCharArray();
+    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-clob-col"));
+    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.CLOB));
+    resgen.generateResponse(makeMockClobResultSet(c, names, types), response);
+    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
+    Assert.assertEquals(content, responseMsg);
+    Assert.assertEquals("dev/rubish", bar.contentType);
+  }
+
+  @Test
+  public void testClobColumnModeContentTypeCol() throws Exception {
+    MockResponse bar = new MockResponse();
+    Response response = (Response) Proxy.newProxyInstance(
+        Response.class.getClassLoader(),
+        new Class[] { Response.class }, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "my-clob-col");
+    cfg.put("contentTypeCol", "this-clob-col-has-CT");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+    String content = "hello world";
+    char c[] = content.toCharArray();
+    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-clob-col"));
+    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.CLOB));
+    resgen.generateResponse(makeMockClobResultSet(c, names, types), response);
+    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
+    Assert.assertEquals(content, responseMsg);
+    Assert.assertEquals("hard-coded-clob-content-type", bar.contentType);
+  }
+
+  @Test
+  public void testClobColumnModeDisplayUrlCol() throws Exception {
+    MockResponse bar = new MockResponse();
+    Response response = (Response) Proxy.newProxyInstance(
+        Response.class.getClassLoader(),
+        new Class[] { Response.class }, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "my-clob-col");
+    cfg.put("displayUrlCol", "this-clob-col-has-disp-url");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+    String content = "hello world";
+    char c[] = content.toCharArray();
+    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-clob-col"));
+    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.CLOB));
+    resgen.generateResponse(makeMockClobResultSet(c, names, types), response);
+    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
+    Assert.assertEquals(content, responseMsg);
+    Assert.assertEquals(new URI("hard-coded-clob-display-url"), bar.displayUrl);
   }
 
   @Test
