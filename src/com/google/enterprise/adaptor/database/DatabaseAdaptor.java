@@ -193,10 +193,19 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       log.config("adaptor runs in lister-only mode");
     }
 
-    modeOfOperation = cfg.getValue("db.modeOfOperation");
+    modeOfOperation = cfg.getValue("db.modeOfOperation").trim();
     if ("urlAndMetadataLister".equals(modeOfOperation) && encodeDocId) {
       String errmsg = "db.modeOfOperation of \"" + modeOfOperation
           + "\" requires docId.isUrl to be \"true\"";
+      throw new InvalidConfigurationException(errmsg);
+    }
+    String modeOfOperationValid[] = {"blobColumn", "filepathColumn",
+      "rowToHtml", "rowToText", "urlColumn", "urlAndMetadataLister"};
+    if (!Arrays.asList(modeOfOperationValid).contains(modeOfOperation)) {
+      String errmsg = "Invalid modeOfOperation value '" + modeOfOperation
+          + "'. Supported types are: blobColumn, filepathColumn, rowToHtml"
+          + ", rowToText, urlColumn, urlAndMetadataLister";
+      log.fine(errmsg);
       throw new InvalidConfigurationException(errmsg);
     }
 
@@ -565,7 +574,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     log.fine("about to try " + mode + " as a fully qualified method name");
     int sepIndex = mode.lastIndexOf(".");
     if (sepIndex == -1) {
-      String errmsg = mode + " cannot be parsed as a fully quailfied name";
+      String errmsg = mode
+          + " cannot be parsed as a fully qualified method name";
       throw new InvalidConfigurationException(errmsg);
     }
     String className = mode.substring(0, sepIndex);
