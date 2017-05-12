@@ -499,14 +499,9 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.uniqueKey", "productid");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    try {
-      adaptor.init(TestHelper.createConfigAdaptorContext(config));
-      fail("Expected an InvalidConfigurationException");
-    } catch (InvalidConfigurationException ice) {
-      if (!ice.getMessage().contains("Invalid UniqueKey definition")) {
-        throw new RuntimeException("Error message doesn't match expected", ice);
-      }
-    }
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Invalid UniqueKey definition");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
   }
 
   @Test
@@ -519,14 +514,9 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.uniqueKey", "productid:notvalid");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    try {
-      adaptor.init(TestHelper.createConfigAdaptorContext(config));
-      fail("Expected an InvalidConfigurationException");
-    } catch (InvalidConfigurationException ice) {
-      if (!ice.getMessage().contains("Invalid UniqueKey type 'notvalid'")) {
-        throw new RuntimeException("Error message doesn't match expected", ice);
-      }
-    }
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Invalid UniqueKey type 'notvalid'");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
   }
 
   @Test
@@ -538,14 +528,9 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.uniqueKey", "productid:int,productid:string");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    try {
-      adaptor.init(TestHelper.createConfigAdaptorContext(config));
-      fail("Expected an InvalidConfigurationException");
-    } catch (InvalidConfigurationException ice) {
-      if (!ice.getMessage().contains("key name 'productid' was repeated")) {
-        throw new RuntimeException("Error message doesn't match expected", ice);
-      }
-    }
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("key name 'productid' was repeated");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
   }
 
   @Test
@@ -558,15 +543,9 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.uniqueKey", "");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    try {
-      adaptor.init(TestHelper.createConfigAdaptorContext(config));
-      fail("Expected an InvalidConfigurationException");
-    } catch (InvalidConfigurationException ice) {
-      if (!ice.getMessage().contains(
-          "db.uniqueKey parameter: value cannot be empty")) {
-        throw new RuntimeException("Error message doesn't match expected", ice);
-      }
-    }
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("db.uniqueKey parameter: value cannot be empty");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
   }
 
   @Test
