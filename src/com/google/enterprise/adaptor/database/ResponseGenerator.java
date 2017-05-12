@@ -14,8 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
-import com.google.common.base.Charsets;
 import com.google.common.io.CharStreams;
+import com.google.enterprise.adaptor.IOHelper;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
 
@@ -25,13 +25,16 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.io.Reader;
+import java.io.Writer;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.sql.Blob;
 import java.sql.Clob;
+import java.sql.NClob;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -57,7 +60,9 @@ import javax.xml.transform.stream.StreamSource;
 public abstract class ResponseGenerator {
   private static final Logger log
       = Logger.getLogger(ResponseGenerator.class.getName());
-  
+
+  private static final Charset CHARSET = Charset.forName("UTF-8");
+
   private final Map<String, String> cfg;
   private final String displayUrlCol; // can be null
 
@@ -141,6 +146,7 @@ public abstract class ResponseGenerator {
     return new FilepathColumn(config);
   }
 
+  @Deprecated
   public static ResponseGenerator blobColumn(Map<String, String> config) {
     return contentColumn(config);
   }
@@ -397,44 +403,81 @@ public abstract class ResponseGenerator {
       overrideDisplayUrl(rs, resp);
 
       ResultSetMetaData rsMetaData = rs.getMetaData();
-      int columnType = Types.OTHER;
-      int numberOfColumns = rsMetaData.getColumnCount();
-      for (int i = 1; i < (numberOfColumns + 1); i++) {
-        String columnName = rsMetaData.getColumnLabel(i);
-        if (columnName.equals(getContentColumnName())) {
-          columnType = rsMetaData.getColumnType(i);
-          log.log(Level.FINEST, "Name: {0}, Type: {1}", new Object[] {columnName, columnType});
-        }
-      }
+      int columnType = rsMetaData.getColumnType(
+          rs.findColumn(getContentColumnName()));
+      log.log(Level.FINEST, "Content column name: {0}, Type: {1}",
+          new Object[] {getContentColumnName(), columnType});
 
       InputStream in = null;
-      Clob clob = null;
-      Blob blob = null;
+      Reader reader = null;
+      Writer writer = null;
       switch (columnType) {
         case Types.VARCHAR:
-          Reader rd = rs.getCharacterStream(getContentColumnName());
-          in = new ByteArrayInputStream(CharStreams.toString(rd).getBytes(Charsets.UTF_8));
+        case Types.LONGVARCHAR:
+          writer = new OutputStreamWriter(resp.getOutputStream(), CHARSET);
+          if (writer != null) {
+            writer.write(rs.getString(getContentColumnName()));
+            writer.close();
+          }
           break;
         case Types.VARBINARY:
+          writer = new OutputStreamWriter(resp.getOutputStream(), CHARSET);
+          if (writer != null) {
+            writer.write(rs.getBytes(getContentColumnName()).toString());
+            writer.close();
+          }
+          break;
+        case Types.LONGVARBINARY:
           in = rs.getBinaryStream(getContentColumnName());
+          if (in != null) {
+            IOHelper.copyStream(in, resp.getOutputStream());
+            in.close();
+          }
           break;
         case Types.CLOB:
-        case Types.LONGVARCHAR:
-          clob = rs.getClob(getContentColumnName());
-          Reader rd1 = clob.getCharacterStream();
-          in = new ByteArrayInputStream(CharStreams.toString(rd1).getBytes(Charsets.UTF_8));
+          Clob clob = rs.getClob(getContentColumnName());
+          reader = clob.getCharacterStream();
+          if (reader != null) {
+            in = new ByteArrayInputStream(
+                CharStreams.toString(reader).getBytes(CHARSET));
+            IOHelper.copyStream(in, resp.getOutputStream());
+            in.close();
+            reader.close();
+          }
+          clob.free();
+          break;
+        case Types.NCLOB:
+          NClob nclob = rs.getNClob(getContentColumnName());
+          reader = nclob.getCharacterStream();
+          if (reader != null) {
+            in = new ByteArrayInputStream(
+                CharStreams.toString(reader).getBytes(CHARSET));
+            OutputStream out = resp.getOutputStream();
+            IOHelper.copyStream(in, out);
+            in.close();
+            reader.close();
+          }
+          nclob.free();
           break;
         case Types.BLOB:
-        case Types.LONGVARBINARY:
-          blob = rs.getBlob(getContentColumnName());
+          Blob blob = rs.getBlob(getContentColumnName());
           in = blob.getBinaryStream();
+          OutputStream out = resp.getOutputStream();
+          IOHelper.copyStream(in, out);
+          in.close();
+          blob.free();
           break;
         case Types.NCHAR:
-        case Types.NCLOB:
         case Types.NVARCHAR:
         case Types.LONGNVARCHAR:
-          Reader rd2 = rs.getNCharacterStream(getContentColumnName());
-          in = new ByteArrayInputStream(CharStreams.toString(rd2).getBytes(Charsets.UTF_8));
+          reader = rs.getNCharacterStream(getContentColumnName());
+          if (reader != null) {
+            in = new ByteArrayInputStream(
+                CharStreams.toString(reader).getBytes(CHARSET));
+            IOHelper.copyStream(in, resp.getOutputStream());
+            in.close();
+            reader.close();
+          }
           break;
         case Types.SMALLINT:
         case Types.TINYINT:
@@ -444,31 +487,17 @@ public abstract class ResponseGenerator {
         case Types.DOUBLE:
         case Types.INTEGER:
         case Types.CHAR:
-          String content = rs.getString(getContentColumnName());
-          in = new ByteArrayInputStream(content.getBytes(Charsets.UTF_8));
+          writer = new OutputStreamWriter(resp.getOutputStream(), CHARSET);
+          if (writer != null) {
+            writer.write(rs.getString(getContentColumnName()));
+            writer.close();
+          }
           break;
         default:
+          //TODO(srinivas): handle BFILE
+          log.log(Level.FINEST, "Clumn type not handled: {0}",
+              new Object[] {columnType});
           break;
-      }
-
-      if (in != null) {
-        OutputStream out = resp.getOutputStream();
-        com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
-        in.close();
-      }
-
-      try {
-        switch (columnType) {
-          case Types.CLOB:
-            clob.free();
-            break;
-          case Types.BLOB:
-            blob.free();
-            break;
-        }
-      } catch (java.sql.SQLFeatureNotSupportedException
-          | UnsupportedOperationException unsupported) {
-        // let JVM garbage collection deal with it
       }
     }
   }

@@ -14,6 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static java.util.Arrays.asList;
+
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
 
@@ -35,10 +37,12 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Types;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+
+import javax.sql.rowset.serial.SerialClob;
 
 /** Test cases for {@link ResponseGenerator}. */
 public class ResponseGeneratorTest {
@@ -70,13 +74,13 @@ public class ResponseGeneratorTest {
     ResponseGenerator.contentColumn(Collections.<String, String>emptyMap());
   }
 
-  private ResultSet makeMockBlobResultSet(final byte b[]) {
+  private ResultSet makeMockBlobResultSet(byte b[]) {
     return makeMockBlobResultSet(b, new ArrayList<String>(), new ArrayList<Integer>());
   }
 
   /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
-  private ResultSet makeMockBlobResultSet(final byte b[], final ArrayList<String> names,
-      final ArrayList<Integer> types) {
+  private ResultSet makeMockBlobResultSet(byte b[], List<String> names,
+      List<Integer> types) {
     ResultSet rs = (ResultSet) Proxy.newProxyInstance(
         ResultSet.class.getClassLoader(), new Class[] { ResultSet.class },
         new InvocationHandler() {
@@ -101,6 +105,13 @@ public class ResponseGeneratorTest {
             if ("getMetaData".equals(method.getName())) {
               return makeMockResultSetMetaData(names, types);
             }
+            if ("findColumn".equals(method.getName())) {
+              for (int i = 0; i < names.size(); i++) {
+                if (args[0].equals(names.get(i))) {
+                  return i + 1;
+                }
+              }
+            }
             throw new AssertionError("invalid method: " + method.getName());
           }
         }
@@ -108,13 +119,13 @@ public class ResponseGeneratorTest {
     return rs;
   }
 
-  private ResultSet makeMockClobResultSet(final char c[]) {
-    return makeMockClobResultSet(c, new ArrayList<String>(), new ArrayList<Integer>());
+  private ResultSet makeMockClobResultSet(String s) {
+    return makeMockClobResultSet(s, new ArrayList<String>(), new ArrayList<Integer>());
   }
 
   /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
-  private ResultSet makeMockClobResultSet(final char c[], final ArrayList<String> names,
-      final ArrayList<Integer> types) {
+  private ResultSet makeMockClobResultSet(String s, List<String> names,
+      List<Integer> types) {
     ResultSet rs = (ResultSet) Proxy.newProxyInstance(
         ResultSet.class.getClassLoader(), new Class[] { ResultSet.class },
         new InvocationHandler() {
@@ -122,7 +133,7 @@ public class ResponseGeneratorTest {
               throws Throwable {
             if ("getClob".equals(method.getName())) {
               if ("my-clob-col".equals(args[0])) {
-                return new javax.sql.rowset.serial.SerialClob(c);
+                return new SerialClob(s.toCharArray());
               } else {
                 throw new java.sql.SQLException("no column named: " + args[0]);
               }
@@ -139,6 +150,13 @@ public class ResponseGeneratorTest {
             if ("getMetaData".equals(method.getName())) {
               return makeMockResultSetMetaData(names, types);
             }
+            if ("findColumn".equals(method.getName())) {
+              for (int i = 0; i < names.size(); i++) {
+                if (args[0].equals(names.get(i))) {
+                  return i + 1;
+                }
+              }
+            }
             throw new AssertionError("invalid method: " + method.getName());
           }
         }
@@ -146,7 +164,7 @@ public class ResponseGeneratorTest {
     return rs;
   }
 
-  private ResultSetMetaData makeMockResultSetMetaData(final ArrayList name, final ArrayList type) {
+  private ResultSetMetaData makeMockResultSetMetaData(List name, List type) {
     ResultSetMetaData rs = (ResultSetMetaData) Proxy.newProxyInstance(
         ResultSetMetaData.class.getClassLoader(), new Class[] { ResultSetMetaData.class },
         new InvocationHandler() {
@@ -240,9 +258,9 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
     byte b[] = content.getBytes("US-ASCII");
-    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-blob-col"));
-    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.BLOB));
-    resgen.generateResponse(makeMockBlobResultSet(b, names, types), response);
+    resgen.generateResponse(
+        makeMockBlobResultSet(b, asList("my-blob-col"), asList(Types.BLOB)),
+        response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals(content, responseMsg);
   }
@@ -257,11 +275,11 @@ public class ResponseGeneratorTest {
     cfg.put("columnName", "my-col-name-is-wrong");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
-    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-col-name-is-wrong"));
-    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.BLOB));
     byte b[] = content.getBytes("US-ASCII");
     thrown.expect(java.sql.SQLException.class);
-    resgen.generateResponse(makeMockBlobResultSet(b, names, types), response);
+    resgen.generateResponse(
+        makeMockBlobResultSet(b, asList("my-col-name-is-wrong"),
+            asList(Types.BLOB)), response);
   }
 
   @Test
@@ -274,10 +292,9 @@ public class ResponseGeneratorTest {
     cfg.put("columnName", "my-clob-col");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
-    char c[] = content.toCharArray();
-    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-clob-col"));
-    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.CLOB));
-    resgen.generateResponse(makeMockClobResultSet(c, names, types), response);
+    resgen.generateResponse(
+        makeMockClobResultSet(content, asList("my-clob-col"),
+            asList(Types.CLOB)), response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals(content, responseMsg);
   }
@@ -292,11 +309,10 @@ public class ResponseGeneratorTest {
     cfg.put("columnName", "my-col-name-is-wrong");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
-    char c[] = content.toCharArray();
-    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-col-name-is-wrong"));
-    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.CLOB));
     thrown.expect(java.sql.SQLException.class);
-    resgen.generateResponse(makeMockClobResultSet(c, names, types), response);
+    resgen.generateResponse(
+        makeMockClobResultSet(content, asList("my-col-name-is-wrong"),
+            asList(Types.CLOB)), response);
   }
 
   private static void writeDataToFile(File f, String content)
@@ -440,9 +456,9 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
     byte b[] = content.getBytes("US-ASCII");
-    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-blob-col"));
-    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.BLOB));
-    resgen.generateResponse(makeMockBlobResultSet(b, names, types), response);
+    resgen.generateResponse(
+        makeMockBlobResultSet(b, asList("my-blob-col"), asList(Types.BLOB)),
+        response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals(content, responseMsg);
     Assert.assertEquals("dev/rubish", bar.contentType);
@@ -460,9 +476,9 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
     byte b[] = content.getBytes("US-ASCII");
-    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-blob-col"));
-    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.BLOB));
-    resgen.generateResponse(makeMockBlobResultSet(b, names, types), response);
+    resgen.generateResponse(
+        makeMockBlobResultSet(b, asList("my-blob-col"), asList(Types.BLOB)),
+        response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals(content, responseMsg);
     Assert.assertEquals("hard-coded-blob-content-type", bar.contentType);
@@ -480,9 +496,9 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
     byte b[] = content.getBytes("US-ASCII");
-    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-blob-col"));
-    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.BLOB));
-    resgen.generateResponse(makeMockBlobResultSet(b, names, types), response);
+    resgen.generateResponse(
+        makeMockBlobResultSet(b, asList("my-blob-col"), asList(Types.BLOB)),
+        response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals(content, responseMsg);
     Assert.assertEquals(new URI("hard-coded-blob-display-url"), bar.displayUrl);
@@ -515,10 +531,9 @@ public class ResponseGeneratorTest {
     cfg.put("contentTypeOverride", "dev/rubish");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
-    char c[] = content.toCharArray();
-    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-clob-col"));
-    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.CLOB));
-    resgen.generateResponse(makeMockClobResultSet(c, names, types), response);
+    resgen.generateResponse(
+        makeMockClobResultSet(content, asList("my-clob-col"),
+            asList(Types.CLOB)), response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals(content, responseMsg);
     Assert.assertEquals("dev/rubish", bar.contentType);
@@ -535,10 +550,9 @@ public class ResponseGeneratorTest {
     cfg.put("contentTypeCol", "this-clob-col-has-CT");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
-    char c[] = content.toCharArray();
-    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-clob-col"));
-    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.CLOB));
-    resgen.generateResponse(makeMockClobResultSet(c, names, types), response);
+    resgen.generateResponse(
+        makeMockClobResultSet(content, asList("my-clob-col"),
+            asList(Types.CLOB)), response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals(content, responseMsg);
     Assert.assertEquals("hard-coded-clob-content-type", bar.contentType);
@@ -555,10 +569,9 @@ public class ResponseGeneratorTest {
     cfg.put("displayUrlCol", "this-clob-col-has-disp-url");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
-    char c[] = content.toCharArray();
-    ArrayList<String> names = new ArrayList<String>(Arrays.asList("my-clob-col"));
-    ArrayList<Integer> types = new ArrayList<Integer>(Arrays.asList(Types.CLOB));
-    resgen.generateResponse(makeMockClobResultSet(c, names, types), response);
+    resgen.generateResponse(
+        makeMockClobResultSet(content, asList("my-clob-col"),
+            asList(Types.CLOB)), response);
     String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
     Assert.assertEquals(content, responseMsg);
     Assert.assertEquals(new URI("hard-coded-clob-display-url"), bar.displayUrl);
