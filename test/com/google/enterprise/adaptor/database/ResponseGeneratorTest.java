@@ -35,6 +35,7 @@ import java.net.URI;
 import java.net.URL;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -75,7 +76,8 @@ public class ResponseGeneratorTest {
   }
 
   private ResultSet makeMockBlobResultSet(byte b[]) {
-    return makeMockBlobResultSet(b, new ArrayList<String>(), new ArrayList<Integer>());
+    return makeMockBlobResultSet(b, new ArrayList<String>(),
+        new ArrayList<Integer>());
   }
 
   /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
@@ -87,7 +89,8 @@ public class ResponseGeneratorTest {
           public Object invoke(Object proxy, Method method, Object[] args)
               throws Throwable {
             if ("getBlob".equals(method.getName())) {
-              if ("my-blob-col".equals(args[0])) {
+              if ("my-blob-col".equals(
+                  names.get(((Integer)args[0]).intValue() - 1))) {
                 return new javax.sql.rowset.serial.SerialBlob(b);
               } else {
                 throw new java.sql.SQLException("no column named: " + args[0]);
@@ -111,6 +114,7 @@ public class ResponseGeneratorTest {
                   return i + 1;
                 }
               }
+              throw new SQLException("Column not found " + args[0]);
             }
             throw new AssertionError("invalid method: " + method.getName());
           }
@@ -120,7 +124,8 @@ public class ResponseGeneratorTest {
   }
 
   private ResultSet makeMockClobResultSet(String s) {
-    return makeMockClobResultSet(s, new ArrayList<String>(), new ArrayList<Integer>());
+    return makeMockClobResultSet(s, new ArrayList<String>(),
+        new ArrayList<Integer>());
   }
 
   /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
@@ -132,7 +137,8 @@ public class ResponseGeneratorTest {
           public Object invoke(Object proxy, Method method, Object[] args)
               throws Throwable {
             if ("getClob".equals(method.getName())) {
-              if ("my-clob-col".equals(args[0])) {
+              if ("my-clob-col".equals(
+                  names.get(((Integer)args[0]).intValue() - 1))) {
                 return new SerialClob(s.toCharArray());
               } else {
                 throw new java.sql.SQLException("no column named: " + args[0]);
@@ -156,6 +162,7 @@ public class ResponseGeneratorTest {
                   return i + 1;
                 }
               }
+              throw new SQLException("Column not found " + args[0]);
             }
             throw new AssertionError("invalid method: " + method.getName());
           }
@@ -166,7 +173,8 @@ public class ResponseGeneratorTest {
 
   private ResultSetMetaData makeMockResultSetMetaData(List name, List type) {
     ResultSetMetaData rs = (ResultSetMetaData) Proxy.newProxyInstance(
-        ResultSetMetaData.class.getClassLoader(), new Class[] { ResultSetMetaData.class },
+        ResultSetMetaData.class.getClassLoader(),
+        new Class[] { ResultSetMetaData.class },
         new InvocationHandler() {
           public Object invoke(Object proxy, Method method, Object[] args)
               throws Throwable {

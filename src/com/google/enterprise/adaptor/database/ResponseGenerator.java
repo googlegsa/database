@@ -14,6 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.common.base.Charsets.UTF_8;
+
 import com.google.common.io.CharStreams;
 import com.google.enterprise.adaptor.IOHelper;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
@@ -60,8 +62,6 @@ import javax.xml.transform.stream.StreamSource;
 public abstract class ResponseGenerator {
   private static final Logger log
       = Logger.getLogger(ResponseGenerator.class.getName());
-
-  private static final Charset CHARSET = Charset.forName("UTF-8");
 
   private final Map<String, String> cfg;
   private final String displayUrlCol; // can be null
@@ -403,80 +403,68 @@ public abstract class ResponseGenerator {
       overrideDisplayUrl(rs, resp);
 
       ResultSetMetaData rsMetaData = rs.getMetaData();
-      int columnType = rsMetaData.getColumnType(
-          rs.findColumn(getContentColumnName()));
+      int index = rs.findColumn(getContentColumnName());
+      int columnType = rsMetaData.getColumnType(index);
       log.log(Level.FINEST, "Content column name: {0}, Type: {1}",
           new Object[] {getContentColumnName(), columnType});
 
-      InputStream in = null;
-      Reader reader = null;
-      Writer writer = null;
+      OutputStream out = resp.getOutputStream();
       switch (columnType) {
-        case Types.VARCHAR:
         case Types.LONGVARCHAR:
-          writer = new OutputStreamWriter(resp.getOutputStream(), CHARSET);
-          if (writer != null) {
-            writer.write(rs.getString(getContentColumnName()));
-            writer.close();
+          try (Reader reader = rs.getCharacterStream(index);
+              Writer writer = new OutputStreamWriter(out, UTF_8)) {
+            if (reader != null) {
+              copy(reader, writer);
+            }
           }
           break;
         case Types.VARBINARY:
-          writer = new OutputStreamWriter(resp.getOutputStream(), CHARSET);
-          if (writer != null) {
-            writer.write(rs.getBytes(getContentColumnName()).toString());
-            writer.close();
-          }
-          break;
         case Types.LONGVARBINARY:
-          in = rs.getBinaryStream(getContentColumnName());
-          if (in != null) {
-            IOHelper.copyStream(in, resp.getOutputStream());
-            in.close();
+          try (InputStream in = rs.getBinaryStream(index)) {
+            if (in != null) {
+              IOHelper.copyStream(in, out);
+            }
           }
           break;
         case Types.CLOB:
-          Clob clob = rs.getClob(getContentColumnName());
-          reader = clob.getCharacterStream();
-          if (reader != null) {
-            in = new ByteArrayInputStream(
-                CharStreams.toString(reader).getBytes(CHARSET));
-            IOHelper.copyStream(in, resp.getOutputStream());
-            in.close();
-            reader.close();
+          Clob clob = rs.getClob(index);
+          if (clob != null) {
+            try (Reader reader = clob.getCharacterStream();
+                Writer writer = new OutputStreamWriter(out, UTF_8)) {
+              copy(reader, writer);
+            }
           }
           clob.free();
           break;
         case Types.NCLOB:
-          NClob nclob = rs.getNClob(getContentColumnName());
-          reader = nclob.getCharacterStream();
-          if (reader != null) {
-            in = new ByteArrayInputStream(
-                CharStreams.toString(reader).getBytes(CHARSET));
-            OutputStream out = resp.getOutputStream();
-            IOHelper.copyStream(in, out);
-            in.close();
-            reader.close();
+          NClob nclob = rs.getNClob(index);
+          if (nclob != null) {
+            try (Reader reader = nclob.getCharacterStream();
+                Writer writer = new OutputStreamWriter(out, UTF_8)) {
+              if (reader != null) {
+                copy(reader, writer);
+              }
+            }
           }
           nclob.free();
           break;
         case Types.BLOB:
-          Blob blob = rs.getBlob(getContentColumnName());
-          in = blob.getBinaryStream();
-          OutputStream out = resp.getOutputStream();
-          IOHelper.copyStream(in, out);
-          in.close();
+          Blob blob = rs.getBlob(index);
+          if (blob != null) {
+            try (InputStream in = blob.getBinaryStream()) {
+              IOHelper.copyStream(in, out);
+            }
+          }
           blob.free();
           break;
         case Types.NCHAR:
         case Types.NVARCHAR:
         case Types.LONGNVARCHAR:
-          reader = rs.getNCharacterStream(getContentColumnName());
-          if (reader != null) {
-            in = new ByteArrayInputStream(
-                CharStreams.toString(reader).getBytes(CHARSET));
-            IOHelper.copyStream(in, resp.getOutputStream());
-            in.close();
-            reader.close();
+          try (Reader reader = rs.getNCharacterStream(index);
+              Writer writer = new OutputStreamWriter(out, UTF_8)) {
+            if (reader != null) {
+              copy(reader, writer);
+            }
           }
           break;
         case Types.SMALLINT:
@@ -487,17 +475,24 @@ public abstract class ResponseGenerator {
         case Types.DOUBLE:
         case Types.INTEGER:
         case Types.CHAR:
-          writer = new OutputStreamWriter(resp.getOutputStream(), CHARSET);
-          if (writer != null) {
-            writer.write(rs.getString(getContentColumnName()));
-            writer.close();
+        case Types.VARCHAR:
+          String str = rs.getString(index);
+          if (str != null) {
+            out.write(str.getBytes(UTF_8));
           }
           break;
         default:
           //TODO(srinivas): handle BFILE
-          log.log(Level.FINEST, "Clumn type not handled: {0}",
-              new Object[] {columnType});
+          log.log(Level.FINEST, "Column type not handled: {0}", columnType);
           break;
+      }
+    }
+
+    private void copy(Reader reader, Writer writer) throws IOException {
+      char buffer[] = new char[1024];
+      int len;
+      while ((len = reader.read(buffer, 0, 1024)) != -1) {
+        writer.write(buffer, 0, len);
       }
     }
   }
