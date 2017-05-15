@@ -81,8 +81,8 @@ public class ResponseGeneratorTest {
   }
 
   /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
-  private ResultSet makeMockBlobResultSet(byte b[], List<String> names,
-      List<Integer> types) {
+  private ResultSet makeMockBlobResultSet(final byte b[],
+      final List<String> names, final List<Integer> types) {
     ResultSet rs = (ResultSet) Proxy.newProxyInstance(
         ResultSet.class.getClassLoader(), new Class[] { ResultSet.class },
         new InvocationHandler() {
@@ -129,8 +129,8 @@ public class ResponseGeneratorTest {
   }
 
   /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
-  private ResultSet makeMockClobResultSet(String s, List<String> names,
-      List<Integer> types) {
+  private ResultSet makeMockClobResultSet(final String s,
+      final List<String> names, final List<Integer> types) {
     ResultSet rs = (ResultSet) Proxy.newProxyInstance(
         ResultSet.class.getClassLoader(), new Class[] { ResultSet.class },
         new InvocationHandler() {
@@ -171,7 +171,8 @@ public class ResponseGeneratorTest {
     return rs;
   }
 
-  private ResultSetMetaData makeMockResultSetMetaData(List name, List type) {
+  private ResultSetMetaData makeMockResultSetMetaData(final List name,
+      final List type) {
     ResultSetMetaData rs = (ResultSetMetaData) Proxy.newProxyInstance(
         ResultSetMetaData.class.getClassLoader(),
         new Class[] { ResultSetMetaData.class },

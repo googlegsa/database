@@ -16,12 +16,12 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.common.base.Charsets.UTF_8;
 
-import com.google.common.io.CharStreams;
 import com.google.enterprise.adaptor.IOHelper;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
 
 import org.xml.sax.InputSource;
+
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -147,6 +147,9 @@ public abstract class ResponseGenerator {
   }
 
   @Deprecated
+  /** This method has been deprecated, Use {@link #contentColumn contentColumn}
+   *  instead.
+   **/
   public static ResponseGenerator blobColumn(Map<String, String> config) {
     return contentColumn(config);
   }
@@ -419,10 +422,23 @@ public abstract class ResponseGenerator {
           }
           break;
         case Types.VARBINARY:
+          try (ByteArrayInputStream in =
+              new ByteArrayInputStream(rs.getBytes(index))) {
+            IOHelper.copyStream(in, out);
+          }
+          break;
         case Types.LONGVARBINARY:
           try (InputStream in = rs.getBinaryStream(index)) {
             if (in != null) {
               IOHelper.copyStream(in, out);
+            }
+          }
+          break;
+        case Types.LONGNVARCHAR:
+          try (Reader reader = rs.getNCharacterStream(index);
+              Writer writer = new OutputStreamWriter(out, UTF_8)) {
+            if (reader != null) {
+              copy(reader, writer);
             }
           }
           break;
@@ -432,9 +448,16 @@ public abstract class ResponseGenerator {
             try (Reader reader = clob.getCharacterStream();
                 Writer writer = new OutputStreamWriter(out, UTF_8)) {
               copy(reader, writer);
+            } finally {
+              try {
+                clob.free();
+              } catch (java.sql.SQLFeatureNotSupportedException
+                  | UnsupportedOperationException unsupported) {
+                // let JVM garbage collection deal with it
+                log.log(Level.FINEST, "Error closing clob", unsupported);
+              }
             }
           }
-          clob.free();
           break;
         case Types.NCLOB:
           NClob nclob = rs.getNClob(index);
@@ -444,26 +467,30 @@ public abstract class ResponseGenerator {
               if (reader != null) {
                 copy(reader, writer);
               }
+            } finally {
+              try {
+                nclob.free();
+              } catch (java.sql.SQLFeatureNotSupportedException
+                  | UnsupportedOperationException unsupported) {
+                // let JVM garbage collection deal with it
+                log.log(Level.FINEST, "Error closing nclob", unsupported);
+              }
             }
           }
-          nclob.free();
           break;
         case Types.BLOB:
           Blob blob = rs.getBlob(index);
           if (blob != null) {
             try (InputStream in = blob.getBinaryStream()) {
               IOHelper.copyStream(in, out);
-            }
-          }
-          blob.free();
-          break;
-        case Types.NCHAR:
-        case Types.NVARCHAR:
-        case Types.LONGNVARCHAR:
-          try (Reader reader = rs.getNCharacterStream(index);
-              Writer writer = new OutputStreamWriter(out, UTF_8)) {
-            if (reader != null) {
-              copy(reader, writer);
+            } finally {
+              try {
+                blob.free();
+              } catch (java.sql.SQLFeatureNotSupportedException
+                  | UnsupportedOperationException unsupported) {
+                // let JVM garbage collection deal with it
+                log.log(Level.FINEST, "Error closing blob", unsupported);
+              }
             }
           }
           break;
@@ -476,6 +503,8 @@ public abstract class ResponseGenerator {
         case Types.INTEGER:
         case Types.CHAR:
         case Types.VARCHAR:
+        case Types.NCHAR:
+        case Types.NVARCHAR:
           String str = rs.getString(index);
           if (str != null) {
             out.write(str.getBytes(UTF_8));
@@ -489,11 +518,12 @@ public abstract class ResponseGenerator {
     }
 
     private void copy(Reader reader, Writer writer) throws IOException {
-      char buffer[] = new char[1024];
+      char[] buffer = new char[8192];
       int len;
-      while ((len = reader.read(buffer, 0, 1024)) != -1) {
+      while ((len = reader.read(buffer)) != -1) {
         writer.write(buffer, 0, len);
       }
+      writer.flush();
     }
   }
 }
