@@ -86,6 +86,8 @@ public class DatabaseAdaptorTest {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage(
+        "noThisMethod cannot be parsed as a fully qualified method");
     DatabaseAdaptor.loadResponseGenerator(config);
   }
 
@@ -485,6 +487,65 @@ public class DatabaseAdaptorTest {
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
     assertEquals("MetadataColumns({})", adaptor.metadataColumns.toString());
     assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
+  }
+
+  @Test
+  public void testUniqueKeyMissingType() throws Exception {
+    // Value of unique id cannot be "productid", because that is missing type.
+    // The value has to be something like "productid:int"
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "productid");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Invalid UniqueKey definition");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
+  public void testUniqueKeyInvalidType() throws Exception {
+    // Type of unique key id value cannot be "notvalid", since it's invalid.
+    // That cat be int, string, timestamp, date, time, and long.
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "productid:notvalid");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Invalid UniqueKey type 'notvalid'");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
+  public void testUniqueKeyContainsRepeatedKeyName() throws Exception {
+    // Value of unique key cannot contain repeated key name.
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "productid:int,productid:string");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("key name 'productid' was repeated");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
+  public void testUniqueKeyEmpty() throws Exception {
+    // Value of unique id cannot be empty.
+    // The value has to be something like "keyname:type"
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("db.uniqueKey parameter: value cannot be empty");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
   }
 
   @Test

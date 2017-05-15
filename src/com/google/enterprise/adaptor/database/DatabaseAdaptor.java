@@ -581,7 +581,20 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     log.fine("about to try " + mode + " as a fully qualified method name");
     int sepIndex = mode.lastIndexOf(".");
     if (sepIndex == -1) {
-      String errmsg = mode + " cannot be parsed as a fully quailfied name";
+      String errmsg = mode
+          + " cannot be parsed as a fully qualified method name"
+          + ". Supported methods name are:";
+      for (Method methodsAvailable:
+          ResponseGenerator.class.getDeclaredMethods()) {
+        String methodDeclaration = methodsAvailable.toString();
+        if (methodDeclaration.contains(
+            " com.google.enterprise.adaptor.database.ResponseGenerator."
+            ) && methodDeclaration.contains("(java.util.Map)")) {
+            errmsg = errmsg + " "
+                + methodDeclaration.split("ResponseGenerator.")[2]
+                    .split("\\(")[0];
+        }
+      }
       throw new InvalidConfigurationException(errmsg);
     }
     String className = mode.substring(0, sepIndex);
