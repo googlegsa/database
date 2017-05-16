@@ -68,7 +68,6 @@ public class DatabaseAdaptorTest {
     Map<String, String> configEntries = new HashMap<String, String>();
     String modeOfOperation = "com.google.enterprise.adaptor.database"
         + ".ResponseGenerator.rowToText";
-    System.out.println("XXX setting " + modeOfOperation);
     configEntries.put("db.modeOfOperation", modeOfOperation);
     final Config config = new Config();
     for (Map.Entry<String, String> entry : configEntries.entrySet()) {
