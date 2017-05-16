@@ -75,11 +75,6 @@ public class ResponseGeneratorTest {
     ResponseGenerator.contentColumn(Collections.<String, String>emptyMap());
   }
 
-  private ResultSet makeMockBlobResultSet(byte b[]) {
-    return makeMockBlobResultSet(b, new ArrayList<String>(),
-        new ArrayList<Integer>());
-  }
-
   /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
   private ResultSet makeMockBlobResultSet(final byte b[],
       final List<String> names, final List<Integer> types) {
@@ -90,7 +85,7 @@ public class ResponseGeneratorTest {
               throws Throwable {
             if ("getBlob".equals(method.getName())) {
               if ("my-blob-col".equals(
-                  names.get(((Integer)args[0]).intValue() - 1))) {
+                  names.get(((Integer) args[0]).intValue() - 1))) {
                 return new javax.sql.rowset.serial.SerialBlob(b);
               } else {
                 throw new java.sql.SQLException("no column named: " + args[0]);
@@ -109,23 +104,18 @@ public class ResponseGeneratorTest {
               return makeMockResultSetMetaData(names, types);
             }
             if ("findColumn".equals(method.getName())) {
-              for (int i = 0; i < names.size(); i++) {
-                if (args[0].equals(names.get(i))) {
-                  return i + 1;
-                }
+              int index = names.indexOf(args[0]) + 1;
+              if (index == 0) {
+                throw new SQLException("Column not found " + args[0]);
+              } else {
+                return index;
               }
-              throw new SQLException("Column not found " + args[0]);
             }
             throw new AssertionError("invalid method: " + method.getName());
           }
         }
     );
     return rs;
-  }
-
-  private ResultSet makeMockClobResultSet(String s) {
-    return makeMockClobResultSet(s, new ArrayList<String>(),
-        new ArrayList<Integer>());
   }
 
   /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
@@ -138,7 +128,7 @@ public class ResponseGeneratorTest {
               throws Throwable {
             if ("getClob".equals(method.getName())) {
               if ("my-clob-col".equals(
-                  names.get(((Integer)args[0]).intValue() - 1))) {
+                  names.get(((Integer) args[0]).intValue() - 1))) {
                 return new SerialClob(s.toCharArray());
               } else {
                 throw new java.sql.SQLException("no column named: " + args[0]);
@@ -171,8 +161,8 @@ public class ResponseGeneratorTest {
     return rs;
   }
 
-  private ResultSetMetaData makeMockResultSetMetaData(final List name,
-      final List type) {
+  private ResultSetMetaData makeMockResultSetMetaData(final List<String> names,
+      final List<Integer> types) {
     ResultSetMetaData rs = (ResultSetMetaData) Proxy.newProxyInstance(
         ResultSetMetaData.class.getClassLoader(),
         new Class[] { ResultSetMetaData.class },
@@ -180,13 +170,13 @@ public class ResponseGeneratorTest {
           public Object invoke(Object proxy, Method method, Object[] args)
               throws Throwable {
             if ("getColumnCount".equals(method.getName())) {
-              return name.size();
+              return names.size();
             }
             if ("getColumnLabel".equals(method.getName())) {
-              return name.get((int) args[0] - 1);
+              return names.get((int) args[0] - 1);
             }
             if ("getColumnType".equals(method.getName())) {
-              return type.get((int) args[0] - 1);
+              return types.get((int) args[0] - 1);
             }
             throw new AssertionError("invalid method: " + method.getName());
           }
@@ -292,6 +282,17 @@ public class ResponseGeneratorTest {
   }
 
   @Test
+  public void testBlobColumnInvokesContentColumn() {
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "my-blob-col");
+    ResponseGenerator resgen = ResponseGenerator.blobColumn(cfg);
+    String expected =
+        "com.google.enterprise.adaptor.database."
+            + "ResponseGenerator$ContentColumn";
+    Assert.assertEquals(expected, resgen.getClass().getName());
+  }
+
+  @Test
   public void testClobColumnModeServesResultClob() throws Exception {
     MockResponse bar = new MockResponse();
     Response response = (Response) Proxy.newProxyInstance(
@@ -320,7 +321,7 @@ public class ResponseGeneratorTest {
     String content = "hello world";
     thrown.expect(java.sql.SQLException.class);
     resgen.generateResponse(
-        makeMockClobResultSet(content, asList("my-col-name-is-wrong"),
+        makeMockClobResultSet(content, asList("my-col-name"),
             asList(Types.CLOB)), response);
   }
 

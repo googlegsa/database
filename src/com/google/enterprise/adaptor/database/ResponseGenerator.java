@@ -146,10 +146,8 @@ public abstract class ResponseGenerator {
     return new FilepathColumn(config);
   }
 
+  /** @deprecated Use {@link #contentColumn contentColumn} */
   @Deprecated
-  /** This method has been deprecated, Use {@link #contentColumn contentColumn}
-   *  instead.
-   **/
   public static ResponseGenerator blobColumn(Map<String, String> config) {
     return contentColumn(config);
   }
@@ -413,32 +411,17 @@ public abstract class ResponseGenerator {
 
       OutputStream out = resp.getOutputStream();
       switch (columnType) {
-        case Types.LONGVARCHAR:
-          try (Reader reader = rs.getCharacterStream(index);
-              Writer writer = new OutputStreamWriter(out, UTF_8)) {
-            if (reader != null) {
-              copy(reader, writer);
-            }
-          }
-          break;
-        case Types.VARBINARY:
-          try (ByteArrayInputStream in =
-              new ByteArrayInputStream(rs.getBytes(index))) {
-            IOHelper.copyStream(in, out);
-          }
-          break;
-        case Types.LONGVARBINARY:
-          try (InputStream in = rs.getBinaryStream(index)) {
-            if (in != null) {
+        case Types.BLOB:
+          Blob blob = rs.getBlob(index);
+          if (blob != null) {
+            try (InputStream in = blob.getBinaryStream()) {
               IOHelper.copyStream(in, out);
-            }
-          }
-          break;
-        case Types.LONGNVARCHAR:
-          try (Reader reader = rs.getNCharacterStream(index);
-              Writer writer = new OutputStreamWriter(out, UTF_8)) {
-            if (reader != null) {
-              copy(reader, writer);
+            } finally {
+              try {
+                blob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing BLOB", e);
+              }
             }
           }
           break;
@@ -451,10 +434,8 @@ public abstract class ResponseGenerator {
             } finally {
               try {
                 clob.free();
-              } catch (java.sql.SQLFeatureNotSupportedException
-                  | UnsupportedOperationException unsupported) {
-                // let JVM garbage collection deal with it
-                log.log(Level.FINEST, "Error closing clob", unsupported);
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing CLOB", e);
               }
             }
           }
@@ -464,43 +445,55 @@ public abstract class ResponseGenerator {
           if (nclob != null) {
             try (Reader reader = nclob.getCharacterStream();
                 Writer writer = new OutputStreamWriter(out, UTF_8)) {
-              if (reader != null) {
                 copy(reader, writer);
-              }
             } finally {
               try {
                 nclob.free();
-              } catch (java.sql.SQLFeatureNotSupportedException
-                  | UnsupportedOperationException unsupported) {
-                // let JVM garbage collection deal with it
-                log.log(Level.FINEST, "Error closing nclob", unsupported);
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing NCLOB", e);
               }
             }
           }
           break;
-        case Types.BLOB:
-          Blob blob = rs.getBlob(index);
-          if (blob != null) {
-            try (InputStream in = blob.getBinaryStream()) {
+        case Types.LONGVARBINARY:
+          try (InputStream in = rs.getBinaryStream(index)) {
+            if (in != null) {
               IOHelper.copyStream(in, out);
-            } finally {
-              try {
-                blob.free();
-              } catch (java.sql.SQLFeatureNotSupportedException
-                  | UnsupportedOperationException unsupported) {
-                // let JVM garbage collection deal with it
-                log.log(Level.FINEST, "Error closing blob", unsupported);
-              }
             }
           }
           break;
-        case Types.SMALLINT:
+        case Types.LONGVARCHAR:
+          try (Reader reader = rs.getCharacterStream(index);
+              Writer writer = new OutputStreamWriter(out, UTF_8)) {
+            if (reader != null) {
+              copy(reader, writer);
+            }
+          }
+          break;
+        case Types.LONGNVARCHAR:
+          try (Reader reader = rs.getNCharacterStream(index);
+              Writer writer = new OutputStreamWriter(out, UTF_8)) {
+            if (reader != null) {
+              copy(reader, writer);
+            }
+          }
+          break;
+        case Types.BINARY:
+        case Types.VARBINARY:
+          byte[] b = rs.getBytes(index);
+          if (b != null) {
+            out.write(b);
+          }
+          break;
         case Types.TINYINT:
+        case Types.SMALLINT:
+        case Types.INTEGER:
+        case Types.BIGINT:
+        case Types.REAL:
         case Types.FLOAT:
+        case Types.DOUBLE:
         case Types.DECIMAL:
         case Types.NUMERIC:
-        case Types.DOUBLE:
-        case Types.INTEGER:
         case Types.CHAR:
         case Types.VARCHAR:
         case Types.NCHAR:
