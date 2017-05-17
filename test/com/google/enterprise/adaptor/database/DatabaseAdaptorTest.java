@@ -64,7 +64,21 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testLoadResponseGeneratorWithFullyQualifiedMethod() {
+  public void testLoadResponseGeneratorWithBuiltinFullyQualifiedMethod() {
+    Map<String, String> configEntries = new HashMap<String, String>();
+    String modeOfOperation = "com.google.enterprise.adaptor.database"
+        + ".ResponseGenerator.rowToText";
+    configEntries.put("db.modeOfOperation", modeOfOperation);
+    final Config config = new Config();
+    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
+      TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
+    }
+    assertNotNull("loaded response generator is null",
+        DatabaseAdaptor.loadResponseGenerator(config));
+  }
+
+  @Test
+  public void testLoadResponseGeneratorWithCustomFullyQualifiedMethod() {
     Map<String, String> configEntries = new HashMap<String, String>();
     String modeOfOperation = "com.google.enterprise.adaptor.database"
         + ".DatabaseAdaptorTest.createDummy";
@@ -87,7 +101,7 @@ public class DatabaseAdaptorTest {
     }
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage(
-        "noThisMethod cannot be parsed as a fully qualified method");
+        "noThisMethod is not a valid built-in modeOfOperation");
     DatabaseAdaptor.loadResponseGenerator(config);
   }
 
@@ -102,6 +116,8 @@ public class DatabaseAdaptorTest {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("No method noThisMode found for class "
+        + "com.google.enterprise.adaptor.database.DatabaseAdaptorTest");
     DatabaseAdaptor.loadResponseGenerator(config);
   }
 

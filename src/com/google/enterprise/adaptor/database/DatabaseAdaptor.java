@@ -35,6 +35,7 @@ import com.google.enterprise.adaptor.UserPrincipal;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -55,6 +56,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -565,46 +567,33 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   static ResponseGenerator loadResponseGenerator(Config config) {
     String mode = config.getValue("db.modeOfOperation");
     if (isNullOrEmptyString(mode)) {
-      String errmsg = "modeOfOperation can not be an empty string";
+      String errmsg = "modeOfOperation cannot be an empty string";
       throw new InvalidConfigurationException(errmsg);
     }
-    log.fine("about to look for " + mode + " in ResponseGenerator");
-    Method method = null;
-    try {
-      method = ResponseGenerator.class.getDeclaredMethod(mode, Map.class);
-      return loadResponseGeneratorInternal(method,
-          config.getValuesWithPrefix("db.modeOfOperation." + mode + "."));
-    } catch (NoSuchMethodException ex) {
-      log.fine("did not find " + mode + " in ResponseGenerator, going to look"
-          + " for fully qualified name");
-    }
-    log.fine("about to try " + mode + " as a fully qualified method name");
     int sepIndex = mode.lastIndexOf(".");
     if (sepIndex == -1) {
-      String errmsg = mode
-          + " cannot be parsed as a fully qualified method name"
-          + ". Supported methods name are:";
-      for (Method methodsAvailable:
-          ResponseGenerator.class.getDeclaredMethods()) {
-        String methodDeclaration = methodsAvailable.toString();
-        if (methodDeclaration.contains(
-            " com.google.enterprise.adaptor.database.ResponseGenerator."
-            ) && methodDeclaration.contains("(java.util.Map)")) {
-            errmsg = errmsg + " "
-                + methodDeclaration.split("ResponseGenerator.")[2]
-                    .split("\\(")[0];
-        }
+      log.fine("about to look for " + mode + " in ResponseGenerator");
+      try {
+        Method method =
+            ResponseGenerator.class.getDeclaredMethod(mode, Map.class);
+        return loadResponseGeneratorInternal(method,
+            config.getValuesWithPrefix("db.modeOfOperation." + mode + "."));
+      } catch (NoSuchMethodException ex) {
+        throw new InvalidConfigurationException(mode
+            + " is not a valid built-in modeOfOperation."
+            + " Supported modes are: " + getResponseGeneratorMethods());
       }
-      throw new InvalidConfigurationException(errmsg);
     }
+    log.fine("about to try " + mode + " as a fully qualified method name");
     String className = mode.substring(0, sepIndex);
     String methodName = mode.substring(sepIndex + 1);
     log.log(Level.FINE, "Split {0} into class {1} and method {2}",
         new Object[] {mode, className, methodName});
-    Class<?> klass;
     try {
-      klass = Class.forName(className);
-      method = klass.getDeclaredMethod(methodName, Map.class);
+      Class<?> klass = Class.forName(className);
+      Method method = klass.getDeclaredMethod(methodName, Map.class);
+      return loadResponseGeneratorInternal(method,
+          config.getValuesWithPrefix("db.modeOfOperation." + mode + "."));
     } catch (ClassNotFoundException ex) {
       String errmsg = "No class " + className + " found";
       throw new InvalidConfigurationException(errmsg, ex);
@@ -613,8 +602,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           + className;
       throw new InvalidConfigurationException(errmsg, ex);
     }
-    return loadResponseGeneratorInternal(method,
-        config.getValuesWithPrefix("db.modeOfOperation." + mode + "."));
   }
   
   @VisibleForTesting
@@ -639,6 +626,23 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
     log.config("loaded response generator: " + respGenerator.toString());
     return respGenerator;
+  }
+
+  /** Gets the valid modeOfOperation method names from ResponseGenerator. */
+  private static String getResponseGeneratorMethods() {
+    TreeSet<String> methods = new TreeSet<>();
+    for (Method method : ResponseGenerator.class.getDeclaredMethods()) {
+      int modifiers = method.getModifiers();
+      Class<?>[] parameterTypes = method.getParameterTypes();
+      if ((modifiers & Modifier.PRIVATE) != Modifier.PRIVATE
+          && (modifiers & Modifier.STATIC) == Modifier.STATIC
+          && parameterTypes.length == 1
+          && parameterTypes[0].equals(Map.class)
+          && ResponseGenerator.class.isAssignableFrom(method.getReturnType())) {
+        methods.add(method.getName());
+      }
+    }
+    return methods.toString();
   }
 
   // Incremental pushing in Database Adaptor based on Timestamp does NOT
