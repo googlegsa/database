@@ -9,3 +9,6 @@ jdk7.home = /Library/Java/JavaVirtualMachines/jdk1.7.0_76.jdk/Contents/Home
 build.bootclasspath = ${jdk7.home}/jre/lib/rt.jar\
     :${jdk7.home}/jre/lib/jsse.jar\
     :${jdk7.home}/jre/lib/jce.jar
+
+# Classpath of JDBC drivers for "ant run".
+jdbc.classpath =

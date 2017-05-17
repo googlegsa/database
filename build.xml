@@ -28,15 +28,12 @@
   <property name="compile.java.bootclasspath" value="${build.bootclasspath}"/>
 
   <path id="adaptor.build.classpath">
-<!--
-    <fileset dir="${lib.dir}">
-    </fileset>
--->
     <pathelement location="${adaptor.jar}"/>
   </path>
 
   <path id="adaptor.run.classpath">
     <path refid="adaptor.build.classpath"/>
+    <pathelement path="${jdbc.classpath}"/>
   </path>
 
   <path id="cobertura.classpath">
@@ -236,7 +233,7 @@ lib/plexi submodule or add the the command line argument
     <java classpath="${build-src.dir}" fork="true" classname="${adaptor.class}">
       <classpath refid="adaptor.run.classpath"/>
       <sysproperty key="java.util.logging.config.file"
-        value="src/logging.properties"/>
+        value="logging.properties"/>
       <sysproperty key="javax.net.ssl.keyStore" file="keys.jks"/>
       <sysproperty key="javax.net.ssl.keyStoreType" value="jks"/>
       <sysproperty key="javax.net.ssl.keyStorePassword" value="changeit"/>
