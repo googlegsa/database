@@ -37,7 +37,6 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -147,12 +146,12 @@ public class ResponseGeneratorTest {
               return makeMockResultSetMetaData(names, types);
             }
             if ("findColumn".equals(method.getName())) {
-              for (int i = 0; i < names.size(); i++) {
-                if (args[0].equals(names.get(i))) {
-                  return i + 1;
-                }
+              int index = names.indexOf(args[0]) + 1;
+              if (index == 0) {
+                throw new SQLException("Column not found " + args[0]);
+              } else {
+                return index;
               }
-              throw new SQLException("Column not found " + args[0]);
             }
             throw new AssertionError("invalid method: " + method.getName());
           }

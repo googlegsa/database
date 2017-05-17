@@ -22,7 +22,6 @@ import com.google.enterprise.adaptor.Response;
 
 import org.xml.sax.InputSource;
 
-import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -485,15 +484,6 @@ public abstract class ResponseGenerator {
             out.write(b);
           }
           break;
-        case Types.TINYINT:
-        case Types.SMALLINT:
-        case Types.INTEGER:
-        case Types.BIGINT:
-        case Types.REAL:
-        case Types.FLOAT:
-        case Types.DOUBLE:
-        case Types.DECIMAL:
-        case Types.NUMERIC:
         case Types.CHAR:
         case Types.VARCHAR:
         case Types.NCHAR:
