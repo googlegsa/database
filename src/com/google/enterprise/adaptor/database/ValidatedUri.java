@@ -28,7 +28,7 @@ import java.util.logging.Logger;
 /**
  * Validates URIs by syntax checking and validating the host is reachable.
  */
-public class ValidatedUri {
+class ValidatedUri {
   /** The logger for this class. */
   private static final Logger log =
       Logger.getLogger(ValidatedUri.class.getName());

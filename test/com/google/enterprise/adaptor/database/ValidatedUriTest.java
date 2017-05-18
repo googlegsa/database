@@ -108,6 +108,15 @@ public class ValidatedUriTest {
   }
 
   @Test
+  public void testUnderscoreInHostName() throws Exception {
+    // new URI("http://foo_bar/baz") parses incorrectly, but does not throw a
+    // URISyntaxException. The host part, however, is discarded. So our check
+    // for missing host should catch this.
+    thrown.expect(URISyntaxException.class);
+    new ValidatedUri("http://foo_bar/baz").getUri();
+  }
+
+  @Test
   public void testGetUri() throws Exception {
     assertEquals(new URI("http://example.com/foo/bar"),
         new ValidatedUri("http://example.com/foo/bar").getUri());
