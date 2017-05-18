@@ -15,26 +15,15 @@
 package com.google.enterprise.adaptor.database;
 
 import com.google.common.base.Strings;
-import java.io.IOException;
-import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Validates URIs by syntax checking and validating the host is reachable.
  */
 class ValidatedUri {
-  /** The logger for this class. */
-  private static final Logger log =
-      Logger.getLogger(ValidatedUri.class.getName());
-
-  /** The connect timeout, in milliseconds. */
-  private static final int TIMEOUT_MILLIS = (int) TimeUnit.SECONDS.toMillis(30);
 
   /** The validated URI. */
   private final URI uri;
@@ -80,25 +69,4 @@ class ValidatedUri {
   public URI getUri() {
     return uri;
   }
-
-  /**
-   * Checks whether the URI's host is reachable without throwing exceptions.
-   * Logs a warning if the host is not reachable.
-   */
-  public ValidatedUri logUnreachableHost() {
-    // Try to determine if the host is reachable at this time.
-    String host = uri.getHost();
-    try {
-      if (!(InetAddress.getByName(host).isReachable(TIMEOUT_MILLIS))) {
-        log.log(Level.WARNING, "Host {0} from URI {1} is not reachable.",
-            new Object[] { host, uri });
-      }
-    } catch (IOException e) {
-      log.log(Level.WARNING, "Host " + host + " from URI " + uri
-          + " is not reachable.", e);
-    }
-    return this;
-  }
-
-  // TODO (bmj): Port testHttpHead code from v3 UrlValidator.
 }
