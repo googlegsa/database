@@ -1,8 +1,26 @@
+// Copyright 2014 Google Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
+import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
+import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -17,6 +35,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -52,7 +72,12 @@ public class TupleReaderTest {
     trans = transFactory.newTransformer();
     trans.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
   }
-  
+
+  @After
+  public void dropAllObjects() throws SQLException {
+    JdbcFixture.dropAllObjects();
+  }
+
   private String generateXml(ResultSet rs) throws TransformerException {
     TupleReader reader = new TupleReader(rs);
     Source source = new SAXSource(reader, /*ignored*/new InputSource());
@@ -67,57 +92,49 @@ public class TupleReaderTest {
    */
   @Test
   public void testNULL() throws Exception {
+    executeUpdate("create table data(colname varchar)");
+    executeUpdate("insert into data(colname) values(null)");
+
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<colname SQLType=\"VARCHAR\" ISNULL=\"true\"/>"
+        + "<COLNAME SQLType=\"VARCHAR\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    int[] columnType = {Types.VARCHAR};
-    String[] columnName = {"colname"};
-    MockResultSetMetaData metadata =
-        new MockResultSetMetaData(columnType, columnName);
-    ResultSetMetaData rsMetadata =
-        (ResultSetMetaData) Proxy.newProxyInstance(
-            ResultSetMetaData.class.getClassLoader(),
-            new Class[] {ResultSetMetaData.class}, metadata);
-    MockResultSet resultSet = new MockResultSet(rsMetadata, null);
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, resultSet);
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+
+    try (Statement stmt = getConnection().createStatement();
+        ResultSet rs = stmt.executeQuery("select * from data")) {
+      assertTrue("ResultSet is empty", rs.next());
+      String result = generateXml(rs);
+      assertEquals(golden, result);
+    }
   }
-  
+
   /**
    * Test varchar column.
    */
   @Test
   public void testVARCHAR() throws Exception {
+    executeUpdate("create table data(colname varchar)");
+    executeUpdate("insert into data(colname) values('onevalue')");
+
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<colname SQLType=\"VARCHAR\">onevalue</colname>"
+        + "<COLNAME SQLType=\"VARCHAR\">onevalue</COLNAME>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    int[] columnType = {Types.VARCHAR};
-    String[] columnName = {"colname"};
-    MockResultSetMetaData metadata =
-        new MockResultSetMetaData(columnType, columnName);
-    ResultSetMetaData rsMetadata =
-        (ResultSetMetaData) Proxy.newProxyInstance(
-            ResultSetMetaData.class.getClassLoader(),
-            new Class[] {ResultSetMetaData.class}, metadata);
-    MockResultSet resultSet = new MockResultSet(rsMetadata, "onevalue");
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, resultSet);
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+
+    try (Statement stmt = getConnection().createStatement();
+        ResultSet rs = stmt.executeQuery("select * from data")) {
+      assertTrue("ResultSet is empty", rs.next());
+      String result = generateXml(rs);
+      assertEquals(golden, result);
+    }
   }
 
   /**
