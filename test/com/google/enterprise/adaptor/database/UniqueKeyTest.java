@@ -14,31 +14,36 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
+import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 
+import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.util.Random;
 
 /** Test cases for {@link UniqueKey}. */
 public class UniqueKeyTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();
+
+  @After
+  public void dropAllObjects() throws SQLException {
+    JdbcFixture.dropAllObjects();
+  }
 
   @Test
   public void testNullKeys() {
@@ -118,156 +123,121 @@ public class UniqueKeyTest {
         "numnum,IsStranger,strstr");
   }
 
-  /* Proxy based mock of ResultSet, because it has lots of methods to mock. */
-  private ResultSet makeMockResultSet(final Map<String, Object> columnValueMap) {
-    ResultSet rs = (ResultSet) Proxy.newProxyInstance(
-        ResultSet.class.getClassLoader(), new Class[] { ResultSet.class }, 
-        new InvocationHandler() {
-          public Object invoke(Object proxy, Method method, Object[] args)
-              throws Throwable {
-            if (columnValueMap.containsKey(args[0])) {
-              return columnValueMap.get(args[0]);
-            } else {
-              throw new IllegalStateException();
-            }
-          }
-        }
-    );
-    return rs;
-  }
-
   @Test
   public void testProcessingDocId() throws SQLException {
-    UniqueKey uk = new UniqueKey("numnum:int,strstr:string");
-    assertEquals("345/abc", uk.makeUniqueId(makeMockResultSet(
-        new HashMap<String, Object>(){{
-            put("numnum", 345);
-            put("strstr", "abc");
-        }}
-    ), /*encode=*/ true));
+    executeUpdate("create table data(numnum int, strstr varchar)");
+    executeUpdate("insert into data(numnum, strstr) values(345, 'abc')");
+
+    try (Statement stmt = getConnection().createStatement();
+        ResultSet rs = stmt.executeQuery("select * from data")) {
+      UniqueKey uk = new UniqueKey("numnum:int,strstr:string");
+      assertTrue("ResultSet is empty", rs.next());
+      assertEquals("345/abc", uk.makeUniqueId(rs, /*encode=*/ true));
+    }
   }
 
   @Test
   public void testProcessingDocIdWithSlash() throws SQLException {
-    UniqueKey uk = new UniqueKey("a:string,b:string");
-    assertEquals("5_/5/6_/6", uk.makeUniqueId(makeMockResultSet(
-        new HashMap<String, Object>(){{
-            put("a", "5/5");
-            put("b", "6/6");
-        }}
-    ), /*encode=*/ true));
+    executeUpdate("create table data(a varchar, b varchar)");
+    executeUpdate("insert into data(a, b) values('5/5', '6/6')");
+
+    try (Statement stmt = getConnection().createStatement();
+        ResultSet rs = stmt.executeQuery("select * from data")) {
+      UniqueKey uk = new UniqueKey("a:string,b:string");
+      assertTrue("ResultSet is empty", rs.next());
+      assertEquals("5_/5/6_/6", uk.makeUniqueId(rs, /*encode=*/ true));
+    }
   }
 
   @Test
   public void testProcessingDocIdWithMoreSlashes() throws SQLException {
-    UniqueKey uk = new UniqueKey("a:string,b:string");
-    assertEquals("5_/5_/_/_//_/_/6_/6",
-        uk.makeUniqueId(makeMockResultSet(
-            new HashMap<String, Object>(){{
-                put("a", "5/5//");
-                put("b", "//6/6");
-            }}
-        )
-    , /*encode=*/ true));
-  }
+    executeUpdate("create table data(a varchar, b varchar)");
+    executeUpdate("insert into data(a, b) values('5/5//', '//6/6')");
 
-  private static class PreparedStatementHandler implements 
-      InvocationHandler {
-    int ncalls = 0;
-    public Object invoke(Object proxy, Method method, Object[] args)
-        throws Throwable {
-      ncalls++;
-      String methodName = method.getName(); 
-      if ("setInt".equals(methodName)) {
-        assertEquals(1, args[0]); 
-        assertEquals(888, args[1]); 
-      } else if ("setString".equals(methodName)) {
-        assertEquals(2, args[0]); 
-        assertEquals("bluesky", args[1]); 
-      } else if ("setTimestamp".equals(methodName)) {
-        assertEquals(3, args[0]); 
-        assertEquals(new java.sql.Timestamp(1414701070212L), args[1]); 
-      } else if ("setDate".equals(methodName)) {
-        assertEquals(4, args[0]); 
-        assertEquals(java.sql.Date.valueOf("2014-01-01"), args[1]); 
-      } else if ("setTime".equals(methodName)) {
-        assertEquals(5, args[0]); 
-        assertEquals(java.sql.Time.valueOf("02:03:04"), args[1]); 
-      } else if ("setLong".equals(methodName)) {
-        assertEquals(6, args[0]); 
-        assertEquals(123L, args[1]); 
-      } else {
-        throw new IllegalStateException("unexpected call: " + methodName);
-      }
-      return null;
+    try (Statement stmt = getConnection().createStatement();
+        ResultSet rs = stmt.executeQuery("select * from data")) {
+      UniqueKey uk = new UniqueKey("a:string,b:string");
+      assertTrue("ResultSet is empty", rs.next());
+      assertEquals("5_/5_/_/_//_/_/6_/6",
+          uk.makeUniqueId(rs, /*encode=*/ true));
     }
   }
 
   @Test
   public void testPreparingRetrieval() throws SQLException {
-    PreparedStatementHandler psh = new PreparedStatementHandler();
-    PreparedStatement ps = (PreparedStatement) Proxy.newProxyInstance(
-        PreparedStatement.class.getClassLoader(),
-        new Class[] { PreparedStatement.class }, psh);
-    UniqueKey uk = new UniqueKey("numnum:int,strstr:string,"
-        + "timestamp:timestamp,date:date,time:time,long:long");
-    uk.setContentSqlValues(ps, "888/bluesky/1414701070212/2014-01-01/"
-        + "02:03:04/123");
-    assertEquals(6, psh.ncalls);
-  }
+    executeUpdate("create table data("
+        + "numnum int, strstr varchar, timestamp timestamp, date date, "
+        + "time time, long bigint)");
 
-  private static class PreparedStatementHandlerPerDocCols implements 
-      InvocationHandler {
-    List<String> callsAndValues = new ArrayList<String>();
-    public Object invoke(Object proxy, Method method, Object[] args)
-        throws Throwable {
-      String methodName = method.getName();
-      // Assumes calls like setString and setInt with 2 args
-      callsAndValues.add(methodName);
-      callsAndValues.add("" + args[0]);
-      callsAndValues.add("" + args[1]);
-      return null;
+    String sql = "insert into data("
+        + "numnum, strstr, timestamp, date, time, long)"
+        + " values (?, ?, ?, ?, ?, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      UniqueKey uk = new UniqueKey("numnum:int,strstr:string,"
+          + "timestamp:timestamp,date:date,time:time,long:long");
+      uk.setContentSqlValues(ps,
+          "888/bluesky/1414701070212/2014-01-01/02:03:04/123");
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    try (Statement stmt = getConnection().createStatement();
+        ResultSet rs = stmt.executeQuery("select * from data")) {
+      assertTrue("ResultSet is empty", rs.next());
+      assertEquals(888, rs.getInt("numnum"));
+      assertEquals("bluesky", rs.getString("strstr"));
+      assertEquals(new Timestamp(1414701070212L), rs.getTimestamp("timestamp"));
+      assertEquals(Date.valueOf("2014-01-01"), rs.getDate("date"));
+      assertEquals(Time.valueOf("02:03:04"), rs.getTime("time"));
+      assertEquals(123L, rs.getLong("long"));
     }
   }
 
   @Test
   public void testPreparingRetrievalPerDocCols() throws SQLException {
-    PreparedStatementHandlerPerDocCols psh
-        = new PreparedStatementHandlerPerDocCols();
-    PreparedStatement ps = (PreparedStatement) Proxy.newProxyInstance(
-        PreparedStatement.class.getClassLoader(),
-        new Class[] { PreparedStatement.class }, psh);
-    UniqueKey uk = new UniqueKey("numnum:int,strstr:string",
-        "numnum,numnum,strstr,numnum,strstr,strstr,numnum", "");
-    uk.setContentSqlValues(ps, "888/bluesky");
-    List<String> golden = Arrays.asList(
-        "setInt", "1", "888",
-        "setInt", "2", "888",
-        "setString", "3", "bluesky",
-        "setInt", "4", "888",
-        "setString", "5", "bluesky",
-        "setString", "6", "bluesky",
-        "setInt", "7", "888"
-    );
-    assertEquals(golden, psh.callsAndValues);
+    executeUpdate("create table data("
+        + "col1 int, col2 int, col3 varchar, col4 int, col5 varchar, "
+        + "col6 varchar, col7 int)");
+
+    String sql = "insert into data(col1, col2, col3, col4, col5, col6, col7)"
+        + " values (?, ?, ?, ?, ?, ?, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      UniqueKey uk = new UniqueKey("numnum:int,strstr:string",
+          "numnum,numnum,strstr,numnum,strstr,strstr,numnum", "");
+      uk.setContentSqlValues(ps, "888/bluesky");
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    try (Statement stmt = getConnection().createStatement();
+        ResultSet rs = stmt.executeQuery("select * from data")) {
+      assertTrue("ResultSet is empty", rs.next());
+      assertEquals(888, rs.getInt(1));
+      assertEquals(888, rs.getInt(2));
+      assertEquals("bluesky", rs.getString(3));
+      assertEquals(888, rs.getInt(4));
+      assertEquals("bluesky", rs.getString(5));
+      assertEquals("bluesky", rs.getString(6));
+      assertEquals(888, rs.getInt(7));
+    }
   }
 
   @Test
   public void testPreserveSlashesInColumnValues() throws SQLException {
-    PreparedStatementHandlerPerDocCols psh
-        = new PreparedStatementHandlerPerDocCols();
-    PreparedStatement ps = (PreparedStatement) Proxy.newProxyInstance(
-        PreparedStatement.class.getClassLoader(),
-        new Class[] { PreparedStatement.class }, psh);
-    UniqueKey uk = new UniqueKey("a:string,b:string",
-        "a,b,a", "");
-    uk.setContentSqlValues(ps, "5_/5/6_/6");
-    List<String> golden = Arrays.asList(
-        "setString", "1", "5/5",
-        "setString", "2", "6/6",
-        "setString", "3", "5/5"
-    );
-    assertEquals(golden, psh.callsAndValues);
+    executeUpdate("create table data(a varchar, b varchar, c varchar)");
+
+    String sql = "insert into data(a, b, c) values (?, ?, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      UniqueKey uk = new UniqueKey("a:string,b:string", "a,b,a", "");
+      uk.setContentSqlValues(ps, "5_/5/6_/6");
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    try (Statement stmt = getConnection().createStatement();
+        ResultSet rs = stmt.executeQuery("select * from data")) {
+      assertTrue("ResultSet is empty", rs.next());
+      assertEquals("5/5", rs.getString(1));
+      assertEquals("6/6", rs.getString(2));
+      assertEquals("5/5", rs.getString(3));
+    }
   }
 
   private static String makeId(char choices[], int maxlen) {
@@ -289,36 +259,41 @@ public class UniqueKeyTest {
     return makeId("/_".toCharArray(), 100);
   }
 
-  private void testUniqueElementsRoundTrip(final String elem1,
-       final String elem2) throws SQLException {
+  private void testUniqueElementsRoundTrip(String elem1, String elem2)
+      throws SQLException {
+    try {
+      executeUpdate("create table data(a varchar, b varchar)");
+      executeUpdate(
+          "insert into data(a, b) values('" + elem1 + "', '" + elem2 + "')");
+
       UniqueKey uk = new UniqueKey("a:string,b:string");
-      String id = uk.makeUniqueId(makeMockResultSet(
-        new HashMap<String, Object>(){{
-            put("a", elem1);
-            put("b", elem2);
-        }}
-      ), /*encode=*/ true);
-      PreparedStatementHandlerPerDocCols psh
-          = new PreparedStatementHandlerPerDocCols();
-      PreparedStatement ps = (PreparedStatement) Proxy.newProxyInstance(
-          PreparedStatement.class.getClassLoader(),
-          new Class[] { PreparedStatement.class }, psh);
-      try {
+      String id;
+      try (Statement stmt = getConnection().createStatement();
+          ResultSet rs = stmt.executeQuery("select * from data")) {
+        assertTrue("ResultSet is empty", rs.next());
+        id = uk.makeUniqueId(rs, /*encode=*/ true);
+      }
+
+      executeUpdate("delete from data");
+
+      String sql = "insert into data(a, b) values (?, ?)";
+      try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
         uk.setContentSqlValues(ps, id);
+        assertEquals(1, ps.executeUpdate());
       } catch (Exception e) {
         throw new RuntimeException("elem1: " + elem1 + ", elem2: " + elem2 
             + ", id: " + id, e);
       }
-      List<String> golden = Arrays.asList(
-          "setString", "1", elem1,
-          "setString", "2", elem2
-      );
-      try {
-        assertEquals(golden, psh.callsAndValues);
-      } catch (Throwable e) {
-        throw new RuntimeException("elem1: " + elem1 + ", elem2: " + elem2 
-            + ", id: " + id + ", golden: " + golden, e);
+
+      try (Statement stmt = getConnection().createStatement();
+          ResultSet rs = stmt.executeQuery("select * from data")) {
+        assertTrue("ResultSet is empty", rs.next());
+        assertEquals(elem1, rs.getString(1));
+        assertEquals(elem2, rs.getString(2));
       }
+    } finally {
+      dropAllObjects();
+    }
   }
 
   @Test
