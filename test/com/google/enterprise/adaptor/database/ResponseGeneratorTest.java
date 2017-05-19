@@ -316,6 +316,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
+  @SuppressWarnings("deprecation")
   public void testBlobColumnInvokesContentColumn() {
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
