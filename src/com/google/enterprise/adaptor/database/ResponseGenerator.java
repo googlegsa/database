@@ -14,6 +14,9 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.common.base.Charsets.UTF_8;
+
+import com.google.enterprise.adaptor.IOHelper;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
 
@@ -23,14 +26,20 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Reader;
+import java.io.Writer;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.sql.Blob;
+import java.sql.Clob;
+import java.sql.NClob;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.Collections;
 import java.util.Map;
 import java.util.logging.Level;
@@ -52,7 +61,7 @@ import javax.xml.transform.stream.StreamSource;
 public abstract class ResponseGenerator {
   private static final Logger log
       = Logger.getLogger(ResponseGenerator.class.getName());
-  
+
   private final Map<String, String> cfg;
   private final String displayUrlCol; // can be null
 
@@ -136,8 +145,14 @@ public abstract class ResponseGenerator {
     return new FilepathColumn(config);
   }
 
+  /** @deprecated Use {@link #contentColumn contentColumn} */
+  @Deprecated
   public static ResponseGenerator blobColumn(Map<String, String> config) {
-    return new BlobColumn(config);
+    return contentColumn(config);
+  }
+
+  public static ResponseGenerator contentColumn(Map<String, String> config) {
+    return new ContentColumn(config);
   }
 
   public static ResponseGenerator rowToHtml(Map<String, String> config)
@@ -376,8 +391,8 @@ public abstract class ResponseGenerator {
     }
   }
 
-  private static class BlobColumn extends SingleColumnContent {
-    BlobColumn(Map<String, String> config) {
+  private static class ContentColumn extends SingleColumnContent {
+    ContentColumn(Map<String, String> config) {
       super(config);
     }
 
@@ -386,20 +401,112 @@ public abstract class ResponseGenerator {
         throws IOException, SQLException {
       overrideContentType(rs, resp);
       overrideDisplayUrl(rs, resp);
-      Blob blob = rs.getBlob(getContentColumnName());
-      InputStream in = blob.getBinaryStream();
+
+      ResultSetMetaData rsMetaData = rs.getMetaData();
+      int index = rs.findColumn(getContentColumnName());
+      int columnType = rsMetaData.getColumnType(index);
+      log.log(Level.FINEST, "Content column name: {0}, Type: {1}",
+          new Object[] {getContentColumnName(), columnType});
+
       OutputStream out = resp.getOutputStream();
-      com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
-      in.close();
-      if (!(blob instanceof javax.sql.rowset.serial.SerialBlob)) {
-        // SerialBlob is adamant about not supporting free
-        try {
-          blob.free();
-        } catch (java.sql.SQLFeatureNotSupportedException | 
-            UnsupportedOperationException unsupported) {
-          // let JVM garbage collection deal with it
-        }
+      switch (columnType) {
+        case Types.BLOB:
+          Blob blob = rs.getBlob(index);
+          if (blob != null) {
+            try (InputStream in = blob.getBinaryStream()) {
+              IOHelper.copyStream(in, out);
+            } finally {
+              try {
+                blob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing BLOB", e);
+              }
+            }
+          }
+          break;
+        case Types.CLOB:
+          Clob clob = rs.getClob(index);
+          if (clob != null) {
+            try (Reader reader = clob.getCharacterStream();
+                Writer writer = new OutputStreamWriter(out, UTF_8)) {
+              copy(reader, writer);
+            } finally {
+              try {
+                clob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing CLOB", e);
+              }
+            }
+          }
+          break;
+        case Types.NCLOB:
+          NClob nclob = rs.getNClob(index);
+          if (nclob != null) {
+            try (Reader reader = nclob.getCharacterStream();
+              Writer writer = new OutputStreamWriter(out, UTF_8)) {
+              copy(reader, writer);
+            } finally {
+              try {
+                nclob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing NCLOB", e);
+              }
+            }
+          }
+          break;
+        case Types.LONGVARBINARY:
+          try (InputStream in = rs.getBinaryStream(index)) {
+            if (in != null) {
+              IOHelper.copyStream(in, out);
+            }
+          }
+          break;
+        case Types.LONGVARCHAR:
+          try (Reader reader = rs.getCharacterStream(index);
+              Writer writer = new OutputStreamWriter(out, UTF_8)) {
+            if (reader != null) {
+              copy(reader, writer);
+            }
+          }
+          break;
+        case Types.LONGNVARCHAR:
+          try (Reader reader = rs.getNCharacterStream(index);
+              Writer writer = new OutputStreamWriter(out, UTF_8)) {
+            if (reader != null) {
+              copy(reader, writer);
+            }
+          }
+          break;
+        case Types.BINARY:
+        case Types.VARBINARY:
+          byte[] b = rs.getBytes(index);
+          if (b != null) {
+            out.write(b);
+          }
+          break;
+        case Types.CHAR:
+        case Types.VARCHAR:
+        case Types.NCHAR:
+        case Types.NVARCHAR:
+          String str = rs.getString(index);
+          if (str != null) {
+            out.write(str.getBytes(UTF_8));
+          }
+          break;
+        default:
+          //TODO(srinivas): handle BFILE
+          log.log(Level.FINEST, "Column type not handled: {0}", columnType);
+          break;
       }
+    }
+
+    private void copy(Reader reader, Writer writer) throws IOException {
+      char[] buffer = new char[8192];
+      int len;
+      while ((len = reader.read(buffer)) != -1) {
+        writer.write(buffer, 0, len);
+      }
+      writer.flush();
     }
   }
 }

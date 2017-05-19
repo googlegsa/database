@@ -303,6 +303,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       int numberOfColumns = rsMetaData.getColumnCount();
       for (int i = 1; i < (numberOfColumns + 1); i++) {
         String columnName = rsMetaData.getColumnLabel(i);
+        log.log(Level.FINEST, "Column name: {0}, Type: {1}",
+            new Object[] {columnName, rsMetaData.getColumnType(i)});
+
         Object value = rs.getObject(i);
         String key = metadataColumns.getMetadataName(columnName);
         if (key != null) {
