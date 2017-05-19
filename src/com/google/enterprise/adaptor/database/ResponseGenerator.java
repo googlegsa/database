@@ -443,8 +443,8 @@ public abstract class ResponseGenerator {
           NClob nclob = rs.getNClob(index);
           if (nclob != null) {
             try (Reader reader = nclob.getCharacterStream();
-                Writer writer = new OutputStreamWriter(out, UTF_8)) {
-                copy(reader, writer);
+              Writer writer = new OutputStreamWriter(out, UTF_8)) {
+              copy(reader, writer);
             } finally {
               try {
                 nclob.free();
