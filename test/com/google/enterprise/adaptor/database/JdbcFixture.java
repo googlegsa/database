@@ -21,7 +21,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /** Manages an in-memory H2 database for test purposes. */
-public class JdbcFixture {
+class JdbcFixture {
   /**
    * Gets a JDBC connection to a named in-memory database.
    * <p>
