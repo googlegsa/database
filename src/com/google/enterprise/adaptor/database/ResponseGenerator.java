@@ -97,8 +97,7 @@ public abstract class ResponseGenerator {
             displayUrlCol);
       } else {
         try {
-          URI dispUri = new URI(dispUrl);
-          res.setDisplayUrl(dispUri);
+          res.setDisplayUrl(new ValidatedUri(dispUrl).getUri());
           log.log(Level.FINE, "overrode display url: {0}", dispUrl);
           return true;
         } catch (URISyntaxException uriException) {
@@ -324,6 +323,14 @@ public abstract class ResponseGenerator {
     public void generateResponse(ResultSet rs, Response resp)
         throws IOException, SQLException {
       String urlStr = rs.getString(getContentColumnName());
+      try {
+        if (!overrideDisplayUrl(rs, resp)) {
+          resp.setDisplayUrl(new ValidatedUri(urlStr).getUri());
+        }
+      } catch (URISyntaxException ex) {
+        String errmsg = urlStr + " is not a valid URI";
+        throw new IllegalStateException(errmsg, ex);
+      }
       URL url = new URL(urlStr);
       java.net.URLConnection con = url.openConnection();
       if (!overrideContentType(rs, resp)) {
@@ -331,14 +338,6 @@ public abstract class ResponseGenerator {
         if (null != contentType) {
           resp.setContentType(contentType);
         }
-      }
-      try {
-        if (!overrideDisplayUrl(rs, resp)) {
-          resp.setDisplayUrl(url.toURI());
-        }
-      } catch (URISyntaxException ex) {
-        String errmsg = urlStr + " is not a valid URI";
-        throw new IllegalStateException(errmsg, ex);
       }
       InputStream in = null;
       try {
