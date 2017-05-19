@@ -14,15 +14,20 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
+import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -33,9 +38,12 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Types;
 import java.util.Collections;
 import java.util.List;
@@ -48,6 +56,21 @@ import javax.sql.rowset.serial.SerialClob;
 public class ResponseGeneratorTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();
+
+  @Rule
+  public TemporaryFolder tempFolder = new TemporaryFolder();
+
+  @After
+  public void dropAllObjects() throws SQLException {
+    JdbcFixture.dropAllObjects();
+  }
+
+  /** Writes the string to a temp file as UTF-8 and returns the path. */
+  private String writeTempFile(String content) throws IOException {
+    Path file = tempFolder.newFile().toPath();
+    Files.write(file, content.getBytes(UTF_8));
+    return file.toString();
+  }
 
   @Test
   public void testMissingColumnNameForUrlMode() {
@@ -247,37 +270,49 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testBlobColumnModeServesResultBlob() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content blob)");
+    executeUpdate("insert into data(id, content) "
+        + "values(1, file_read('" + writeTempFile(content) + "'))");
+
     MockResponse bar = new MockResponse();
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "my-blob-col");
+    cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-    String content = "hello world";
-    byte b[] = content.getBytes("US-ASCII");
-    resgen.generateResponse(
-        makeMockBlobResultSet(b, asList("my-blob-col"), asList(Types.BLOB)),
-        response);
-    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
-    Assert.assertEquals(content, responseMsg);
+
+    try (Statement stmt = getConnection().createStatement();
+        ResultSet rs = stmt.executeQuery("select * from data")) {
+      Assert.assertTrue("ResultSet is empty", rs.next());
+      resgen.generateResponse(rs, response);
+      String responseMsg = new String(bar.baos.toByteArray(), UTF_8);
+      Assert.assertEquals(content, responseMsg);
+    }
   }
 
   @Test
   public void testBlobColumnModeIncorrectColumnName() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content blob)");
+    executeUpdate("insert into data(id, content) "
+        + "values(1, file_read('" + writeTempFile(content) + "'))");
+
     MockResponse bar = new MockResponse();
     Response response = (Response) Proxy.newProxyInstance(
         Response.class.getClassLoader(),
         new Class[] { Response.class }, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "my-col-name-is-wrong");
+    cfg.put("columnName", "wrongcolumn");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-    String content = "hello world";
-    byte b[] = content.getBytes("US-ASCII");
-    thrown.expect(java.sql.SQLException.class);
-    resgen.generateResponse(
-        makeMockBlobResultSet(b, asList("my-col-name-is-wrong"),
-            asList(Types.BLOB)), response);
+
+    try (Statement stmt = getConnection().createStatement();
+        ResultSet rs = stmt.executeQuery("select * from data")) {
+      Assert.assertTrue("ResultSet is empty", rs.next());
+      thrown.expect(java.sql.SQLException.class);
+      resgen.generateResponse(rs, response);
+    }
   }
 
   @Test
