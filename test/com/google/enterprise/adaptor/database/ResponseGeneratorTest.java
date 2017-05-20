@@ -18,12 +18,13 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
 
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -160,7 +161,7 @@ public class ResponseGeneratorTest {
               if ("this-clob-col-has-CT".equals(args[0])) {
                 return "hard-coded-clob-content-type";
               } else if ("this-clob-col-has-disp-url".equals(args[0])) {
-                return "hard-coded-clob-display-url";
+                return "http://host/hard-coded-clob-display-url";
               } else {
                 throw new java.sql.SQLException("no column named: " + args[0]);
               }
@@ -214,7 +215,7 @@ public class ResponseGeneratorTest {
         new InvocationHandler() {
           public Object invoke(Object proxy, Method method, Object[] args)
               throws Throwable {
-            Assert.assertEquals("getString", method.getName());
+            assertEquals("getString", method.getName());
             if ("my-filepath-col".equals(args[0])) {
               return f.getAbsolutePath();
             } else {
@@ -233,7 +234,7 @@ public class ResponseGeneratorTest {
         new InvocationHandler() {
           public Object invoke(Object proxy, Method method, Object[] args)
               throws Throwable {
-            Assert.assertEquals("getString", method.getName());
+            assertEquals("getString", method.getName());
             if ("my-url-is-in-col".equals(args[0])) {
               return url.toString();
             } else if ("my-disp-url-is-in-col-2".equals(args[0])) {
@@ -285,10 +286,10 @@ public class ResponseGeneratorTest {
 
     try (Statement stmt = getConnection().createStatement();
         ResultSet rs = stmt.executeQuery("select * from data")) {
-      Assert.assertTrue("ResultSet is empty", rs.next());
+      assertTrue("ResultSet is empty", rs.next());
       resgen.generateResponse(rs, response);
-      String responseMsg = new String(bar.baos.toByteArray(), UTF_8);
-      Assert.assertEquals(content, responseMsg);
+      String responseMsg = bar.baos.toString(UTF_8.name());
+      assertEquals(content, responseMsg);
     }
   }
 
@@ -309,7 +310,7 @@ public class ResponseGeneratorTest {
 
     try (Statement stmt = getConnection().createStatement();
         ResultSet rs = stmt.executeQuery("select * from data")) {
-      Assert.assertTrue("ResultSet is empty", rs.next());
+      assertTrue("ResultSet is empty", rs.next());
       thrown.expect(java.sql.SQLException.class);
       resgen.generateResponse(rs, response);
     }
@@ -324,7 +325,7 @@ public class ResponseGeneratorTest {
     String expected =
         "com.google.enterprise.adaptor.database."
             + "ResponseGenerator$ContentColumn";
-    Assert.assertEquals(expected, resgen.getClass().getName());
+    assertEquals(expected, resgen.getClass().getName());
   }
 
   @Test
@@ -340,8 +341,8 @@ public class ResponseGeneratorTest {
     resgen.generateResponse(
         makeMockClobResultSet(content, asList("my-clob-col"),
             asList(Types.CLOB)), response);
-    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
-    Assert.assertEquals(content, responseMsg);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
   }
 
   @Test
@@ -365,7 +366,7 @@ public class ResponseGeneratorTest {
     FileOutputStream fw = null;
     try {
       fw = new FileOutputStream(f);
-      fw.write(content.getBytes("UTF-8"));
+      fw.write(content.getBytes(UTF_8));
       fw.flush();
     } finally {
       if (null != fw) {
@@ -389,8 +390,8 @@ public class ResponseGeneratorTest {
       writeDataToFile(testFile, content);
       ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
       resgen.generateResponse(makeMockFilepathResultSet(testFile), response);
-      String responseMsg = new String(far.baos.toByteArray(), "UTF-8");
-      Assert.assertEquals(content, responseMsg);
+      String responseMsg = far.baos.toString(UTF_8.name());
+      assertEquals(content, responseMsg);
     } finally {
       if (null != testFile) {
         testFile.delete();
@@ -441,10 +442,10 @@ public class ResponseGeneratorTest {
                         null);
       ResultSet rs = makeMockUrlResultSet(testUri.toURL());
       resgen.generateResponse(rs, response);
-      String responseMsg = new String(uar.baos.toByteArray(), "UTF-8");
-      Assert.assertEquals(content, responseMsg);
-      Assert.assertEquals("text/plain", uar.contentType);
-      Assert.assertEquals(testUri, uar.displayUrl);
+      String responseMsg = uar.baos.toString(UTF_8.name());
+      assertEquals(content, responseMsg);
+      assertEquals("text/plain", uar.contentType);
+      assertEquals(testUri, uar.displayUrl);
     } finally {
       if (null != testFile) {
         testFile.delete();
@@ -503,13 +504,13 @@ public class ResponseGeneratorTest {
     cfg.put("contentTypeOverride", "dev/rubish");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
-    byte b[] = content.getBytes("US-ASCII");
+    byte[] b = content.getBytes(UTF_8);
     resgen.generateResponse(
         makeMockBlobResultSet(b, asList("my-blob-col"), asList(Types.BLOB)),
         response);
-    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
-    Assert.assertEquals(content, responseMsg);
-    Assert.assertEquals("dev/rubish", bar.contentType);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
+    assertEquals("dev/rubish", bar.contentType);
   }
 
   @Test
@@ -523,13 +524,13 @@ public class ResponseGeneratorTest {
     cfg.put("contentTypeCol", "this-blob-col-has-CT");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
-    byte b[] = content.getBytes("US-ASCII");
+    byte[] b = content.getBytes(UTF_8);
     resgen.generateResponse(
         makeMockBlobResultSet(b, asList("my-blob-col"), asList(Types.BLOB)),
         response);
-    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
-    Assert.assertEquals(content, responseMsg);
-    Assert.assertEquals("hard-coded-blob-content-type", bar.contentType);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
+    assertEquals("hard-coded-blob-content-type", bar.contentType);
   }
 
   @Test
@@ -543,14 +544,14 @@ public class ResponseGeneratorTest {
     cfg.put("displayUrlCol", "this-blob-col-has-disp-url");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
     String content = "hello world";
-    byte b[] = content.getBytes("US-ASCII");
+    byte[] b = content.getBytes(UTF_8);
     resgen.generateResponse(
         makeMockBlobResultSet(b, asList("my-blob-col"), asList(Types.BLOB)),
         response);
-    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
-    Assert.assertEquals(content, responseMsg);
-    Assert.assertEquals(new URI("http://host/hard-coded-blob-display-url"),
-                        bar.displayUrl);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
+    assertEquals(new URI("http://host/hard-coded-blob-display-url"),
+        bar.displayUrl);
   }
 
 
@@ -583,9 +584,9 @@ public class ResponseGeneratorTest {
     resgen.generateResponse(
         makeMockClobResultSet(content, asList("my-clob-col"),
             asList(Types.CLOB)), response);
-    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
-    Assert.assertEquals(content, responseMsg);
-    Assert.assertEquals("dev/rubish", bar.contentType);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
+    assertEquals("dev/rubish", bar.contentType);
   }
 
   @Test
@@ -602,9 +603,9 @@ public class ResponseGeneratorTest {
     resgen.generateResponse(
         makeMockClobResultSet(content, asList("my-clob-col"),
             asList(Types.CLOB)), response);
-    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
-    Assert.assertEquals(content, responseMsg);
-    Assert.assertEquals("hard-coded-clob-content-type", bar.contentType);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
+    assertEquals("hard-coded-clob-content-type", bar.contentType);
   }
 
   @Test
@@ -621,9 +622,10 @@ public class ResponseGeneratorTest {
     resgen.generateResponse(
         makeMockClobResultSet(content, asList("my-clob-col"),
             asList(Types.CLOB)), response);
-    String responseMsg = new String(bar.baos.toByteArray(), "US-ASCII");
-    Assert.assertEquals(content, responseMsg);
-    Assert.assertEquals(new URI("hard-coded-clob-display-url"), bar.displayUrl);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
+    assertEquals(new URI("http://host/hard-coded-clob-display-url"),
+        bar.displayUrl);
   }
 
   @Test
@@ -644,11 +646,10 @@ public class ResponseGeneratorTest {
       URL testUrl = testFile.toURI().toURL();
       ResultSet rs = makeMockUrlResultSet(testUrl);
       resgen.generateResponse(rs, response);
-      String responseMsg = new String(uar.baos.toByteArray(), "UTF-8");
-      Assert.assertEquals(content, responseMsg);
-      Assert.assertEquals("text/plain", uar.contentType);
-      Assert.assertEquals(new URI("http://host/hard-coded-disp-url"),
-                          uar.displayUrl);
+      String responseMsg = uar.baos.toString(UTF_8.name());
+      assertEquals(content, responseMsg);
+      assertEquals("text/plain", uar.contentType);
+      assertEquals(new URI("http://host/hard-coded-disp-url"), uar.displayUrl);
     } finally {
       if (null != testFile) {
         testFile.delete();
