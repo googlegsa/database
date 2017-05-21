@@ -14,11 +14,11 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import org.junit.After;
 import org.junit.Rule;
@@ -31,7 +31,6 @@ import java.io.StringWriter;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -86,7 +85,6 @@ public class TupleReaderTest {
   public void testNULL() throws Exception {
     executeUpdate("create table data(colname varchar)");
     executeUpdate("insert into data(colname) values(null)");
-
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -95,13 +93,9 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      String result = generateXml(rs);
-      assertEquals(golden, result);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
   }
 
   /**
@@ -111,7 +105,6 @@ public class TupleReaderTest {
   public void testVARCHAR() throws Exception {
     executeUpdate("create table data(colname varchar)");
     executeUpdate("insert into data(colname) values('onevalue')");
-
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -120,13 +113,9 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      String result = generateXml(rs);
-      assertEquals(golden, result);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
   }
 
   /**
@@ -136,7 +125,6 @@ public class TupleReaderTest {
   public void testChar() throws Exception {
     executeUpdate("create table data(colname char)");
     executeUpdate("insert into data(colname) values('onevalue')");
-
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -145,13 +133,9 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      String result = generateXml(rs);
-      assertEquals(golden, result);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
   }
 
   /**
@@ -161,7 +145,6 @@ public class TupleReaderTest {
   public void testINTEGER() throws Exception {
     executeUpdate("create table data(colname integer)");
     executeUpdate("insert into data(colname) values(17)");
-
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -170,12 +153,9 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      String result = generateXml(rs);
-      assertEquals(golden, result);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
   }
   
   /**
@@ -185,7 +165,6 @@ public class TupleReaderTest {
   public void testDATE() throws Exception {
     executeUpdate("create table data(colname date)");
     executeUpdate("insert into data(colname) values({d '2004-10-06'})");
-
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -194,13 +173,9 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      String result = generateXml(rs);
-      assertEquals(golden, result);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
   }
   
   /**
@@ -211,7 +186,6 @@ public class TupleReaderTest {
     executeUpdate("create table data(colname timestamp)");
     executeUpdate(
         "insert into data(colname) values ({ts '2004-10-06T09:15:30'})");
-
     DateFormat timeZoneFmt = new SimpleDateFormat("X");
     Calendar cal = Calendar.getInstance(TimeZone.getDefault());
     cal.set(Calendar.YEAR, 2004);
@@ -231,13 +205,9 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      String result = generateXml(rs);
-      assertEquals(golden, result);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
   }
 
   /**
@@ -247,7 +217,6 @@ public class TupleReaderTest {
   public void testTIME() throws Exception {
     executeUpdate("create table data(colname time)");
     executeUpdate("insert into data(colname) values({t '09:15:30'})");
-
     // H2 returns a java.sql.Date with the date set to 1970-01-01.
     final DateFormat timeZoneFmt = new SimpleDateFormat("X");
     Calendar cal = Calendar.getInstance(TimeZone.getDefault());
@@ -268,13 +237,9 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      String result = generateXml(rs);
-      assertEquals(golden, result);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
   }
   
   /**
@@ -306,7 +271,6 @@ public class TupleReaderTest {
       ps.setBinaryStream(1, new ByteArrayInputStream(blobData.getBytes(UTF_8)));
       assertEquals(1, ps.executeUpdate());
     }
-
     String base64BlobData = DatatypeConverter.printBase64Binary(
         blobData.getBytes(UTF_8));
     final String golden = ""
@@ -319,12 +283,8 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      String result = generateXml(rs);
-      assertEquals(golden, result);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
   }
 }

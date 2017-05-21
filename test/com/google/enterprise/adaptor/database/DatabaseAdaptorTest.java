@@ -15,13 +15,13 @@
 package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
-import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.google.enterprise.adaptor.Acl;
@@ -36,14 +36,12 @@ import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -236,12 +234,11 @@ public class DatabaseAdaptorTest {
   public void testAclSqlResultSetHasNoRecord() throws SQLException {
     Acl golden = Acl.EMPTY;
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from acl")) {
-      ResultSetMetaData metadata = rs.getMetaData();
-      Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
-      assertEquals(golden, acl);
-    }
+    executeUpdate("create table acl");
+    ResultSet rs = executeQuery("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    assertEquals(golden, acl);
   }
 
   @Test
@@ -272,12 +269,10 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2"),
             new GroupPrincipal("dgroup1")))
         .build();
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from acl")) {
-      ResultSetMetaData metadata = rs.getMetaData();
-      Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
-      assertEquals(golden, acl);
-    }
+    ResultSet rs = executeQuery("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    assertEquals(golden, acl);
   }
 
   @Test
@@ -324,12 +319,10 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup4"),
             new GroupPrincipal("dgroup2")))
         .build();
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from acl")) {
-      ResultSetMetaData metadata = rs.getMetaData();
-      Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
-      assertEquals(golden, acl);
-    }
+    ResultSet rs = executeQuery("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    assertEquals(golden, acl);
   }
   
   @Test
@@ -368,12 +361,10 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup1"),
             new GroupPrincipal("dgroup2")))
         .build();
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from acl")) {
-      ResultSetMetaData metadata = rs.getMetaData();
-      Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
-      assertEquals(golden, acl);
-    }
+    ResultSet rs = executeQuery("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    assertEquals(golden, acl);
   }
   
   @Test
@@ -399,12 +390,10 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2"),
             new GroupPrincipal("dgroup1")))
         .build();
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from acl")) {
-      ResultSetMetaData metadata = rs.getMetaData();
-      Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
-      assertEquals(golden, acl);
-    }
+    ResultSet rs = executeQuery("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    assertEquals(golden, acl);
   }
   
   @Test
@@ -420,19 +409,16 @@ public class DatabaseAdaptorTest {
         new UserPrincipal("duser1, duser2"));
     List<GroupPrincipal> goldenGroups = Arrays.asList(
         new GroupPrincipal("dgroup1, dgroup2"));
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from acl")) {
-      ResultSetMetaData metadata = rs.getMetaData();
-      assertTrue("ResultSet is empty", rs.next());
-      ArrayList<UserPrincipal> users =
-          DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
-              GsaSpecialColumns.GSA_DENY_USERS, "", DEFAULT_NAMESPACE);
-      ArrayList<GroupPrincipal> groups =
-          DatabaseAdaptor.getGroupPrincipalsFromResultSet(rs,
-              GsaSpecialColumns.GSA_DENY_GROUPS, "", DEFAULT_NAMESPACE);
-      assertEquals(goldenUsers, users);
-      assertEquals(goldenGroups, groups);
-    }
+    ResultSet rs = executeQueryAndNext("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
+    ArrayList<UserPrincipal> users =
+        DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_DENY_USERS, "", DEFAULT_NAMESPACE);
+    ArrayList<GroupPrincipal> groups =
+        DatabaseAdaptor.getGroupPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_DENY_GROUPS, "", DEFAULT_NAMESPACE);
+    assertEquals(goldenUsers, users);
+    assertEquals(goldenGroups, groups);
   }
   
   @Test
@@ -450,19 +436,16 @@ public class DatabaseAdaptorTest {
     List<GroupPrincipal> goldenGroups = Arrays.asList(
         new GroupPrincipal("dgroup1"),
         new GroupPrincipal("dgroup2"));
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from acl")) {
-      ResultSetMetaData metadata = rs.getMetaData();
-      assertTrue("ResultSet is empty", rs.next());
-      ArrayList<UserPrincipal> users =
-          DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
-              GsaSpecialColumns.GSA_DENY_USERS, " ; ", DEFAULT_NAMESPACE);
-      ArrayList<GroupPrincipal> groups =
-          DatabaseAdaptor.getGroupPrincipalsFromResultSet(rs,
-              GsaSpecialColumns.GSA_DENY_GROUPS, " ; ", DEFAULT_NAMESPACE);
-      assertEquals(goldenUsers, users);
-      assertEquals(goldenGroups, groups);
-    }
+    ResultSet rs = executeQueryAndNext("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
+    ArrayList<UserPrincipal> users =
+        DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_DENY_USERS, " ; ", DEFAULT_NAMESPACE);
+    ArrayList<GroupPrincipal> groups =
+        DatabaseAdaptor.getGroupPrincipalsFromResultSet(rs,
+            GsaSpecialColumns.GSA_DENY_GROUPS, " ; ", DEFAULT_NAMESPACE);
+    assertEquals(goldenUsers, users);
+    assertEquals(goldenGroups, groups);
   }
 
   @Test

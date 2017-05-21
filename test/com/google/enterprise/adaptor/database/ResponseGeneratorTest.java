@@ -14,11 +14,11 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
@@ -43,7 +43,6 @@ import java.nio.file.Path;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
@@ -132,13 +131,10 @@ public class ResponseGeneratorTest {
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      resgen.generateResponse(rs, response);
-      String responseMsg = bar.baos.toString(UTF_8.name());
-      assertEquals(content, responseMsg);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
   }
 
   @Test
@@ -159,12 +155,9 @@ public class ResponseGeneratorTest {
     cfg.put("columnName", "wrongcolumn");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      thrown.expect(java.sql.SQLException.class);
-      resgen.generateResponse(rs, response);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    thrown.expect(java.sql.SQLException.class);
+    resgen.generateResponse(rs, response);
   }
 
   @Test
@@ -197,13 +190,10 @@ public class ResponseGeneratorTest {
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      resgen.generateResponse(rs, response);
-      String responseMsg = bar.baos.toString(UTF_8.name());
-      assertEquals(content, responseMsg);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
   }
 
   @Test
@@ -224,12 +214,9 @@ public class ResponseGeneratorTest {
     cfg.put("columnName", "wrongcolumn");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      thrown.expect(java.sql.SQLException.class);
-      resgen.generateResponse(rs, response);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    thrown.expect(java.sql.SQLException.class);
+    resgen.generateResponse(rs, response);
   }
 
   private static void writeDataToFile(File f, String content)
@@ -265,13 +252,10 @@ public class ResponseGeneratorTest {
           + testFile.getAbsolutePath() + "')");
 
       ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
-      try (Statement stmt = getConnection().createStatement();
-          ResultSet rs = stmt.executeQuery("select * from data")) {
-        assertTrue("ResultSet is empty", rs.next());
-        resgen.generateResponse(rs, response);
-        String responseMsg = far.baos.toString(UTF_8.name());
-        assertEquals(content, responseMsg);
-      }
+      ResultSet rs = executeQueryAndNext("select * from data");
+      resgen.generateResponse(rs, response);
+      String responseMsg = far.baos.toString(UTF_8.name());
+      assertEquals(content, responseMsg);
     } finally {
       if (null != testFile) {
         testFile.delete();
@@ -298,12 +282,9 @@ public class ResponseGeneratorTest {
           + testFile.getAbsolutePath() + "')");
 
       ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
-      try (Statement stmt = getConnection().createStatement();
-          ResultSet rs = stmt.executeQuery("select * from data")) {
-        assertTrue("ResultSet is empty", rs.next());
-        thrown.expect(java.sql.SQLException.class);
-        resgen.generateResponse(rs, response);
-      }
+      ResultSet rs = executeQueryAndNext("select * from data");
+      thrown.expect(java.sql.SQLException.class);
+      resgen.generateResponse(rs, response);
     } finally {
       if (null != testFile) {
         testFile.delete();
@@ -333,15 +314,12 @@ public class ResponseGeneratorTest {
       executeUpdate("insert into data(url) values ('" + testUri + "')");
 
       ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
-      try (Statement stmt = getConnection().createStatement();
-          ResultSet rs = stmt.executeQuery("select * from data")) {
-        assertTrue("ResultSet is empty", rs.next());
-        resgen.generateResponse(rs, response);
-        String responseMsg = uar.baos.toString(UTF_8.name());
-        assertEquals(content, responseMsg);
-        assertEquals("text/plain", uar.contentType);
-        assertEquals(testUri, uar.displayUrl);
-      }
+      ResultSet rs = executeQueryAndNext("select * from data");
+      resgen.generateResponse(rs, response);
+      String responseMsg = uar.baos.toString(UTF_8.name());
+      assertEquals(content, responseMsg);
+      assertEquals("text/plain", uar.contentType);
+      assertEquals(testUri, uar.displayUrl);
     } finally {
       if (null != testFile) {
         testFile.delete();
@@ -367,12 +345,9 @@ public class ResponseGeneratorTest {
       executeUpdate("insert into data(url) values ('some URL')");
 
       ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
-      try (Statement stmt = getConnection().createStatement();
-          ResultSet rs = stmt.executeQuery("select * from data")) {
-        assertTrue("ResultSet is empty", rs.next());
-        thrown.expect(java.sql.SQLException.class);
-        resgen.generateResponse(rs, response);
-      }
+      ResultSet rs = executeQueryAndNext("select * from data");
+      thrown.expect(java.sql.SQLException.class);
+      resgen.generateResponse(rs, response);
     } finally {
       if (null != testFile) {
         testFile.delete();
@@ -414,14 +389,11 @@ public class ResponseGeneratorTest {
     cfg.put("contentTypeOverride", "dev/rubish");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      resgen.generateResponse(rs, response);
-      String responseMsg = bar.baos.toString(UTF_8.name());
-      assertEquals(content, responseMsg);
-      assertEquals("dev/rubish", bar.contentType);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
+    assertEquals("dev/rubish", bar.contentType);
   }
 
   @Test
@@ -445,14 +417,11 @@ public class ResponseGeneratorTest {
     cfg.put("contentTypeCol", "contentType");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      resgen.generateResponse(rs, response);
-      String responseMsg = bar.baos.toString(UTF_8.name());
-      assertEquals(content, responseMsg);
-      assertEquals("text/rtf", bar.contentType);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
+    assertEquals("text/rtf", bar.contentType);
   }
 
   @Test
@@ -477,14 +446,11 @@ public class ResponseGeneratorTest {
     cfg.put("displayUrlCol", "url");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
+    ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
     String responseMsg = bar.baos.toString(UTF_8.name());
     assertEquals(content, responseMsg);
     assertEquals(new URI(url), bar.displayUrl);
-    }
   }
 
   @Test
@@ -521,14 +487,11 @@ public class ResponseGeneratorTest {
     cfg.put("contentTypeOverride", "dev/rubish");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      resgen.generateResponse(rs, response);
-      String responseMsg = bar.baos.toString(UTF_8.name());
-      assertEquals(content, responseMsg);
-      assertEquals("dev/rubish", bar.contentType);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
+    assertEquals("dev/rubish", bar.contentType);
   }
 
   @Test
@@ -552,14 +515,11 @@ public class ResponseGeneratorTest {
     cfg.put("contentTypeCol", "contentType");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      resgen.generateResponse(rs, response);
-      String responseMsg = bar.baos.toString(UTF_8.name());
-      assertEquals(content, responseMsg);
-      assertEquals("text/rtf", bar.contentType);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
+    assertEquals("text/rtf", bar.contentType);
   }
 
   @Test
@@ -583,14 +543,11 @@ public class ResponseGeneratorTest {
     cfg.put("displayUrlCol", "url");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      resgen.generateResponse(rs, response);
-      String responseMsg = bar.baos.toString(UTF_8.name());
-      assertEquals(content, responseMsg);
-      assertEquals(new URI(url), bar.displayUrl);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    String responseMsg = bar.baos.toString(UTF_8.name());
+    assertEquals(content, responseMsg);
+    assertEquals(new URI(url), bar.displayUrl);
   }
 
   @Test
@@ -615,15 +572,12 @@ public class ResponseGeneratorTest {
           + "', '" + url + "')");
 
       ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
-      try (Statement stmt = getConnection().createStatement();
-          ResultSet rs = stmt.executeQuery("select * from data")) {
-        assertTrue("ResultSet is empty", rs.next());
-        resgen.generateResponse(rs, response);
-        String responseMsg = uar.baos.toString(UTF_8.name());
-        assertEquals(content, responseMsg);
-        assertEquals("text/plain", uar.contentType);
-        assertEquals(new URI(url), uar.displayUrl);
-      }
+      ResultSet rs = executeQueryAndNext("select * from data");
+      resgen.generateResponse(rs, response);
+      String responseMsg = uar.baos.toString(UTF_8.name());
+      assertEquals(content, responseMsg);
+      assertEquals("text/plain", uar.contentType);
+      assertEquals(new URI(url), uar.displayUrl);
     } finally {
       if (null != testFile) {
         testFile.delete();

@@ -14,14 +14,20 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static org.junit.Assert.assertTrue;
+
 import org.h2.jdbcx.JdbcDataSource;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayDeque;
 
 /** Manages an in-memory H2 database for test purposes. */
 class JdbcFixture {
+  private static ArrayDeque<AutoCloseable> openObjects = new ArrayDeque<>();
+
   /**
    * Gets a JDBC connection to a named in-memory database.
    * <p>
@@ -48,7 +54,32 @@ class JdbcFixture {
   }
 
   public static void dropAllObjects() throws SQLException {
+    try {
+      for (AutoCloseable object : openObjects) {
+        object.close();
+      }
+    } catch (Exception e) {
+      if (e instanceof SQLException) {
+        throw (SQLException) e;
+      } else {
+        throw new AssertionError(e);
+      }
+    }
     executeUpdate("drop all objects");
+  }
+
+  public static ResultSet executeQuery(String sql) throws SQLException {
+    Statement stmt = getConnection().createStatement();
+    openObjects.addFirst(stmt);
+    ResultSet rs = stmt.executeQuery(sql);
+    openObjects.addFirst(rs);
+    return rs;
+  }
+
+  public static ResultSet executeQueryAndNext(String sql) throws SQLException {
+    ResultSet rs = executeQuery(sql);
+    assertTrue("ResultSet is empty", rs.next());
+    return rs;
   }
 
   public static void executeUpdate(String... sqls) throws SQLException {
