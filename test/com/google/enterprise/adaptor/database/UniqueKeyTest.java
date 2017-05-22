@@ -274,22 +274,17 @@ public class UniqueKeyTest {
         id = uk.makeUniqueId(rs, /*encode=*/ true);
       }
 
-      executeUpdate("delete from data");
-
-      String sql = "insert into data(a, b) values (?, ?)";
+      String sql = "select * from data where a = ? and b = ?";
       try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
         uk.setContentSqlValues(ps, id);
-        assertEquals(1, ps.executeUpdate());
+        try (ResultSet rs = ps.executeQuery()) {
+          assertTrue("ResultSet is empty", rs.next());
+          assertEquals(elem1, rs.getString(1));
+          assertEquals(elem2, rs.getString(2));
+        }
       } catch (Exception e) {
         throw new RuntimeException("elem1: " + elem1 + ", elem2: " + elem2 
             + ", id: " + id, e);
-      }
-
-      try (Statement stmt = getConnection().createStatement();
-          ResultSet rs = stmt.executeQuery("select * from data")) {
-        assertTrue("ResultSet is empty", rs.next());
-        assertEquals(elem1, rs.getString(1));
-        assertEquals(elem2, rs.getString(2));
       }
     } finally {
       dropAllObjects();
