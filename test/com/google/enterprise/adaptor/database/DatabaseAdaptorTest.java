@@ -15,8 +15,9 @@
 package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
-import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -32,21 +33,15 @@ import com.google.enterprise.adaptor.TestHelper;
 import com.google.enterprise.adaptor.UserPrincipal;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
 import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -55,15 +50,6 @@ import org.junit.rules.ExpectedException;
 public class DatabaseAdaptorTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();
-
-  @Before
-  public void createTables() throws SQLException {
-    executeUpdate("create table acl("
-        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
-  }
 
   @After
   public void dropAllObjects() throws SQLException {
@@ -248,16 +234,20 @@ public class DatabaseAdaptorTest {
   public void testAclSqlResultSetHasNoRecord() throws SQLException {
     Acl golden = Acl.EMPTY;
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from acl")) {
-      ResultSetMetaData metadata = rs.getMetaData();
-      Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
-      assertEquals(golden, acl);
-    }
+    executeUpdate("create table acl");
+    ResultSet rs = executeQuery("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    assertEquals(golden, acl);
   }
 
   @Test
   public void testAclSqlResultSetHasOneRecord() throws SQLException {
+    executeUpdate("create table acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar,"
+        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar,"
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
     executeUpdate("insert into acl("
         + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
         + GsaSpecialColumns.GSA_PERMIT_USERS + ","
@@ -279,39 +269,34 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2"),
             new GroupPrincipal("dgroup1")))
         .build();
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from acl")) {
-      ResultSetMetaData metadata = rs.getMetaData();
-      Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
-      assertEquals(golden, acl);
-    }
+    ResultSet rs = executeQuery("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
+    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    assertEquals(golden, acl);
   }
 
   @Test
   public void testAclSqlResultSetHasNonOverlappingTwoRecord()
       throws SQLException {
-    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
-    Map<String, String> record = new TreeMap<String, String>();
-    record.put(GsaSpecialColumns.GSA_PERMIT_USERS.toString(), "puser1, puser2");
-    record.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser1, duser2");
-    record.put(
-        GsaSpecialColumns.GSA_PERMIT_GROUPS.toString(), "pgroup1, pgroup2");
-    record.put(
-        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup2");
-    mockResultSet.addRecord(record);
-    Map<String, String> record2 = new TreeMap<String, String>();
-    record2.put(
-        GsaSpecialColumns.GSA_PERMIT_USERS.toString(), "puser3, puser4");
-    record2.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser3, duser4");
-    record2.put(
-        GsaSpecialColumns.GSA_PERMIT_GROUPS.toString(), "pgroup3, pgroup4");
-    record2.put(
-        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup3, dgroup4");
-    mockResultSet.addRecord(record2);
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, mockResultSet);
-    ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
+    executeUpdate("create table acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar,"
+        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar,"
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+    executeUpdate("insert into acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
+        + GsaSpecialColumns.GSA_PERMIT_USERS + ","
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
+        + "'pgroup1, pgroup2', 'puser1, puser2', "
+        + "'dgroup1, dgroup2', 'duser1, duser2')");
+    executeUpdate("insert into acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
+        + GsaSpecialColumns.GSA_PERMIT_USERS + ","
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
+        + "'pgroup3, pgroup4', 'puser3, puser4', "
+        + "'dgroup3, dgroup4', 'duser3, duser4')");
     Acl golden = new Acl.Builder()
         .setPermitUsers(Arrays.asList(
             new UserPrincipal("puser2"),
@@ -334,6 +319,8 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup4"),
             new GroupPrincipal("dgroup2")))
         .build();
+    ResultSet rs = executeQuery("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
     Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
@@ -341,28 +328,25 @@ public class DatabaseAdaptorTest {
   @Test
   public void testAclSqlResultSetHasOverlappingTwoRecord()
       throws SQLException {
-    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
-    Map<String, String> record = new TreeMap<String, String>();
-    record.put(GsaSpecialColumns.GSA_PERMIT_USERS.toString(), "puser1, puser2");
-    record.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser1, duser2");
-    record.put(
-        GsaSpecialColumns.GSA_PERMIT_GROUPS.toString(), "pgroup1, pgroup1");
-    record.put(
-        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup1");
-    mockResultSet.addRecord(record);
-    Map<String, String> record2 = new TreeMap<String, String>();
-    record2.put(
-        GsaSpecialColumns.GSA_PERMIT_USERS.toString(), "puser2, puser1");
-    record2.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser4, duser2");
-    record2.put(
-        GsaSpecialColumns.GSA_PERMIT_GROUPS.toString(), "pgroup1");
-    record2.put(
-        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup2, dgroup2");
-    mockResultSet.addRecord(record2);
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, mockResultSet);
-    ResultSetMetaData metadata = getResultSetMetaDataHasAllAclColumns();
+    executeUpdate("create table acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar,"
+        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar,"
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+    executeUpdate("insert into acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
+        + GsaSpecialColumns.GSA_PERMIT_USERS + ","
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
+        + "'pgroup1, pgroup1', 'puser1, puser2', "
+        + "'dgroup1, dgroup1', 'duser1, duser2')");
+    executeUpdate("insert into acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
+        + GsaSpecialColumns.GSA_PERMIT_USERS + ","
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
+        + "'pgroup1', 'puser2, puser1', "
+        + "'dgroup2, dgroup2', 'duser4, duser2')");
     Acl golden = new Acl.Builder()
         .setPermitUsers(Arrays.asList(
             new UserPrincipal("puser2"),
@@ -377,32 +361,24 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup1"),
             new GroupPrincipal("dgroup2")))
         .build();
+    ResultSet rs = executeQuery("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
     Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
   @Test
   public void testAclSqlResultSetOneColumnMissing() throws SQLException {
-    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
-    Map<String, String> record = new TreeMap<String, String>();
-    record.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser1, duser2");
-    record.put(
-        GsaSpecialColumns.GSA_PERMIT_GROUPS.toString(), "pgroup1, pgroup2");
-    record.put(
-        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup2");
-    mockResultSet.addRecord(record);
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, mockResultSet);
-    MockAclSqlResultSetMetaData mockMetadata =
-        new MockAclSqlResultSetMetaData();
-    mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_USERS.toString());
-    mockMetadata.addColumn(GsaSpecialColumns.GSA_PERMIT_GROUPS.toString());
-    mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_GROUPS.toString());
-    ResultSetMetaData metadata =
-        (ResultSetMetaData) Proxy.newProxyInstance(
-            ResultSetMetaData.class.getClassLoader(),
-            new Class[] {ResultSetMetaData.class}, mockMetadata);
+    executeUpdate("create table acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar,"
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+    executeUpdate("insert into acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
+        + "'pgroup1, pgroup2', "
+        + "'dgroup1, dgroup2', 'duser1, duser2')");
     Acl golden = new Acl.Builder()
         .setDenyUsers(Arrays.asList(
             new UserPrincipal("duser1"),
@@ -414,26 +390,27 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2"),
             new GroupPrincipal("dgroup1")))
         .build();
+    ResultSet rs = executeQuery("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
     Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
   @Test
   public void testGetPrincipalsWithEmptyDelim() throws SQLException {
-    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
-    Map<String, String> record = new TreeMap<String, String>();
-    record.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser1, duser2");
-    record.put(
-        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1, dgroup2");
-    mockResultSet.addRecord(record);
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, mockResultSet);
-    rs.next();
+    executeUpdate("create table acl("
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+    executeUpdate("insert into acl("
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
+        + "'dgroup1, dgroup2', 'duser1, duser2')");
     List<UserPrincipal> goldenUsers = Arrays.asList(
         new UserPrincipal("duser1, duser2"));
     List<GroupPrincipal> goldenGroups = Arrays.asList(
         new GroupPrincipal("dgroup1, dgroup2"));
+    ResultSet rs = executeQueryAndNext("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
     ArrayList<UserPrincipal> users =
         DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_USERS, "", DEFAULT_NAMESPACE);
@@ -446,22 +423,21 @@ public class DatabaseAdaptorTest {
   
   @Test
   public void testGetPrincipalsWithUserDefinedDelim() throws SQLException {
-    MockAclSqlResultSet mockResultSet = new MockAclSqlResultSet();
-    Map<String, String> record = new TreeMap<String, String>();
-    record.put(GsaSpecialColumns.GSA_DENY_USERS.toString(), "duser1 ; duser2");
-    record.put(
-        GsaSpecialColumns.GSA_DENY_GROUPS.toString(), "dgroup1 ; dgroup2");
-    mockResultSet.addRecord(record);
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, mockResultSet);
-    rs.next();
+    executeUpdate("create table acl("
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+    executeUpdate("insert into acl("
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
+        + "'dgroup1 ; dgroup2', 'duser1 ; duser2')");
     List<UserPrincipal> goldenUsers = Arrays.asList(
         new UserPrincipal("duser1"), 
         new UserPrincipal("duser2"));
     List<GroupPrincipal> goldenGroups = Arrays.asList(
         new GroupPrincipal("dgroup1"),
         new GroupPrincipal("dgroup2"));
+    ResultSet rs = executeQueryAndNext("select * from acl");
+    ResultSetMetaData metadata = rs.getMetaData();
     ArrayList<UserPrincipal> users =
         DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_USERS, " ; ", DEFAULT_NAMESPACE);
@@ -595,74 +571,5 @@ public class DatabaseAdaptorTest {
     assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
     assertEquals("gsa1", adaptor.metadataColumns.getMetadataName("db_col1"));
     assertEquals("gsa2", adaptor.metadataColumns.getMetadataName("col2"));
-  }
-
-  private static class MockAclSqlResultSet implements InvocationHandler {
-    private ArrayList<Map<String, String>> records;
-    private int cursor;
-    
-    public MockAclSqlResultSet() {
-      records = new ArrayList<Map<String, String>>();
-      cursor = -1;
-    }
-    
-    public void addRecord(Map<String, String> record) {
-      records.add(record);
-    }
-
-    @Override
-    public Object invoke(Object proxy, Method method, Object[] args)
-        throws Throwable {
-      String methodName = method.getName(); 
-      if ("getString".equals(methodName)) {
-        return records.get(cursor).get(args[0]);
-      } else if ("next".equals(methodName)) {
-        cursor++;
-        return cursor < records.size();
-      } else {
-        throw new IllegalStateException("unexpected call: " + methodName);
-      }
-    }
-  }
-  
-  private static class MockAclSqlResultSetMetaData
-      implements InvocationHandler {
-    private ArrayList<String> columns;
-    
-    public MockAclSqlResultSetMetaData() {
-      columns = new ArrayList<String>();
-      columns.add(""); // ResultSetMetaData column index starts from 1
-    }
-    
-    public void addColumn(String column) {
-      columns.add(column);
-    }
-
-    @Override
-    public Object invoke(Object proxy, Method method, Object[] args)
-        throws Throwable {
-      String methodName = method.getName(); 
-      if ("getColumnCount".equals(methodName)) {
-        return columns.size() - 1; // don't count the first empty string
-      } else if ("getColumnLabel".equals(methodName)) {
-        return columns.get((Integer) args[0]);
-      } else if ("getColumnName".equals(methodName)) {
-        throw new IllegalStateException("use getColumnLabel method instead");
-      } else {
-        throw new IllegalStateException("unexpected call: " + methodName);
-      }
-    }
-  }
-
-  private static ResultSetMetaData getResultSetMetaDataHasAllAclColumns() {
-    MockAclSqlResultSetMetaData mockMetadata =
-        new MockAclSqlResultSetMetaData();
-    mockMetadata.addColumn(GsaSpecialColumns.GSA_PERMIT_USERS.toString());
-    mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_USERS.toString());
-    mockMetadata.addColumn(GsaSpecialColumns.GSA_PERMIT_GROUPS.toString());
-    mockMetadata.addColumn(GsaSpecialColumns.GSA_DENY_GROUPS.toString());
-    return (ResultSetMetaData) Proxy.newProxyInstance(
-        ResultSetMetaData.class.getClassLoader(),
-        new Class[] {ResultSetMetaData.class}, mockMetadata);
   }
 }

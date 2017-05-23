@@ -14,11 +14,11 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
 import org.junit.After;
 import org.junit.Rule;
@@ -27,19 +27,10 @@ import org.junit.rules.ExpectedException;
 import org.xml.sax.InputSource;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.Reader;
 import java.io.StringWriter;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.sql.Time;
-import java.sql.Timestamp;
-import java.sql.Types;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -94,7 +85,6 @@ public class TupleReaderTest {
   public void testNULL() throws Exception {
     executeUpdate("create table data(colname varchar)");
     executeUpdate("insert into data(colname) values(null)");
-
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -103,13 +93,9 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      String result = generateXml(rs);
-      assertEquals(golden, result);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
   }
 
   /**
@@ -119,7 +105,6 @@ public class TupleReaderTest {
   public void testVARCHAR() throws Exception {
     executeUpdate("create table data(colname varchar)");
     executeUpdate("insert into data(colname) values('onevalue')");
-
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -128,13 +113,9 @@ public class TupleReaderTest {
         + "</table_rec>"
         + "</table>"
         + "</database>";
-
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      String result = generateXml(rs);
-      assertEquals(golden, result);
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
   }
 
   /**
@@ -142,26 +123,17 @@ public class TupleReaderTest {
    */
   @Test
   public void testChar() throws Exception {
+    executeUpdate("create table data(colname char)");
+    executeUpdate("insert into data(colname) values('onevalue')");
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<colname SQLType=\"CHAR\">onevalue</colname>"
+        + "<COLNAME SQLType=\"CHAR\">onevalue</COLNAME>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    int[] columnType = {Types.CHAR};
-    String[] columnName = {"colname"};
-    MockResultSetMetaData metadata =
-        new MockResultSetMetaData(columnType, columnName);
-    ResultSetMetaData rsMetadata =
-        (ResultSetMetaData) Proxy.newProxyInstance(
-            ResultSetMetaData.class.getClassLoader(),
-            new Class[] {ResultSetMetaData.class}, metadata);
-    MockResultSet resultSet = new MockResultSet(rsMetadata, "onevalue");
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, resultSet);
+    ResultSet rs = executeQueryAndNext("select * from data");
     String result = generateXml(rs);
     assertEquals(golden, result);
   }
@@ -171,26 +143,17 @@ public class TupleReaderTest {
    */
   @Test
   public void testINTEGER() throws Exception {
+    executeUpdate("create table data(colname integer)");
+    executeUpdate("insert into data(colname) values(17)");
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<colname SQLType=\"INTEGER\">17</colname>"
+        + "<COLNAME SQLType=\"INTEGER\">17</COLNAME>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    int[] columnType = {Types.INTEGER};
-    String[] columnName = {"colname"};
-    MockResultSetMetaData metadata =
-        new MockResultSetMetaData(columnType, columnName);
-    ResultSetMetaData rsMetadata =
-        (ResultSetMetaData) Proxy.newProxyInstance(
-            ResultSetMetaData.class.getClassLoader(),
-            new Class[] {ResultSetMetaData.class}, metadata);
-    MockResultSet resultSet = new MockResultSet(rsMetadata, "17");
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, resultSet);
+    ResultSet rs = executeQueryAndNext("select * from data");
     String result = generateXml(rs);
     assertEquals(golden, result);
   }
@@ -200,31 +163,17 @@ public class TupleReaderTest {
    */
   @Test
   public void testDATE() throws Exception {
+    executeUpdate("create table data(colname date)");
+    executeUpdate("insert into data(colname) values({d '2004-10-06'})");
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<colname SQLType=\"DATE\">2004-10-06</colname>"
+        + "<COLNAME SQLType=\"DATE\">2004-10-06</COLNAME>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    int[] columnType = {Types.DATE};
-    String[] columnName = {"colname"};
-    MockResultSetMetaData metadata =
-        new MockResultSetMetaData(columnType, columnName);
-    ResultSetMetaData rsMetadata =
-        (ResultSetMetaData) Proxy.newProxyInstance(
-            ResultSetMetaData.class.getClassLoader(),
-            new Class[] {ResultSetMetaData.class}, metadata);
-    Calendar cal = Calendar.getInstance();
-    cal.set(Calendar.YEAR, 2004);
-    cal.set(Calendar.MONTH, Calendar.OCTOBER);
-    cal.set(Calendar.DATE, 6);
-    java.sql.Date retDate = new java.sql.Date(cal.getTime().getTime());
-    MockResultSet resultSet = new MockResultSet(rsMetadata, retDate);
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, resultSet);
+    ResultSet rs = executeQueryAndNext("select * from data");
     String result = generateXml(rs);
     assertEquals(golden, result);
   }
@@ -234,6 +183,9 @@ public class TupleReaderTest {
    */
   @Test
   public void testTIMESTAMP() throws Exception {
+    executeUpdate("create table data(colname timestamp)");
+    executeUpdate(
+        "insert into data(colname) values ({ts '2004-10-06T09:15:30'})");
     DateFormat timeZoneFmt = new SimpleDateFormat("X");
     Calendar cal = Calendar.getInstance(TimeZone.getDefault());
     cal.set(Calendar.YEAR, 2004);
@@ -247,26 +199,13 @@ public class TupleReaderTest {
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<colname SQLType=\"TIMESTAMP\">2004-10-06T09:15:30"
+        + "<COLNAME SQLType=\"TIMESTAMP\">2004-10-06T09:15:30"
         + timeZoneFmt.format(date) + ":00"
-        + "</colname>"
+        + "</COLNAME>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    int[] columnType = {Types.TIMESTAMP};
-    String[] columnName = {"colname"};
-    MockResultSetMetaData metadata =
-        new MockResultSetMetaData(columnType, columnName);
-    ResultSetMetaData rsMetadata =
-        (ResultSetMetaData) Proxy.newProxyInstance(
-            ResultSetMetaData.class.getClassLoader(),
-            new Class[] {ResultSetMetaData.class}, metadata);
-    long gmtTime = cal.getTime().getTime();
-    java.sql.Timestamp retDate = new java.sql.Timestamp(gmtTime);
-    MockResultSet resultSet = new MockResultSet(rsMetadata, retDate);
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, resultSet);
+    ResultSet rs = executeQueryAndNext("select * from data");
     String result = generateXml(rs);
     assertEquals(golden, result);
   }
@@ -276,11 +215,14 @@ public class TupleReaderTest {
    */
   @Test
   public void testTIME() throws Exception {
+    executeUpdate("create table data(colname time)");
+    executeUpdate("insert into data(colname) values({t '09:15:30'})");
+    // H2 returns a java.sql.Date with the date set to 1970-01-01.
     final DateFormat timeZoneFmt = new SimpleDateFormat("X");
     Calendar cal = Calendar.getInstance(TimeZone.getDefault());
-    cal.set(Calendar.YEAR, 2004);
-    cal.set(Calendar.MONTH, Calendar.OCTOBER);
-    cal.set(Calendar.DATE, 6);
+    cal.set(Calendar.YEAR, 1970);
+    cal.set(Calendar.MONTH, Calendar.JANUARY);
+    cal.set(Calendar.DATE, 1);
     cal.set(Calendar.HOUR, 9);
     cal.set(Calendar.MINUTE, 15);
     cal.set(Calendar.SECOND, 30);
@@ -289,26 +231,13 @@ public class TupleReaderTest {
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<colname SQLType=\"TIME\">09:15:30"
+        + "<COLNAME SQLType=\"TIME\">09:15:30"
         + timeZoneFmt.format(date) + ":00"
-        + "</colname>"
+        + "</COLNAME>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    int[] columnType = {Types.TIME};
-    String[] columnName = {"colname"};
-    MockResultSetMetaData metadata =
-        new MockResultSetMetaData(columnType, columnName);
-    ResultSetMetaData rsMetadata =
-        (ResultSetMetaData) Proxy.newProxyInstance(
-            ResultSetMetaData.class.getClassLoader(),
-            new Class[] {ResultSetMetaData.class}, metadata);
-    long gmtTime = cal.getTime().getTime();
-    java.sql.Time retDate = new java.sql.Time(gmtTime);
-    MockResultSet resultSet = new MockResultSet(rsMetadata, retDate);
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, resultSet);
+    ResultSet rs = executeQueryAndNext("select * from data");
     String result = generateXml(rs);
     assertEquals(golden, result);
   }
@@ -336,94 +265,26 @@ public class TupleReaderTest {
             + " prevent it, the automatic facilities used to create"
             + " the indices are likely to find that site and index it"
             + " again in a relatively short amount of time.";
+    executeUpdate("create table data(colname blob)");
+    String sql = "insert into data(colname) values (?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setBinaryStream(1, new ByteArrayInputStream(blobData.getBytes(UTF_8)));
+      assertEquals(1, ps.executeUpdate());
+    }
     String base64BlobData = DatatypeConverter.printBase64Binary(
-        blobData.getBytes());
+        blobData.getBytes(UTF_8));
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<colname SQLType=\"LONGVARBINARY\" encoding=\"base64binary\">"
+        + "<COLNAME SQLType=\"BLOB\" encoding=\"base64binary\">"
         + base64BlobData
-        + "</colname>"
+        + "</COLNAME>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
-    int[] columnType = {Types.LONGVARBINARY};
-    String[] columnName = {"colname"};
-    MockResultSetMetaData metadata =
-        new MockResultSetMetaData(columnType, columnName);
-    ResultSetMetaData rsMetadata =
-        (ResultSetMetaData) Proxy.newProxyInstance(
-            ResultSetMetaData.class.getClassLoader(),
-            new Class[] {ResultSetMetaData.class}, metadata);
-    MockResultSet resultSet = new MockResultSet(rsMetadata,
-        new ByteArrayInputStream(blobData.getBytes()));
-    ResultSet rs =
-        (ResultSet) Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
-            new Class[] {ResultSet.class}, resultSet);
+    ResultSet rs = executeQueryAndNext("select * from data");
     String result = generateXml(rs);
     assertEquals(golden, result);
-  }
-  
-  private static class MockResultSet implements InvocationHandler {
-    private ResultSetMetaData metadata;
-    private Object sqlObjectValue;
-    public MockResultSet(ResultSetMetaData metadata, Object value) {
-      this.metadata = metadata;
-      this.sqlObjectValue = value;
-    }
-    
-    @Override
-    public Object invoke(Object proxy, Method method, Object[] args)
-        throws Throwable {
-      String methodName = method.getName(); 
-      if ("getMetaData".equals(methodName)) {
-        return metadata;
-      } else if ("getDate".equals(methodName)) {
-        return (Date) sqlObjectValue;
-      } else if ("getTimestamp".equals(methodName)) {
-        return (Timestamp) sqlObjectValue;
-      } else if ("getTime".equals(methodName)) {
-        return (Time) sqlObjectValue;
-      } else if ("getBinaryStream".equals(methodName)) {
-        return (InputStream) sqlObjectValue;
-      } else if ("getString".equals(methodName)) {
-        return (String) sqlObjectValue;
-      } else if ("getCharacterStream".equals(methodName)) {
-        return (Reader) sqlObjectValue;
-      } else if ("getObject".equals(methodName)) {
-        return sqlObjectValue;
-      } else {
-        throw new AssertionError("unexpected call: " + methodName);
-      }
-    }
-  }
-  
-  private static class MockResultSetMetaData implements InvocationHandler {
-    private int[] columnType;
-    private String[] columnName;
-    
-    public MockResultSetMetaData(int[] columnType, String[] columnName) {
-      assertNotNull(columnType);
-      assertNotNull(columnName);
-      assertEquals(columnType.length, columnName.length);
-      this.columnType = columnType;
-      this.columnName = columnName;
-    }
-    
-    @Override
-    public Object invoke(Object proxy, Method method, Object[] args)
-        throws Throwable {
-      String methodName = method.getName();
-      if ("getColumnCount".equals(methodName)) {
-        return columnType.length;
-      } else if ("getColumnLabel".equals(methodName)) {
-        return columnName[(Integer) args[0] - 1];
-      } else if ("getColumnType".equals(methodName)) {
-        return columnType[(Integer) args[0] - 1];
-      } else {
-        throw new AssertionError("unexpected call: " + methodName);
-      }
-    }
   }
 }
