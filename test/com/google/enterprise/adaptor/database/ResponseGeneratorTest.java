@@ -31,7 +31,6 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -39,7 +38,6 @@ import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -61,10 +59,10 @@ public class ResponseGeneratorTest {
   }
 
   /** Writes the string to a temp file as UTF-8 and returns the path. */
-  private String writeTempFile(String content) throws IOException {
-    Path file = tempFolder.newFile().toPath();
-    Files.write(file, content.getBytes(UTF_8));
-    return file.toString();
+  private File writeTempFile(String content) throws IOException {
+    File file = tempFolder.newFile("db.rg.test.txt");
+    Files.write(file.toPath(), content.getBytes(UTF_8));
+    return file;
   }
 
   @Test
@@ -113,6 +111,11 @@ public class ResponseGeneratorTest {
     }
   }
 
+  private <T> T newProxyInstance(Class<T> clazz, InvocationHandler handler) {
+    return clazz.cast(Proxy.newProxyInstance(clazz.getClassLoader(),
+        new Class<?>[] { clazz }, handler));
+  }
+
   @Test
   public void testBlobColumnModeServesResultBlob() throws Exception {
     String content = "hello world";
@@ -124,17 +127,14 @@ public class ResponseGeneratorTest {
     }
 
     MockResponse bar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, bar);
+    Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String responseMsg = bar.baos.toString(UTF_8.name());
-    assertEquals(content, responseMsg);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -148,9 +148,7 @@ public class ResponseGeneratorTest {
     }
 
     MockResponse bar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, bar);
+    Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "wrongcolumn");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
@@ -183,17 +181,14 @@ public class ResponseGeneratorTest {
     }
 
     MockResponse bar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, bar);
+    Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String responseMsg = bar.baos.toString(UTF_8.name());
-    assertEquals(content, responseMsg);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -207,9 +202,7 @@ public class ResponseGeneratorTest {
     }
 
     MockResponse bar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, bar);
+    Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "wrongcolumn");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
@@ -219,149 +212,89 @@ public class ResponseGeneratorTest {
     resgen.generateResponse(rs, response);
   }
 
-  private static void writeDataToFile(File f, String content)
-      throws IOException {
-    FileOutputStream fw = null;
-    try {
-      fw = new FileOutputStream(f);
-      fw.write(content.getBytes(UTF_8));
-      fw.flush();
-    } finally {
-      if (null != fw) {
-        fw.close();
-      }
-    }
-  }
- 
   @Test
   public void testFilepathColumnModeServesResult() throws Exception {
     MockResponse far = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, far);
+    Response response = newProxyInstance(Response.class, far);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "filepath");
-    File testFile = null;
-    try {
-      testFile = File.createTempFile("db.rg.test", ".txt");
-      String content = "we live inside a file\nwe do\nyes";
-      writeDataToFile(testFile, content);
+    String content = "we live inside a file\nwe do\nyes";
+    File testFile = writeTempFile(content);
 
-      executeUpdate("create table data(filepath varchar)");
-      executeUpdate("insert into data(filepath) values ('"
-          + testFile.getAbsolutePath() + "')");
+    executeUpdate("create table data(filepath varchar)");
+    executeUpdate("insert into data(filepath) values ('"
+        + testFile.getAbsolutePath() + "')");
 
-      ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
-      ResultSet rs = executeQueryAndNext("select * from data");
-      resgen.generateResponse(rs, response);
-      String responseMsg = far.baos.toString(UTF_8.name());
-      assertEquals(content, responseMsg);
-    } finally {
-      if (null != testFile) {
-        testFile.delete();
-      }
-    }
+    ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(content, far.baos.toString(UTF_8.name()));
   }
 
   @Test
   public void testFilepathColumnModeIncorrectColumnName() throws Exception {
     MockResponse far = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, far);
+    Response response = newProxyInstance(Response.class, far);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "wrongcolumn");
-    File testFile = null;
-    try {
-      testFile = File.createTempFile("db.rg.test", ".txt");
-      String content = "we live inside a file\nwe do\nyes";
-      writeDataToFile(testFile, content);
+    String content = "we live inside a file\nwe do\nyes";
+    File testFile = writeTempFile(content);
 
-      executeUpdate("create table data(filepath varchar)");
-      executeUpdate("insert into data(filepath) values ('"
-          + testFile.getAbsolutePath() + "')");
+    executeUpdate("create table data(filepath varchar)");
+    executeUpdate("insert into data(filepath) values ('"
+        + testFile.getAbsolutePath() + "')");
 
-      ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
-      ResultSet rs = executeQueryAndNext("select * from data");
-      thrown.expect(java.sql.SQLException.class);
-      resgen.generateResponse(rs, response);
-    } finally {
-      if (null != testFile) {
-        testFile.delete();
-      }
-    }
+    ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
+    ResultSet rs = executeQueryAndNext("select * from data");
+    thrown.expect(java.sql.SQLException.class);
+    resgen.generateResponse(rs, response);
   }
  
   @Test
   public void testUrlColumnModeServesResult() throws Exception {
     MockResponse uar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, uar);
+    Response response = newProxyInstance(Response.class, uar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "url");
-    File testFile = null;
-    try {
-      testFile = File.createTempFile("db.rg.test", ".txt");
-      String content = "from a yellow url connection comes monty python";
-      writeDataToFile(testFile, content);
-      // File.toURI() produces file:/path/to/temp/file, which is invalid.
-      URI testUri = testFile.toURI();
-      testUri = new URI(testUri.getScheme(), "localhost", testUri.getPath(),
-                        null);
+    String content = "from a yellow url connection comes monty python";
+    File testFile = writeTempFile(content);
+    // File.toURI() produces file:/path/to/temp/file, which is invalid.
+    URI testUri = testFile.toURI();
+    testUri = new URI(testUri.getScheme(), "localhost", testUri.getPath(),
+                      null);
 
-      executeUpdate("create table data(url varchar)");
-      executeUpdate("insert into data(url) values ('" + testUri + "')");
+    executeUpdate("create table data(url varchar)");
+    executeUpdate("insert into data(url) values ('" + testUri + "')");
 
-      ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
-      ResultSet rs = executeQueryAndNext("select * from data");
-      resgen.generateResponse(rs, response);
-      String responseMsg = uar.baos.toString(UTF_8.name());
-      assertEquals(content, responseMsg);
-      assertEquals("text/plain", uar.contentType);
-      assertEquals(testUri, uar.displayUrl);
-    } finally {
-      if (null != testFile) {
-        testFile.delete();
-      }
-    }
+    ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(content, uar.baos.toString(UTF_8.name()));
+    assertEquals("text/plain", uar.contentType);
+    assertEquals(testUri, uar.displayUrl);
   }
 
   @Test
   public void testUrlColumnModeIncorrectColumnName() throws Exception {
     MockResponse far = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, far);
+    Response response = newProxyInstance(Response.class, far);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "wrongcolumn");
-    File testFile = null;
-    try {
-      testFile = File.createTempFile("db.rg.test", ".txt");
-      String content = "from a yellow url connection comes monty python";
-      writeDataToFile(testFile, content);
 
-      executeUpdate("create table data(url varchar)");
-      executeUpdate("insert into data(url) values ('some URL')");
+    executeUpdate("create table data(url varchar)");
+    executeUpdate("insert into data(url) values ('some URL')");
 
-      ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
-      ResultSet rs = executeQueryAndNext("select * from data");
-      thrown.expect(java.sql.SQLException.class);
-      resgen.generateResponse(rs, response);
-    } finally {
-      if (null != testFile) {
-        testFile.delete();
-      }
-    }
+    ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
+    ResultSet rs = executeQueryAndNext("select * from data");
+    thrown.expect(java.sql.SQLException.class);
+    resgen.generateResponse(rs, response);
   }
 
   @Test
   public void testBlobColumnModeContentTypeOverrideAndContentTypeCol()
       throws Exception {
     MockResponse bar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, bar);
+    Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
     cfg.put("contentTypeOverride", "dev/rubish");
@@ -381,9 +314,7 @@ public class ResponseGeneratorTest {
     }
 
     MockResponse bar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, bar);
+    Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("contentTypeOverride", "dev/rubish");
@@ -391,8 +322,7 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String responseMsg = bar.baos.toString(UTF_8.name());
-    assertEquals(content, responseMsg);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
     assertEquals("dev/rubish", bar.contentType);
   }
 
@@ -409,9 +339,7 @@ public class ResponseGeneratorTest {
     }
 
     MockResponse bar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, bar);
+    Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("contentTypeCol", "contentType");
@@ -419,8 +347,7 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String responseMsg = bar.baos.toString(UTF_8.name());
-    assertEquals(content, responseMsg);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
     assertEquals("text/rtf", bar.contentType);
   }
 
@@ -438,9 +365,7 @@ public class ResponseGeneratorTest {
     }
 
     MockResponse bar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, bar);
+    Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("displayUrlCol", "url");
@@ -448,8 +373,7 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String responseMsg = bar.baos.toString(UTF_8.name());
-    assertEquals(content, responseMsg);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
     assertEquals(new URI(url), bar.displayUrl);
   }
 
@@ -457,9 +381,7 @@ public class ResponseGeneratorTest {
   public void testClobColumnModeContentTypeOverrideAndContentTypeCol()
       throws Exception {
     MockResponse bar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, bar);
+    Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-clob-col");
     cfg.put("contentTypeOverride", "dev/rubish");
@@ -479,9 +401,7 @@ public class ResponseGeneratorTest {
     }
 
     MockResponse bar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, bar);
+    Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("contentTypeOverride", "dev/rubish");
@@ -489,8 +409,7 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String responseMsg = bar.baos.toString(UTF_8.name());
-    assertEquals(content, responseMsg);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
     assertEquals("dev/rubish", bar.contentType);
   }
 
@@ -507,9 +426,7 @@ public class ResponseGeneratorTest {
     }
 
     MockResponse bar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, bar);
+    Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("contentTypeCol", "contentType");
@@ -517,8 +434,7 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String responseMsg = bar.baos.toString(UTF_8.name());
-    assertEquals(content, responseMsg);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
     assertEquals("text/rtf", bar.contentType);
   }
 
@@ -535,9 +451,7 @@ public class ResponseGeneratorTest {
     }
 
     MockResponse bar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, bar);
+    Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("displayUrlCol", "url");
@@ -545,43 +459,31 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String responseMsg = bar.baos.toString(UTF_8.name());
-    assertEquals(content, responseMsg);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
     assertEquals(new URI(url), bar.displayUrl);
   }
 
   @Test
   public void testUrlColumnModeDisplayUrlCol() throws Exception {
     MockResponse uar = new MockResponse();
-    Response response = (Response) Proxy.newProxyInstance(
-        Response.class.getClassLoader(),
-        new Class[] { Response.class }, uar);
+    Response response = newProxyInstance(Response.class, uar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "fetchUrl");
     cfg.put("displayUrlCol", "url");
-    File testFile = null;
-    try {
-      testFile = File.createTempFile("db.rg.test", ".txt");
-      String content = "from a yellow url connection comes monty python";
-      writeDataToFile(testFile, content);
-      URL testUrl = testFile.toURI().toURL();
+    String content = "from a yellow url connection comes monty python";
+    File testFile = writeTempFile(content);
+    URL testUrl = testFile.toURI().toURL();
 
-      String url = "http://host/hard-coded-disp-url";
-      executeUpdate("create table data(fetchUrl varchar, url varchar)");
-      executeUpdate("insert into data(fetchUrl, url) values ('" + testUrl
-          + "', '" + url + "')");
+    String url = "http://host/hard-coded-disp-url";
+    executeUpdate("create table data(fetchUrl varchar, url varchar)");
+    executeUpdate("insert into data(fetchUrl, url) values ('" + testUrl
+        + "', '" + url + "')");
 
-      ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
-      ResultSet rs = executeQueryAndNext("select * from data");
-      resgen.generateResponse(rs, response);
-      String responseMsg = uar.baos.toString(UTF_8.name());
-      assertEquals(content, responseMsg);
-      assertEquals("text/plain", uar.contentType);
-      assertEquals(new URI(url), uar.displayUrl);
-    } finally {
-      if (null != testFile) {
-        testFile.delete();
-      }
-    }
+    ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(content, uar.baos.toString(UTF_8.name()));
+    assertEquals("text/plain", uar.contentType);
+    assertEquals(new URI(url), uar.displayUrl);
   }
 }
