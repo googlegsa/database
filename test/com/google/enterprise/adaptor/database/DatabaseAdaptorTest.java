@@ -22,7 +22,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.fail;
 
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Config;
@@ -145,14 +144,9 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName", "ur");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    try {
-      adaptor.init(TestHelper.createConfigAdaptorContext(config));
-      fail("Expected an InvalidConfigurationException");
-    } catch (InvalidConfigurationException ice) {
-      if (!ice.getMessage().contains("requires docId.isUrl to be \"true\"")) {
-        throw new RuntimeException("Error message doesn't match expected", ice);
-      }
-    }
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("requires docId.isUrl to be \"true\"");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
   }
 
   @Test
@@ -163,14 +157,9 @@ public class DatabaseAdaptorTest {
     moreEntries.put("docId.isUrl", "false");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    try {
-      adaptor.init(TestHelper.createConfigAdaptorContext(config));
-      fail("Expected an InvalidConfigurationException");
-    } catch (InvalidConfigurationException ice) {
-      if (!ice.getMessage().contains("requires docId.isUrl to be \"true\"")) {
-        throw new RuntimeException("Error message doesn't match expected", ice);
-      }
-    }
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("requires docId.isUrl to be \"true\"");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
   }
 
   @Test
