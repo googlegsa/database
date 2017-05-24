@@ -33,6 +33,7 @@
 
   <path id="adaptor.run.classpath">
     <path refid="adaptor.build.classpath"/>
+    <pathelement location="${resource.dir}"/>
     <pathelement path="${jdbc.classpath}"/>
   </path>
 
