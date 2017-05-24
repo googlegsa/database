@@ -61,6 +61,10 @@ public abstract class ResponseGenerator {
   private static final Logger log
       = Logger.getLogger(ResponseGenerator.class.getName());
 
+  private static String emptyToNull(String value) {
+    return (value == null || value.isEmpty()) ? null : value;
+  }
+
   private final Map<String, String> cfg;
   private final String displayUrlCol; // can be null
 
@@ -74,7 +78,7 @@ public abstract class ResponseGenerator {
     }
     this.cfg = Collections.unmodifiableMap(config);
     log.config("entire config map=" + cfg);
-    displayUrlCol = getConfig().get("displayUrlCol");
+    displayUrlCol = emptyToNull(getConfig().get("displayUrlCol"));
     log.config("displayUrlCol=" + displayUrlCol);
   }
 
@@ -167,7 +171,7 @@ public abstract class ResponseGenerator {
     RowToHtml(Map<String, String> config)
         throws TransformerConfigurationException, IOException {
       super(config);
-      String stylesheetFilename = getConfig().get("stylesheet");
+      String stylesheetFilename = emptyToNull(getConfig().get("stylesheet"));
       InputStream xsl = null;
       if (null != stylesheetFilename) {
         xsl = new FileInputStream(stylesheetFilename);
@@ -276,13 +280,15 @@ public abstract class ResponseGenerator {
 
     SingleColumnContent(Map<String, String> config) {
       super(config);
-      col = getConfig().get("columnName"); 
+      col = emptyToNull(getConfig().get("columnName"));
       if (null == col) {
-        throw new NullPointerException("columnName needs to be provided");
+        throw new InvalidConfigurationException(
+            "The modeOfOperation property columnName is required for "
+            + getClass().getSimpleName());
       }
       log.config("col=" + col);
-      contentTypeOverride = getConfig().get("contentTypeOverride");
-      contentTypeCol = getConfig().get("contentTypeCol");
+      contentTypeOverride = emptyToNull(getConfig().get("contentTypeOverride"));
+      contentTypeCol = emptyToNull(getConfig().get("contentTypeCol"));
       log.config("contentTypeOverride=" + contentTypeOverride);
       log.config("contentTypeCol=" + contentTypeCol);
       if (null != contentTypeOverride && null != contentTypeCol) {

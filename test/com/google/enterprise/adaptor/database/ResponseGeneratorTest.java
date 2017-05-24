@@ -67,20 +67,41 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testMissingColumnNameForUrlMode() {
-    thrown.expect(NullPointerException.class);
+    thrown.expect(InvalidConfigurationException.class);
     ResponseGenerator.urlColumn(Collections.<String, String>emptyMap());
   }
 
   @Test
   public void testMissingColumnNameForFilepathMode() {
-    thrown.expect(NullPointerException.class);
+    thrown.expect(InvalidConfigurationException.class);
     ResponseGenerator.filepathColumn(Collections.<String, String>emptyMap());
   }
 
   @Test
   public void testMissingColumnNameForBlobMode() {
-    thrown.expect(NullPointerException.class);
+    thrown.expect(InvalidConfigurationException.class);
     ResponseGenerator.contentColumn(Collections.<String, String>emptyMap());
+  }
+
+  @Test
+  public void testEmptyColumnNameForUrlMode() {
+    thrown.expect(InvalidConfigurationException.class);
+    ResponseGenerator.urlColumn(
+        Collections.<String, String>singletonMap("columnName", ""));
+  }
+
+  @Test
+  public void testEmptyColumnNameForFilepathMode() {
+    thrown.expect(InvalidConfigurationException.class);
+    ResponseGenerator.filepathColumn(
+        Collections.<String, String>singletonMap("columnName", ""));
+  }
+
+  @Test
+  public void testEmptyColumnNameForBlobMode() {
+    thrown.expect(InvalidConfigurationException.class);
+    ResponseGenerator.contentColumn(
+        Collections.<String, String>singletonMap("columnName", ""));
   }
 
   private static class MockResponse implements InvocationHandler {
@@ -350,6 +371,7 @@ public class ResponseGeneratorTest {
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("contentTypeOverride", "dev/rubish");
+    cfg.put("contentTypeCol", ""); // Empty should be ignored.
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
@@ -374,6 +396,7 @@ public class ResponseGeneratorTest {
     Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
+    cfg.put("contentTypeOverride", ""); // Empty should be ignored.
     cfg.put("contentTypeCol", "contentType");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
@@ -437,6 +460,7 @@ public class ResponseGeneratorTest {
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("contentTypeOverride", "dev/rubish");
+    cfg.put("contentTypeCol", null); // Null should be ignored.
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
@@ -461,6 +485,7 @@ public class ResponseGeneratorTest {
     Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
+    cfg.put("contentTypeOverride", null); // Null should be ignored.
     cfg.put("contentTypeCol", "contentType");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
