@@ -30,6 +30,7 @@ import com.google.enterprise.adaptor.PollingIncrementalLister;
 import com.google.enterprise.adaptor.Principal;
 import com.google.enterprise.adaptor.Request;
 import com.google.enterprise.adaptor.Response;
+import com.google.enterprise.adaptor.StartupException;
 import com.google.enterprise.adaptor.UserPrincipal;
 
 import java.io.IOException;
@@ -616,9 +617,15 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     try {
       retValue = method.invoke(/*static method*/null, config);
     } catch (IllegalAccessException | IllegalArgumentException
-        | InvocationTargetException e) {
-      String errmsg = "Unexpected exception happened in invoking method";
-      throw new InvalidConfigurationException(errmsg, e);
+        | NullPointerException e) {
+      throw new InvalidConfigurationException(e);
+    } catch (InvocationTargetException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof StartupException) {
+        throw (StartupException) cause;
+      } else {
+        throw new InvalidConfigurationException(cause);
+      }
     }
     if (retValue instanceof ResponseGenerator) {
       respGenerator = (ResponseGenerator) retValue;
