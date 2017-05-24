@@ -72,13 +72,6 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testMissingColumnNameForUrlAndMetadataListerMode() {
-    thrown.expect(NullPointerException.class);
-    ResponseGenerator.urlAndMetadataLister(
-        Collections.<String, String>emptyMap());
-  }
-
-  @Test
   public void testMissingColumnNameForFilepathMode() {
     thrown.expect(NullPointerException.class);
     ResponseGenerator.filepathColumn(Collections.<String, String>emptyMap());
@@ -91,6 +84,7 @@ public class ResponseGeneratorTest {
   }
 
   private static class MockResponse implements InvocationHandler {
+    boolean notFound = false;
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     String contentType = null;
     URI displayUrl = null;
@@ -98,7 +92,10 @@ public class ResponseGeneratorTest {
     public Object invoke(Object proxy, Method method, Object[] args)
         throws Throwable {
       String methodName = method.getName();
-      if ("getOutputStream".equals(methodName)) {
+      if ("respondNotFound".equals(methodName)) {
+        notFound = true;
+        return null;
+      } else if ("getOutputStream".equals(methodName)) {
         return baos;
       } else if ("setContentType".equals(methodName)) {
         contentType = "" + args[0];
@@ -288,6 +285,41 @@ public class ResponseGeneratorTest {
     ResultSet rs = executeQueryAndNext("select * from data");
     thrown.expect(java.sql.SQLException.class);
     resgen.generateResponse(rs, response);
+  }
+
+  @Test
+  public void testUrlAndMetadataListerModeServesResult() throws Exception {
+    executeUpdate("create table data(url varchar)");
+    executeUpdate("insert into data() values ()");
+
+    MockResponse uar = new MockResponse();
+    Response response = newProxyInstance(Response.class, uar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    ResponseGenerator resgen = ResponseGenerator.urlAndMetadataLister(cfg);
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(true, uar.notFound);
+    assertEquals("", uar.baos.toString(UTF_8.name()));
+    assertEquals(null, uar.contentType);
+    assertEquals(null, uar.displayUrl);
+  }
+
+  @Test
+  public void testUrlAndMetadataListerModeColumnName() throws Exception {
+    executeUpdate("create table data(url varchar)");
+    executeUpdate("insert into data() values ()");
+
+    MockResponse uar = new MockResponse();
+    Response response = newProxyInstance(Response.class, uar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "anycolumn");
+    ResponseGenerator resgen = ResponseGenerator.urlAndMetadataLister(cfg);
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(true, uar.notFound);
+    assertEquals("", uar.baos.toString(UTF_8.name()));
+    assertEquals(null, uar.contentType);
+    assertEquals(null, uar.displayUrl);
   }
 
   @Test

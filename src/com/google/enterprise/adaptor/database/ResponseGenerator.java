@@ -29,7 +29,6 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.Writer;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.Charset;
@@ -352,9 +351,14 @@ public abstract class ResponseGenerator {
     }
   }
 
-  private static class UrlAndMetadataLister extends SingleColumnContent {
+  private static class UrlAndMetadataLister extends ResponseGenerator {
     UrlAndMetadataLister(Map<String, String> config) {
       super(config);
+      String col = getConfig().get("columnName");
+      if (col != null) {
+        log.warning("urlAndMetadataLister mode ignores columnName="
+            + col + " and uses db.uniqueKey to specify the URL.");
+      }
     }
 
     @Override
