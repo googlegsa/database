@@ -23,7 +23,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-import com.google.common.collect.ImmutableList;
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Config;
 import com.google.enterprise.adaptor.DocId;
@@ -569,12 +568,8 @@ public class DatabaseAdaptorTest {
   }
 
   private void addDBTableForTest() throws SQLException {
-    executeUpdate("create table employees("
-        + "ID" + " integer,"
-        + "FIRST_NAME" + " varchar, "
-        + "LAST_NAME" + " varchar)");
-    executeUpdate("insert into employees(ID, FIRST_NAME, LAST_NAME)"
-        + " values('1001', 'John', 'Doe')");
+    executeUpdate("create table data(ID  integer, NAME  varchar)");
+    executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
   }
 
   @Test
@@ -584,12 +579,11 @@ public class DatabaseAdaptorTest {
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.user", "sa");
     configEntries.put("db.password", "");
-    configEntries.put("db.url",
-        "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DEFAULT_ESCAPE=");
+    configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "ID:int");
-    configEntries.put("db.everyDocIdSql", "select * from employees");
+    configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
-        "select * from employees where ID = ?");
+        "select * from data where ID = ?");
     configEntries.put("db.singleDocContentSqlParameters", "ID");
     configEntries.put("db.aclSqlParameters", "ID");
     configEntries.put("adaptor.namespace", "Default");
@@ -600,28 +594,23 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.modeOfOperation.urlAndMetadataLister.displayUrlCol",
         "ID");
     configEntries.put("db.metadataColumns",
-        "ID:col1, FIRST_NAME:col2, LAST_NAME:col3");
+        "ID:col1, NAME:col2");
 
-    final Config config = createStandardConfig(configEntries);
+    Config config = createStandardConfig(configEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
 
-    AccumulatingDocIdPusher pusher = new AccumulatingDocIdPusher();
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
     adaptor.getDocIds(pusher);
-    List<Record> actual =  pusher.getRecords();
-
-    assertEquals(1, actual.size());
 
     Metadata metadata = new Metadata();
     metadata.add("col1",  "1001");
     metadata.add("col2",  "John");
-    metadata.add("col3",  "Doe");
-    ImmutableList.Builder<Record> builder = ImmutableList.builder();
-    builder.add(new Record.Builder(new DocId("1001")).setMetadata(metadata)
-        .build());
-    List<Record> expected = builder.build();
 
-    assertEquals(expected, actual);
+    assertEquals(
+        Arrays.asList(new Record.Builder(new DocId("1001")).setMetadata(
+            metadata).build()),
+        pusher.getRecords());
   }
 
   @Test
@@ -631,33 +620,25 @@ public class DatabaseAdaptorTest {
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.user", "sa");
     configEntries.put("db.password", "");
-    configEntries.put("db.url",
-        "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DEFAULT_ESCAPE=");
-    configEntries.put("db.everyDocIdSql", "select * from employees");
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
-        "select * from employees where ID = ?");
+        "select * from data where ID = ?");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns",
-        "ID:col1, FIRST_NAME:col2, LAST_NAME:col3");
+    configEntries.put("db.metadataColumns", "ID:col1, NAME:col2");
 
     final Config config = createStandardConfig(configEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
 
     MockRequest request = new MockRequest(new DocId("1001"));
-    MockResponse response = new MockResponse();
+    RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
-    assertEquals("col1", adaptor.metadataColumns.getMetadataName("ID"));
-    assertEquals("col2", adaptor.metadataColumns.getMetadataName("FIRST_NAME"));
-    assertEquals("col3", adaptor.metadataColumns.getMetadataName("LAST_NAME"));
-
-    assertEquals("1001", response.metadata.getOneValue(adaptor.metadataColumns
+    assertEquals("1001", response.getMetadata().getOneValue(adaptor.metadataColumns
         .getMetadataName("ID")));
-    assertEquals("John", response.metadata.getOneValue(adaptor.metadataColumns
-        .getMetadataName("FIRST_NAME")));
-    assertEquals("Doe", response.metadata.getOneValue(adaptor.metadataColumns
-        .getMetadataName("LAST_NAME")));
+    assertEquals("John", response.getMetadata().getOneValue(adaptor.metadataColumns
+        .getMetadataName("NAME")));
   }
 }

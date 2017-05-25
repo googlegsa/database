@@ -26,6 +26,8 @@ import java.util.ArrayDeque;
 
 /** Manages an in-memory H2 database for test purposes. */
 class JdbcFixture {
+  public static final String URL =
+      "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DEFAULT_ESCAPE=";
   private static ArrayDeque<AutoCloseable> openObjects = new ArrayDeque<>();
 
   /**
@@ -44,7 +46,7 @@ class JdbcFixture {
   public static Connection getConnection() {
     try {
       JdbcDataSource ds = new JdbcDataSource();
-      ds.setURL("jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DEFAULT_ESCAPE=");
+      ds.setURL(URL);
       ds.setUser("sa");
       ds.setPassword("");
       return ds.getConnection();
