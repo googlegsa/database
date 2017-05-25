@@ -16,7 +16,6 @@ package com.google.enterprise.adaptor.database;
 
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Metadata;
-import com.google.enterprise.adaptor.MetadataTransform.TransmissionDecision;
 import com.google.enterprise.adaptor.Response;
 
 import java.io.ByteArrayOutputStream;
