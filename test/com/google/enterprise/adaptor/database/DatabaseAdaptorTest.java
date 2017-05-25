@@ -567,14 +567,10 @@ public class DatabaseAdaptorTest {
     assertEquals("gsa2", adaptor.metadataColumns.getMetadataName("col2"));
   }
 
-  private void addDBTableForTest() throws SQLException {
-    executeUpdate("create table data(ID  integer, NAME  varchar)");
-    executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
-  }
-
   @Test
   public void testGetDocIds() throws Exception {
-    addDBTableForTest();
+    executeUpdate("create table data(ID  integer, NAME  varchar)");
+    executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.user", "sa");
@@ -582,19 +578,15 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "ID:int");
     configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql",
-        "select * from data where ID = ?");
-    configEntries.put("db.singleDocContentSqlParameters", "ID");
+    configEntries.put("db.singleDocContentSql", "");
+    configEntries.put("db.singleDocContentSqlParameters", "");
     configEntries.put("db.aclSqlParameters", "ID");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName",
         "ID");
     configEntries.put("docId.isUrl", "true");
-    configEntries.put("db.modeOfOperation.urlAndMetadataLister.displayUrlCol",
-        "ID");
-    configEntries.put("db.metadataColumns",
-        "ID:col1, NAME:col2");
+    configEntries.put("db.metadataColumns", "ID:col1, NAME:col2");
 
     Config config = createStandardConfig(configEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -608,14 +600,15 @@ public class DatabaseAdaptorTest {
     metadata.add("col2",  "John");
 
     assertEquals(
-        Arrays.asList(new Record.Builder(new DocId("1001")).setMetadata(
-            metadata).build()),
+        Arrays.asList(new Record.Builder(new DocId("1001"))
+          .setMetadata(metadata).build()),
         pusher.getRecords());
   }
 
   @Test
   public void testGetDocContent() throws Exception {
-    addDBTableForTest();
+    executeUpdate("create table data(ID  integer, NAME  varchar)");
+    executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.user", "sa");
@@ -636,9 +629,9 @@ public class DatabaseAdaptorTest {
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
-    assertEquals("1001", response.getMetadata().getOneValue(adaptor.metadataColumns
-        .getMetadataName("ID")));
-    assertEquals("John", response.getMetadata().getOneValue(adaptor.metadataColumns
-        .getMetadataName("NAME")));
+    Metadata metadata = new Metadata();
+    metadata.add("col1",  "1001");
+    metadata.add("col2",  "John");
+    assertEquals(metadata, response.getMetadata());
   }
 }

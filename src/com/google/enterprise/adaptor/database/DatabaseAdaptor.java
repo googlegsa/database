@@ -262,10 +262,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     void addMetadata(String k, String v);
   }
 
-  private class BuilderMetadata implements MetadataHandler {
+  private class RecordMetadata implements MetadataHandler {
     private final DocIdPusher.Record.Builder builder;
 
-    private BuilderMetadata(DocIdPusher.Record.Builder builder) {
+    private RecordMetadata(DocIdPusher.Record.Builder builder) {
       this.builder = builder;
     }
 
@@ -275,10 +275,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
   }
 
-  private class RecordMetadata implements MetadataHandler {
+  private class ResponseMetadata implements MetadataHandler {
     private final Response resp;
 
-    private RecordMetadata(Response resp) {
+    private ResponseMetadata(Response resp) {
       this.resp = resp;
     }
 
@@ -312,7 +312,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   @VisibleForTesting
   void addMetadataToRecordBuilder(DocIdPusher.Record.Builder builder,
       ResultSet rs) throws SQLException {
-    addMetadata(new BuilderMetadata(builder), rs);
+    addMetadata(new RecordMetadata(builder), rs);
   }
 
   /** Gives the bytes of a document referenced with id. */
@@ -337,7 +337,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         return;
       }
       // Generate response metadata first.
-      addMetadata(new RecordMetadata(resp), rs);
+      addMetadata(new ResponseMetadata(resp), rs);
       // Generate Acl if aclSql is provided.
       if (aclSql != null) {
         Acl acl = getAcl(conn, id.getUniqueId());
