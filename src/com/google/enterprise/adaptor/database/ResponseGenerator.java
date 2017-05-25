@@ -453,6 +453,7 @@ public abstract class ResponseGenerator {
             }
           }
           break;
+        case -13: // Oracle BFILE.
         case Types.LONGVARBINARY:
           try (InputStream in = rs.getBinaryStream(index)) {
             if (in != null) {
@@ -493,7 +494,6 @@ public abstract class ResponseGenerator {
           }
           break;
         default:
-          //TODO(srinivas): handle BFILE
           log.log(Level.FINEST, "Column type not handled: {0}", columnType);
           break;
       }
