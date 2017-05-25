@@ -18,7 +18,9 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAnd
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
@@ -542,5 +544,46 @@ public class ResponseGeneratorTest {
     assertEquals(content, uar.baos.toString(UTF_8.name()));
     assertEquals("text/plain", uar.contentType);
     assertEquals(new URI(url), uar.displayUrl);
+  }
+
+  @Test
+  public void testRowToHtmlModeServesResult() throws Exception {
+    executeUpdate("create table data(id int, xyggy_col varchar)");
+    executeUpdate(
+        "insert into data(id, xyggy_col) values (1, 'xyggy value')");
+
+    MockResponse har = new MockResponse();
+    Response response = newProxyInstance(Response.class, har);
+    ResponseGenerator resgen =
+        ResponseGenerator.rowToHtml(Collections.<String, String>emptyMap());
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    // Assert that the column of interest appears as the content of some
+    // element in the HTML.
+    String content = har.baos.toString(UTF_8.name());
+    assertThat(content, containsString(">XYGGY_COL<"));
+    assertThat(content, containsString(">xyggy value<"));
+  }
+
+  /** Tests column names with spaces. */
+  @Test
+  public void testRowToHtmlModeServesResultWithSpaces() throws Exception {
+    executeUpdate("create table data(id int, \"xyggy col\" varchar)");
+    executeUpdate(
+        "insert into data(id, \"xyggy col\") values (1, 'xyggy value')");
+
+    MockResponse har = new MockResponse();
+    Response response = newProxyInstance(Response.class, har);
+    ResponseGenerator resgen =
+        ResponseGenerator.rowToHtml(Collections.<String, String>emptyMap());
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    // Assert that the column of interest appears as the content of some
+    // element in the HTML.
+    String content = har.baos.toString(UTF_8.name());
+    assertThat(content, containsString(">xyggy col<"));
+    assertThat(content, containsString(">xyggy value<"));
   }
 }
