@@ -262,40 +262,17 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     void addMetadata(String k, String v);
   }
 
-  private class RecordMetadata implements MetadataHandler {
-    private final DocIdPusher.Record.Builder builder;
-
-    private RecordMetadata(DocIdPusher.Record.Builder builder) {
-      this.builder = builder;
-    }
-
-    @Override
-    public void addMetadata(String k, String v) {
-      builder.addMetadata(k, v);
-    }
-  }
-
-  private class ResponseMetadata implements MetadataHandler {
-    private final Response resp;
-
-    private ResponseMetadata(Response resp) {
-      this.resp = resp;
-    }
-
-    @Override
-    public void addMetadata(String k, String v) {
-      resp.addMetadata(k, v);
-    }
-  }
-
+  /*
+   * Adds all specified metadata columns to the record or response being built.
+   */
   private void addMetadata(MetadataHandler meta, ResultSet rs)
       throws SQLException {
-    ResultSetMetaData rsMetadata = rs.getMetaData();
-    int numberOfColumns = rsMetadata.getColumnCount();
+    ResultSetMetaData rsMetaData = rs.getMetaData();
+    int numberOfColumns = rsMetaData.getColumnCount();
     for (int i = 1; i < (numberOfColumns + 1); i++) {
-      String columnName = rsMetadata.getColumnLabel(i);
+      String columnName = rsMetaData.getColumnLabel(i);
       log.log(Level.FINEST, "Column name: {0}, Type: {1}", new Object[] {
-          columnName, rsMetadata.getColumnType(i)});
+          columnName, rsMetaData.getColumnType(i)});
 
       Object value = rs.getObject(i);
       String key = metadataColumns.getMetadataName(columnName);
@@ -305,14 +282,28 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
   }
 
-  /**
-   * Adds all specified metadata columns to the {@code DocIdPusher.Record} being
-   * built.
-   */
   @VisibleForTesting
-  void addMetadataToRecordBuilder(DocIdPusher.Record.Builder builder,
+  void addMetadataToRecordBuilder(final DocIdPusher.Record.Builder builder,
       ResultSet rs) throws SQLException {
-    addMetadata(new RecordMetadata(builder), rs);
+    addMetadata(
+        new MetadataHandler() {
+          @Override public void addMetadata(String k, String v) {
+            builder.addMetadata(k, v);
+          }
+        },
+        rs);
+  }
+
+  @VisibleForTesting
+  void addMetadataToResponse(final Response resp, ResultSet rs)
+      throws SQLException {
+    addMetadata(
+        new MetadataHandler() {
+          @Override public void addMetadata(String k, String v) {
+            resp.addMetadata(k, v);
+          }
+        },
+        rs);
   }
 
   /** Gives the bytes of a document referenced with id. */
@@ -337,7 +328,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         return;
       }
       // Generate response metadata first.
-      addMetadata(new ResponseMetadata(resp), rs);
+      addMetadataToResponse(resp, rs);
       // Generate Acl if aclSql is provided.
       if (aclSql != null) {
         Acl acl = getAcl(conn, id.getUniqueId());

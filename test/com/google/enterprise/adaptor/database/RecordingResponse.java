@@ -62,8 +62,6 @@ public class RecordingResponse implements Response {
   private URI displayUrl;
   private boolean crawlOnce;
   private boolean lock;
-  private TransmissionDecision forcedTransmissionDecision;
-  private Map<String, String> params = new TreeMap<String, String>();
 
   /**
    * Constructs a mock {@code Response} with a {@code ByteArrayOutputStream}.
@@ -226,22 +224,6 @@ public class RecordingResponse implements Response {
     this.lock = lock;
   }
 
-  // TODO(bmj): @Override
-  public void setForcedTransmissionDecision(TransmissionDecision decision) {
-    if (state != State.SETUP) {
-      throw new IllegalStateException("Already responded " + state);
-    }
-    this.forcedTransmissionDecision = decision;
-  }
-
-  @Override
-  public void setParam(String key, String value) {
-    if (state != State.SETUP) {
-      throw new IllegalStateException("Already responded " + state);
-    }
-    params.put(key, value);
-  }
-
   public State getState() {
     return state;
   }
@@ -306,18 +288,5 @@ public class RecordingResponse implements Response {
 
   public boolean isLock() {
     return lock;
-  }
-
-  public TransmissionDecision getForcedTransmissionDecision() {
-    return forcedTransmissionDecision;
-  }
-
-  /**
-   * Gets a modifiable map of the accumulated params.
-   *
-   * @return a modifiable map of the accumulated params
-   */
-  public Map<String, String> getParams() {
-    return params;
   }
 }

@@ -598,7 +598,6 @@ public class DatabaseAdaptorTest {
     Metadata metadata = new Metadata();
     metadata.add("col1",  "1001");
     metadata.add("col2",  "John");
-
     assertEquals(
         Arrays.asList(new Record.Builder(new DocId("1001"))
           .setMetadata(metadata).build()),
@@ -621,7 +620,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.modeOfOperation", "rowToText");
     configEntries.put("db.metadataColumns", "ID:col1, NAME:col2");
 
-    final Config config = createStandardConfig(configEntries);
+    Config config = createStandardConfig(configEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
 

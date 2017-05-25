@@ -17,7 +17,6 @@ package com.google.enterprise.adaptor.database;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableSet;
 
-import com.google.enterprise.adaptor.AbstractDocIdPusher;
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.DocId;
 import com.google.enterprise.adaptor.DocIdPusher;
@@ -40,12 +39,51 @@ import java.util.TreeMap;
  * A fake implementation of {@link DocIdPusher} that simply records
  * the values it receives. This implementation is not thread-safe.
  */
-public class RecordingDocIdPusher extends AbstractDocIdPusher {
+public class RecordingDocIdPusher implements DocIdPusher {
   private List<DocId> ids = new ArrayList<DocId>();
   private List<Record> records = new ArrayList<Record>();
   private Map<DocId, Acl> namedResources = new TreeMap<DocId, Acl>();
   private Map<GroupPrincipal, Collection<Principal>> groups
       = new TreeMap<GroupPrincipal, Collection<Principal>>();
+
+  // Methods copied from AbstractDocIdPusher.
+  @Override
+  public DocId pushDocIds(Iterable<DocId> docIds)
+      throws InterruptedException {
+    return pushDocIds(docIds, null);
+  }
+
+  @Override
+  public DocId pushDocIds(Iterable<DocId> docIds,
+                          ExceptionHandler handler)
+      throws InterruptedException {
+    List<Record> records = new ArrayList<Record>();
+    for (DocId docId : docIds) {
+      records.add(new Record.Builder(docId).build());
+    }
+    Record record = pushRecords(records, handler);
+    return record == null ? null : record.getDocId();
+  }
+
+  @Override
+  public Record pushRecords(Iterable<Record> records)
+      throws InterruptedException {
+    return pushRecords(records, null);
+  }
+
+  @Override
+  public DocId pushNamedResources(Map<DocId, Acl> resources)
+      throws InterruptedException {
+    return pushNamedResources(resources, null);
+  }
+
+  @Override
+  public GroupPrincipal pushGroupDefinitions(
+      Map<GroupPrincipal, ? extends Collection<Principal>> defs,
+      boolean caseSensitive) throws InterruptedException {
+    return pushGroupDefinitions(defs, caseSensitive, null);
+  }
+  // End of methods copied from AbstractDocIdPusher.
 
   /**
    * Records the records and their {@link DocId} values.
