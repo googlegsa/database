@@ -25,8 +25,11 @@ import static org.junit.Assert.assertNull;
 
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Config;
+import com.google.enterprise.adaptor.DocId;
+import com.google.enterprise.adaptor.DocIdPusher.Record;
 import com.google.enterprise.adaptor.GroupPrincipal;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
+import com.google.enterprise.adaptor.Metadata;
 import com.google.enterprise.adaptor.Response;
 import com.google.enterprise.adaptor.TestHelper;
 import com.google.enterprise.adaptor.UserPrincipal;
@@ -560,5 +563,72 @@ public class DatabaseAdaptorTest {
     assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
     assertEquals("gsa1", adaptor.metadataColumns.getMetadataName("db_col1"));
     assertEquals("gsa2", adaptor.metadataColumns.getMetadataName("col2"));
+  }
+
+  @Test
+  public void testGetDocIds() throws Exception {
+    executeUpdate("create table data(ID  integer, NAME  varchar)");
+    executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.user", "sa");
+    configEntries.put("db.password", "");
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql", "");
+    configEntries.put("db.singleDocContentSqlParameters", "");
+    configEntries.put("db.aclSqlParameters", "ID");
+    configEntries.put("adaptor.namespace", "Default");
+    configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    configEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName",
+        "ID");
+    configEntries.put("docId.isUrl", "true");
+    configEntries.put("db.metadataColumns", "ID:col1, NAME:col2");
+
+    Config config = createStandardConfig(configEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    adaptor.getDocIds(pusher);
+
+    Metadata metadata = new Metadata();
+    metadata.add("col1",  "1001");
+    metadata.add("col2",  "John");
+    assertEquals(
+        Arrays.asList(new Record.Builder(new DocId("1001"))
+          .setMetadata(metadata).build()),
+        pusher.getRecords());
+  }
+
+  @Test
+  public void testGetDocContent() throws Exception {
+    executeUpdate("create table data(ID  integer, NAME  varchar)");
+    executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.user", "sa");
+    configEntries.put("db.password", "");
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where ID = ?");
+    configEntries.put("adaptor.namespace", "Default");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "ID:col1, NAME:col2");
+
+    Config config = createStandardConfig(configEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata metadata = new Metadata();
+    metadata.add("col1",  "1001");
+    metadata.add("col2",  "John");
+    assertEquals(metadata, response.getMetadata());
   }
 }

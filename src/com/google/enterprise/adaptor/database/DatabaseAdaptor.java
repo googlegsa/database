@@ -259,23 +259,52 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     outstream.forcePush();
   }
 
-  /**
-   * Adds all specified metadata columns to the {@code DocIdPusher.Record} being
-   * built.
+  private interface MetadataHandler {
+    void addMetadata(String k, String v);
+  }
+
+  /*
+   * Adds all specified metadata columns to the record or response being built.
    */
-  @VisibleForTesting
-  void addMetadataToRecordBuilder(DocIdPusher.Record.Builder builder,
-      ResultSet rs) throws SQLException {
+  private void addMetadata(MetadataHandler meta, ResultSet rs)
+      throws SQLException {
     ResultSetMetaData rsMetaData = rs.getMetaData();
     int numberOfColumns = rsMetaData.getColumnCount();
     for (int i = 1; i < (numberOfColumns + 1); i++) {
       String columnName = rsMetaData.getColumnLabel(i);
+      log.log(Level.FINEST, "Column name: {0}, Type: {1}", new Object[] {
+          columnName, rsMetaData.getColumnType(i)});
+
       Object value = rs.getObject(i);
       String key = metadataColumns.getMetadataName(columnName);
       if (key != null) {
-        builder.addMetadata(key, "" + value);
+        meta.addMetadata(key, "" + value);
       }
     }
+  }
+
+  @VisibleForTesting
+  void addMetadataToRecordBuilder(final DocIdPusher.Record.Builder builder,
+      ResultSet rs) throws SQLException {
+    addMetadata(
+        new MetadataHandler() {
+          @Override public void addMetadata(String k, String v) {
+            builder.addMetadata(k, v);
+          }
+        },
+        rs);
+  }
+
+  @VisibleForTesting
+  void addMetadataToResponse(final Response resp, ResultSet rs)
+      throws SQLException {
+    addMetadata(
+        new MetadataHandler() {
+          @Override public void addMetadata(String k, String v) {
+            resp.addMetadata(k, v);
+          }
+        },
+        rs);
   }
 
   /** Gives the bytes of a document referenced with id. */
@@ -300,19 +329,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         return;
       }
       // Generate response metadata first.
-      ResultSetMetaData rsMetaData = rs.getMetaData();
-      int numberOfColumns = rsMetaData.getColumnCount();
-      for (int i = 1; i < (numberOfColumns + 1); i++) {
-        String columnName = rsMetaData.getColumnLabel(i);
-        log.log(Level.FINEST, "Column name: {0}, Type: {1}",
-            new Object[] {columnName, rsMetaData.getColumnType(i)});
-
-        Object value = rs.getObject(i);
-        String key = metadataColumns.getMetadataName(columnName);
-        if (key != null) {
-          resp.addMetadata(key, "" + value);
-        }
-      }
+      addMetadataToResponse(resp, rs);
       // Generate Acl if aclSql is provided.
       if (aclSql != null) {
         Acl acl = getAcl(conn, id.getUniqueId());
