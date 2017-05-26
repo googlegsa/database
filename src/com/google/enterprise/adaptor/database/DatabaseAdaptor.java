@@ -34,13 +34,16 @@ import com.google.enterprise.adaptor.StartupException;
 import com.google.enterprise.adaptor.UserPrincipal;
 
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.Reader;
+import java.io.Writer;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -285,16 +288,45 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           Clob clob = rs.getClob(i);
           if (clob != null) {
             try (Reader reader = clob.getCharacterStream()) {
-              char[] buffer = new char[4096];
-              if (reader.read(buffer) != -1) {
-                value = new String(buffer).trim();
-              }
+              value = clob.getSubString(1,  4096);
             } finally {
               try {
                 clob.free();
               } catch (Exception e) {
                 log.log(Level.FINEST, "Error closing CLOB", e);
               }
+            }
+          }
+          break;
+        case Types.NCLOB:
+          NClob nclob = rs.getNClob(i);
+          if (nclob != null) {
+            try (Reader reader = nclob.getCharacterStream()) {
+              value = nclob.getSubString(1,  4096);
+            } finally {
+              try {
+                nclob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing NCLOB", e);
+              }
+            }
+          }
+          break;
+        case Types.LONGVARCHAR:
+          try (Reader reader = rs.getCharacterStream(i)) {
+            char[] buffer = new char[4096];
+            int len;
+            if ((len = reader.read(buffer)) != -1) {
+              value = new String(buffer, 0, len);
+            }
+          }
+          break;
+        case Types.LONGNVARCHAR:
+          try (Reader reader = rs.getNCharacterStream(i)) {
+            char[] buffer = new char[4096];
+            int len;
+            if ((len = reader.read(buffer)) != -1) {
+              value = new String(buffer, 0, len);
             }
           }
           break;

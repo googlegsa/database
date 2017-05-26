@@ -635,16 +635,7 @@ public class DatabaseAdaptorTest {
     assertEquals(metadata, response.getMetadata());
   }
 
-  @Test
-  public void testClobColumnAsMetadata() throws Exception {
-    String content = "Hello World";
-    executeUpdate("create table data(ID int, CONTENT clob)");
-    String sql = "insert into data(ID, CONTENT) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
-
+  private void testColumnTypeMetadata(String content) throws Exception {
     Map<String, String> configEntries = new TreeMap<String, String>();
     configEntries.put("db.user", "sa");
     configEntries.put("db.password", "");
@@ -652,13 +643,12 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.uniqueKey", "ID:int");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
-        "select * from data where ID = ?");
+        "select * from data where id = ?");
     configEntries.put("db.aclSqlParameters", "ID");
     configEntries.put("db.singleDocContentSqlParameters", "ID");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns",
-        "ID:col1, CONTENT:col2");
+    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
     Config config = createStandardConfig(configEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
@@ -671,5 +661,29 @@ public class DatabaseAdaptorTest {
     expected.add("col1", "1");
     expected.add("col2", content);
     assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testClobColumnAsMetadata() throws Exception {
+    String content = "Hello World";
+    executeUpdate("create table data(id int, content clob)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, content);
+      assertEquals(1, ps.executeUpdate());
+    }
+    testColumnTypeMetadata(content);
+  }
+
+  @Test
+  public void testVarcharColumnAsMetadata() throws Exception {
+    String content = "Hello World";
+    executeUpdate("create table data(id int, content varchar)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, content);
+      assertEquals(1, ps.executeUpdate());
+    }
+    testColumnTypeMetadata(content);
   }
 }
