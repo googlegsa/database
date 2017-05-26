@@ -926,4 +926,95 @@ public class DatabaseAdaptorTest {
     expected.add("col2", "null");
     assertEquals(expected, response.getMetadata());
   }
+
+  @Test
+  public void testColumnTypeDate() throws Exception {
+    executeUpdate("create table data(id  integer, col  date)");
+    executeUpdate("insert into data(id, col) values('1001', {d '2004-10-06'})");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.user", "sa");
+    configEntries.put("db.password", "");
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where ID = ?");
+    configEntries.put("adaptor.namespace", "Default");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+
+    Config config = createStandardConfig(configEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata metadata = new Metadata();
+    metadata.add("col1", "1001");
+    metadata.add("col2", "2004-10-06");
+    assertEquals(metadata, response.getMetadata());
+  }
+
+  @Test
+  public void testColumnTypeTime() throws Exception {
+    executeUpdate("create table data(id  integer, col time)");
+    executeUpdate("insert into data(id, col) values('1001', {t '09:15:30'})");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.user", "sa");
+    configEntries.put("db.password", "");
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where ID = ?");
+    configEntries.put("adaptor.namespace", "Default");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+
+    Config config = createStandardConfig(configEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata metadata = new Metadata();
+    metadata.add("col1", "1001");
+    metadata.add("col2", "09:15:30");
+    assertEquals(metadata, response.getMetadata());
+  }
+
+  @Test
+  public void testColumnTypeTimestamp() throws Exception {
+    executeUpdate("create table data(id  integer, col  timestamp)");
+    executeUpdate("insert into data(id, col) values('1001', "
+        + "{ts '2009-10-05 09:20:49.512'})");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.user", "sa");
+    configEntries.put("db.password", "");
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where ID = ?");
+    configEntries.put("adaptor.namespace", "Default");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+
+    Config config = createStandardConfig(configEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata metadata = new Metadata();
+    metadata.add("col1", "1001");
+    metadata.add("col2", "2009-10-05 09:20:49.512");
+    assertEquals(metadata, response.getMetadata());
+  }
 }

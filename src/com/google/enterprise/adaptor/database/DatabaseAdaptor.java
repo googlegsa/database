@@ -48,6 +48,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.text.DateFormat;
@@ -321,10 +322,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
     for (Map.Entry<String, String> entry : metadataColumns.entrySet()) {
       int index = rs.findColumn(entry.getKey());
-      String columnName = rsMetaData.getColumnLabel(index);
       int columnType = rsMetaData.getColumnType(index);
       log.log(Level.FINEST, "Column name: {0}, Type: {1}", new Object[] {
-          columnName, columnType});
+          entry.getKey(), columnType});
 
       Object value = null;
       switch (columnType) {
@@ -378,14 +378,23 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             }
           }
           break;
+        case Types.DATE:
+          Date dt = rs.getDate(index);
+          value = dt.toString();
+          break;
+        case Types.TIME:
+          Time tm = rs.getTime(index);
+          value = tm.toString();
+          break;
+        case Types.TIMESTAMP:
+          Timestamp ts = rs.getTimestamp(index);
+          value = ts.toString();
+          break;
         default:
           value = rs.getObject(index);
           break;
       }
-      String key = entry.getValue();
-      if (key != null) {
-        meta.addMetadata(key, "" + value);
-      }
+      meta.addMetadata(entry.getValue(), "" + value);
     }
   }
 
