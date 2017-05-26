@@ -35,34 +35,34 @@ public class MetadataColumnsTest {
   @Test
   public void testMissingColumnNameGivesNull() {
     MetadataColumns mc = new MetadataColumns(" ");
-    assertEquals(null, mc.getMetadataName("not-exist"));
+    assertEquals(null, mc.get("not-exist"));
   }
 
   @Test
   public void testSimpleCase() {
     String configDef = "xf_date:CREATE_DATE,name:AUTHOR";
     MetadataColumns mc = new MetadataColumns(configDef);
-    assertNotNull(mc.getMetadataName("xf_date"));
-    assertNotNull(mc.getMetadataName("name"));
-    assertEquals("CREATE_DATE", mc.getMetadataName("xf_date"));
-    assertEquals("AUTHOR", mc.getMetadataName("name"));
-    assertNull(mc.getMetadataName("CREATE_DATE"));
-    assertNull(mc.getMetadataName("AUTHOR"));
-    assertNull(mc.getMetadataName("xYz"));
+    assertNotNull(mc.get("xf_date"));
+    assertNotNull(mc.get("name"));
+    assertEquals("CREATE_DATE", mc.get("xf_date"));
+    assertEquals("AUTHOR", mc.get("name"));
+    assertNull(mc.get("CREATE_DATE"));
+    assertNull(mc.get("AUTHOR"));
+    assertNull(mc.get("xYz"));
   }
 
   @Test
   public void testColonInMetadataName() {
     String configDef = "xf_date:DATE:CREATE";
     MetadataColumns mc = new MetadataColumns(configDef);
-    assertEquals("DATE:CREATE", mc.getMetadataName("xf_date"));
+    assertEquals("DATE:CREATE", mc.get("xf_date"));
   }
 
   @Test
   public void testToString() {
     String configDef = "xf_date:DATE:CREATE,a:b";
     MetadataColumns mc = new MetadataColumns(configDef);
-    assertEquals("MetadataColumns({a=b, xf_date=DATE:CREATE})", "" + mc);
+    assertEquals("{a=b, xf_date=DATE:CREATE}", "" + mc);
   }
 
   @Test

@@ -476,11 +476,11 @@ public class DatabaseAdaptorTest {
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    assertEquals("MetadataColumns({col2=gsa2, db_col1=gsa1})",
+    assertEquals("{col2=gsa2, db_col1=gsa1}",
         adaptor.metadataColumns.toString());
-    assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
-    assertEquals("gsa1", adaptor.metadataColumns.getMetadataName("db_col1"));
-    assertEquals("gsa2", adaptor.metadataColumns.getMetadataName("col2"));
+    assertNull(adaptor.metadataColumns.get("fake column"));
+    assertEquals("gsa1", adaptor.metadataColumns.get("db_col1"));
+    assertEquals("gsa2", adaptor.metadataColumns.get("col2"));
 
     executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
     executeUpdate("insert into data(id, db_col1, col2) "
@@ -504,8 +504,8 @@ public class DatabaseAdaptorTest {
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    assertEquals("MetadataColumns({})", adaptor.metadataColumns.toString());
-    assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
+    assertEquals("{}", adaptor.metadataColumns.toString());
+    assertNull(adaptor.metadataColumns.get("fake column"));
   }
 
   @Test
@@ -576,11 +576,11 @@ public class DatabaseAdaptorTest {
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    assertEquals("MetadataColumns({col2=gsa2, db_col1=gsa1})",
+    assertEquals("{col2=gsa2, db_col1=gsa1}",
         adaptor.metadataColumns.toString());
-    assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
-    assertEquals("gsa1", adaptor.metadataColumns.getMetadataName("db_col1"));
-    assertEquals("gsa2", adaptor.metadataColumns.getMetadataName("col2"));
+    assertNull(adaptor.metadataColumns.get("fake column"));
+    assertEquals("gsa1", adaptor.metadataColumns.get("db_col1"));
+    assertEquals("gsa2", adaptor.metadataColumns.get("col2"));
 
     executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
     executeUpdate("insert into data(id, db_col1, col2) "
