@@ -34,9 +34,11 @@ import com.google.enterprise.adaptor.StartupException;
 import com.google.enterprise.adaptor.UserPrincipal;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -45,6 +47,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -267,15 +270,38 @@ public class DatabaseAdaptor extends AbstractAdaptor {
    * Adds all specified metadata columns to the record or response being built.
    */
   private void addMetadata(MetadataHandler meta, ResultSet rs)
-      throws SQLException {
+      throws SQLException, IOException {
     ResultSetMetaData rsMetaData = rs.getMetaData();
     int numberOfColumns = rsMetaData.getColumnCount();
     for (int i = 1; i < (numberOfColumns + 1); i++) {
       String columnName = rsMetaData.getColumnLabel(i);
+      int columnType = rsMetaData.getColumnType(i);
       log.log(Level.FINEST, "Column name: {0}, Type: {1}", new Object[] {
-          columnName, rsMetaData.getColumnType(i)});
+          columnName, columnType});
 
-      Object value = rs.getObject(i);
+      Object value = null;
+      switch (columnType) {
+        case Types.CLOB:
+          Clob clob = rs.getClob(i);
+          if (clob != null) {
+            try (Reader reader = clob.getCharacterStream()) {
+              char[] buffer = new char[4096];
+              if (reader.read(buffer) != -1) {
+                value = new String(buffer).trim();
+              }
+            } finally {
+              try {
+                clob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing CLOB", e);
+              }
+            }
+          }
+          break;
+        default:
+          value = rs.getObject(i);
+          break;
+      }
       String key = metadataColumns.getMetadataName(columnName);
       if (key != null) {
         meta.addMetadata(key, "" + value);
@@ -285,7 +311,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
   @VisibleForTesting
   void addMetadataToRecordBuilder(final DocIdPusher.Record.Builder builder,
-      ResultSet rs) throws SQLException {
+      ResultSet rs) throws SQLException, IOException {
     addMetadata(
         new MetadataHandler() {
           @Override public void addMetadata(String k, String v) {
@@ -297,7 +323,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
   @VisibleForTesting
   void addMetadataToResponse(final Response resp, ResultSet rs)
-      throws SQLException {
+      throws SQLException, IOException {
     addMetadata(
         new MetadataHandler() {
           @Override public void addMetadata(String k, String v) {
