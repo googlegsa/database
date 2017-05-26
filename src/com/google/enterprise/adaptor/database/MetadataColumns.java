@@ -16,8 +16,11 @@ package com.google.enterprise.adaptor.database;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.logging.Logger;
 
@@ -31,6 +34,21 @@ class MetadataColumns {
 
   private final Map<String, String> columnNameToMetadataKey;
 
+  /** Constructs an identity Map from the ResultSetMetaData. */
+  MetadataColumns(ResultSetMetaData rsMetaData) throws SQLException {
+    Map<String, String> tmp = new TreeMap<>();
+    int numberOfColumns = rsMetaData.getColumnCount();
+    for (int i = 1; i <= numberOfColumns; i++) {
+      String columnName = rsMetaData.getColumnLabel(i);
+      tmp.put(columnName, columnName);
+    }
+    columnNameToMetadataKey = Collections.unmodifiableMap(tmp);
+  }
+
+  /**
+   * Constructs a Map based upon a configuration string of the form:
+   * dbColumnName:metadataLabel[, ...]
+   */
   MetadataColumns(String configDef) {
     if ("".equals(configDef.trim())) {
       columnNameToMetadataKey = Collections.emptyMap();
@@ -54,6 +72,10 @@ class MetadataColumns {
     columnNameToMetadataKey = Collections.unmodifiableMap(tmp);
   }
 
+  public Set<Map.Entry<String, String>> entrySet() {
+    return columnNameToMetadataKey.entrySet();
+  }
+
   public String getMetadataName(String columnName) {
     return columnNameToMetadataKey.get(columnName);
   }
@@ -65,42 +87,15 @@ class MetadataColumns {
 
   @Override
   public boolean equals(Object other) {
-    boolean same = false;
-    if (other instanceof MetadataColumns.AllColumns) {
-      return same;
-    } else if (other instanceof MetadataColumns) {
+    if (other instanceof MetadataColumns) {
       MetadataColumns mc = (MetadataColumns) other;
-      same = columnNameToMetadataKey.equals(mc.columnNameToMetadataKey);
+      return columnNameToMetadataKey.equals(mc.columnNameToMetadataKey);
     }
-    return same;
+    return false;
   }
 
   @Override
   public int hashCode() {
     return columnNameToMetadataKey.hashCode();
   }
-
-  /**
-   * Passes through all columns from the resultSet as Metadata.
-   */
-  static class AllColumns extends MetadataColumns {
-    public AllColumns() {
-      super("");
-    }
-
-    @Override
-    public String getMetadataName(String columnName) {
-      return columnName;
-    }
-
-    @Override
-    public String toString() {
-      return "MetadataColumns.AllColumns()";
-    }
-
-    @Override
-    public boolean equals(Object other) {
-      return (other instanceof MetadataColumns.AllColumns);
-    }
-  };
 }

@@ -181,11 +181,12 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     String metadataColumnsConfig = cfg.getValue("db.metadataColumns");
     if (includeAllColumnsAsMetadata && "".equals(metadataColumnsConfig)) {
-      metadataColumns = new MetadataColumns.AllColumns();
+      metadataColumns = null;
+      log.config("metadata columns: Use all columns in ResultSet");
     } else {
       metadataColumns = new MetadataColumns(metadataColumnsConfig);
+      log.config("metadata columns: " + metadataColumns);
     }
-    log.config("metadata columns: " + metadataColumns);
 
     respGenerator = loadResponseGenerator(cfg);
     
@@ -266,20 +267,23 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   /*
    * Adds all specified metadata columns to the record or response being built.
    */
+  // TODO(bmj): This will throw SQLException if one of the columnNames in the
+  // Map does not exist in the ResultSet. We should think about how to deal with
+  // that, especially in getDocIds().
   private void addMetadata(MetadataHandler meta, ResultSet rs)
       throws SQLException {
     ResultSetMetaData rsMetaData = rs.getMetaData();
-    int numberOfColumns = rsMetaData.getColumnCount();
-    for (int i = 1; i < (numberOfColumns + 1); i++) {
-      String columnName = rsMetaData.getColumnLabel(i);
-      log.log(Level.FINEST, "Column name: {0}, Type: {1}", new Object[] {
-          columnName, rsMetaData.getColumnType(i)});
-
-      Object value = rs.getObject(i);
-      String key = metadataColumns.getMetadataName(columnName);
-      if (key != null) {
-        meta.addMetadata(key, "" + value);
+    synchronized (this) {
+      if (metadataColumns == null) {
+        metadataColumns = new MetadataColumns(rsMetaData);
       }
+    }
+    for (Map.Entry<String, String> entry : metadataColumns.entrySet()) {
+      int index = rs.findColumn(entry.getKey());
+      Object value = rs.getObject(index);
+      meta.addMetadata(entry.getValue(), "" + value);
+      log.log(Level.FINEST, "Column name: {0}, Type: {1}", new Object[] {
+          entry.getKey(), rsMetaData.getColumnType(index)});
     }
   }
 

@@ -14,6 +14,7 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.DocIdPusher.Record;
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
@@ -26,7 +27,6 @@ import static org.junit.Assert.assertNull;
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Config;
 import com.google.enterprise.adaptor.DocId;
-import com.google.enterprise.adaptor.DocIdPusher.Record;
 import com.google.enterprise.adaptor.GroupPrincipal;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Metadata;
@@ -450,13 +450,20 @@ public class DatabaseAdaptorTest {
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    assertEquals("MetadataColumns.AllColumns()",
-        adaptor.metadataColumns.toString());
-    assertEquals("fake column",
-        adaptor.metadataColumns.getMetadataName("fake column"));
-    MetadataColumns emptyMetadataColumns = new MetadataColumns("");
-    assertFalse(emptyMetadataColumns.equals(adaptor.metadataColumns));
-    assertFalse(adaptor.metadataColumns.equals(emptyMetadataColumns));
+    assertEquals(null, adaptor.metadataColumns);
+
+    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate("insert into data(id, foo, bar) "
+                  + "values(1, 'fooVal', 'barVal')");
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("ID", "1");
+    golden.add("FOO", "fooVal");
+    golden.add("BAR", "barVal");
+    assertEquals(golden, builder.build().getMetadata());
   }
 
   @Test
@@ -465,7 +472,6 @@ public class DatabaseAdaptorTest {
     moreEntries.put("adaptor.namespace", "Default");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.includeAllColumnsAsMetadata", "true");
-    moreEntries.put("db.metadataColumns", "");
     moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -475,6 +481,18 @@ public class DatabaseAdaptorTest {
     assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
     assertEquals("gsa1", adaptor.metadataColumns.getMetadataName("db_col1"));
     assertEquals("gsa2", adaptor.metadataColumns.getMetadataName("col2"));
+
+    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
+    executeUpdate("insert into data(id, db_col1, col2) "
+                  + "values(1, 'col1Val', 'col2Val')");
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("gsa1", "col1Val");
+    golden.add("gsa2", "col2Val");
+    assertEquals(golden, builder.build().getMetadata());
   }
 
   @Test
@@ -563,6 +581,60 @@ public class DatabaseAdaptorTest {
     assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
     assertEquals("gsa1", adaptor.metadataColumns.getMetadataName("db_col1"));
     assertEquals("gsa2", adaptor.metadataColumns.getMetadataName("col2"));
+
+    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
+    executeUpdate("insert into data(id, db_col1, col2) "
+                  + "values(1, 'col1Val', 'col2Val')");
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("gsa1", "col1Val");
+    golden.add("gsa2", "col2Val");
+    assertEquals(golden, builder.build().getMetadata());
+  }
+
+  @Test
+  public void testInvalidColumnAsMetadata() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "fake column:gsa1,col2:gsa2");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
+    executeUpdate("insert into data(id, db_col1, col2) "
+                  + "values(1, 'col1Val', 'col2Val')");
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    thrown.expect(SQLException.class);
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+  }
+
+  @Test
+  public void testCaseInsensitiveMetadataColumnMap() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "Foo:gsa_foo,Bar:gsa_bar");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate("insert into data(id, foo, bar) "
+                  + "values(1, 'fooVal', 'barVal')");
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("gsa_foo", "fooVal");
+    golden.add("gsa_bar", "barVal");
+    assertEquals(golden, builder.build().getMetadata());
   }
 
   @Test
