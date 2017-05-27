@@ -52,13 +52,6 @@ public class MetadataColumnsTest {
   }
 
   @Test
-  public void testToString() {
-    String configDef = "xf_date:DATE:CREATE,a:b";
-    MetadataColumns mc = new MetadataColumns(configDef);
-    assertEquals("{a=b, xf_date=DATE:CREATE}", "" + mc);
-  }
-
-  @Test
   public void testSpacesBetweenDeclerations() {
     String configDef = "xf_date:CREATE_DATE,name:AUTHOR";
     MetadataColumns mc = new MetadataColumns(configDef);
