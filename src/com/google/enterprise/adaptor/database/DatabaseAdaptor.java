@@ -363,21 +363,21 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     try {
       statementAndResult = getAclFromDb(conn, uniqueId);
       ResultSet rs = statementAndResult.resultSet;
-      ResultSetMetaData metadata = rs.getMetaData();
-      return buildAcl(rs, metadata, aclPrincipalDelimiter, aclNamespace);
+      return buildAcl(rs, aclPrincipalDelimiter, aclNamespace);
     } finally {
       tryClosingStatementAndResult(statementAndResult);
     }
   }
   
   @VisibleForTesting
-  static Acl buildAcl(ResultSet rs, ResultSetMetaData metadata, String delim,
-      String namespace) throws SQLException {
+  static Acl buildAcl(ResultSet rs, String delim, String namespace)
+      throws SQLException {
     boolean hasResult = rs.next();
     if (!hasResult) {
       // empty Acl ensures adaptor will mark this document as secure
       return Acl.EMPTY;
     }
+    ResultSetMetaData metadata = rs.getMetaData();
     Acl.Builder builder = new Acl.Builder();
     ArrayList<UserPrincipal> permitUsers = new ArrayList<UserPrincipal>();
     ArrayList<UserPrincipal> denyUsers = new ArrayList<UserPrincipal>();
