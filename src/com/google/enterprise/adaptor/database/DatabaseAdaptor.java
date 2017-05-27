@@ -273,7 +273,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private boolean isDeleteAction(ResultSet rs) throws SQLException {
     if (!actionColumn.equals("")) {
       String action = rs.getString(actionColumn);
-      System.out.println("Action: '" + action + "'");
       return (action != null && "delete".equals(action.toLowerCase(US)));
     }
     return false;
