@@ -136,6 +136,18 @@ class UniqueKey {
     return Collections.unmodifiableList(tmpContentCols);
   }
 
+  List<String> getDocIdSqlColumns() {
+    return names;
+  }
+
+  List<String> getContentSqlColumns() {
+    return contentSqlCols;
+  }
+
+  List<String> getAclSqlColumns() {
+    return aclSqlCols;
+  }
+
   @VisibleForTesting
   UniqueKey(String ukDecls) {
     this(ukDecls, "", "");
