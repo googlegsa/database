@@ -177,28 +177,31 @@ public class DatabaseAdaptorTest {
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
   }
 
+  // TODO(bmj): call initConfig() to set defaults for most properties.
   private Config createStandardConfig(Map<String, String> moreEntries) {
     Map<String, String> configEntries = new HashMap<String, String>();
     // driverClass must be specified, but (other than it pointing at a valid
     // class), the value does not matther.
     configEntries.put("db.driverClass",
         "com.google.enterprise.adaptor.database.DatabaseAdaptor");
-    configEntries.put("db.url", "must be set");
-    configEntries.put("db.user", "must be set");
-    configEntries.put("db.password", "must be set");
-    configEntries.put("db.uniqueKey", "must be set:string");
-    configEntries.put("db.everyDocIdSql", "must be set");
-    configEntries.put("db.singleDocContentSqlParameters", "must be set");
-    configEntries.put("db.singleDocContentSql", "must be set");
-    configEntries.put("db.aclSqlParameters", "must be set");
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.user", "sa");
+    configEntries.put("db.password", "");
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.singleDocContentSqlParameters", "id");
     configEntries.put("db.includeAllColumnsAsMetadata", "false");
-    configEntries.put("db.metadataColumns", "table_col:gsa_col");
-    // configEntries.put("db.aclSql", "table_col:gsa_col");
+    configEntries.put("db.metadataColumns", "");
     configEntries.put("db.aclSql", "");
+    configEntries.put("db.aclSqlParameters", "");
     configEntries.put("db.aclPrincipalDelimiter", ",");
     configEntries.put("db.disableStreaming", "true");
     configEntries.put("db.updateTimestampTimezone", "");
     configEntries.put("db.updateSql", "");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("adaptor.namespace", "Default");
     configEntries.putAll(moreEntries);
     final Config config = new Config();
     for (Map.Entry<String, String> entry : configEntries.entrySet()) {
@@ -443,8 +446,6 @@ public class DatabaseAdaptorTest {
   @Test
   public void testIncludeAllColumnsAsMetadata_mcBlank() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("adaptor.namespace", "Default");
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.includeAllColumnsAsMetadata", "true");
     moreEntries.put("db.metadataColumns", "");
     final Config config = createStandardConfig(moreEntries);
@@ -469,8 +470,6 @@ public class DatabaseAdaptorTest {
   @Test
   public void testIncludeAllColumnsAsMetadata_mcSet() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("adaptor.namespace", "Default");
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.includeAllColumnsAsMetadata", "true");
     moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
     final Config config = createStandardConfig(moreEntries);
@@ -495,8 +494,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testIncludeAllColumnsAsMetadataFalse_mcBlank() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("adaptor.namespace", "Default");
-    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.includeAllColumnsAsMetadata", "false");
     moreEntries.put("db.metadataColumns", "");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -509,8 +507,6 @@ public class DatabaseAdaptorTest {
     // Value of unique id cannot be "productid", because that is missing type.
     // The value has to be something like "productid:int"
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("adaptor.namespace", "Default");
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "productid");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -524,8 +520,6 @@ public class DatabaseAdaptorTest {
     // Type of unique key id value cannot be "notvalid", since it's invalid.
     // That cat be int, string, timestamp, date, time, and long.
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("adaptor.namespace", "Default");
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "productid:notvalid");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -538,8 +532,6 @@ public class DatabaseAdaptorTest {
   public void testUniqueKeyContainsRepeatedKeyName() throws Exception {
     // Value of unique key cannot contain repeated key name.
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("adaptor.namespace", "Default");
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "productid:int,productid:string");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -553,8 +545,6 @@ public class DatabaseAdaptorTest {
     // Value of unique id cannot be empty.
     // The value has to be something like "keyname:type"
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("adaptor.namespace", "Default");
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -566,8 +556,6 @@ public class DatabaseAdaptorTest {
   @Test
   public void testIncludeAllColumnsAsMetadataFalse_mcSet() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("adaptor.namespace", "Default");
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -591,8 +579,6 @@ public class DatabaseAdaptorTest {
   @Test
   public void testInvalidColumnAsMetadata() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("adaptor.namespace", "Default");
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.metadataColumns", "fake column:gsa1,col2:gsa2");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -636,15 +622,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.uniqueKey", "ID:int");
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql", "");
-    configEntries.put("db.singleDocContentSqlParameters", "");
-    configEntries.put("db.aclSqlParameters", "ID");
-    configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName",
         "ID");
@@ -673,14 +650,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql",
-        "select * from data where ID = ?");
-    configEntries.put("adaptor.namespace", "Default");
-    configEntries.put("db.modeOfOperation", "rowToText");
     configEntries.put("db.metadataColumns", "ID:col1, NAME:col2");
 
     Config config = createStandardConfig(configEntries);
