@@ -14,6 +14,9 @@
 
 package com.google.enterprise.adaptor;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Utility methods for tests.
  *
@@ -60,5 +63,18 @@ public class TestHelper {
         // do nothing
       }
     };
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> Map<T, T> asMap(T... entries) {
+    if (entries.length % 2 != 0) {
+      throw new IllegalArgumentException(
+          "A map requires an even number of entries");
+    }
+    Map<T, T> map = new HashMap<>();
+    for (int i = 0; i < entries.length - 1; i += 2) {
+      map.put(entries[i], entries[i + 1]);
+    }
+    return map;
   }
 }
