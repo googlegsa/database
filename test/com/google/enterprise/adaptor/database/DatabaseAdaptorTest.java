@@ -677,98 +677,27 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testGetDocIdsActionColumnDelete() throws Exception {
-    executeUpdate("create table data(id integer, action varchar)");
-    executeUpdate("insert into data(id, action) values('1001', 'delete')");
-
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.actionColumn", "action");
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.uniqueKey", "id:int");
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql", "");
-    configEntries.put("db.singleDocContentSqlParameters", "");
-    configEntries.put("db.aclSqlParameters", "id");
-    configEntries.put("adaptor.namespace", "Default");
-    configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    configEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName",
-        "id");
-    configEntries.put("docId.isUrl", "true");
-    configEntries.put("db.metadataColumns", "id:col1");
-
-    Config config = createStandardConfig(configEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-
-    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
-    adaptor.getDocIds(pusher);
-
-    Metadata metadata = new Metadata();
-    assertEquals(
-        Arrays.asList(new Record.Builder(new DocId("1001"))
-            .setDeleteFromIndex(true).build()),
-        pusher.getRecords());
-  }
-
-  @Test
-  public void testGetDocIdsActionCaseInsensitive() throws Exception {
-    executeUpdate("create table data(id integer, action varchar)");
-    executeUpdate("insert into data(id, action) values('1001', 'DELETE')");
-
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.actionColumn", "action");
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.uniqueKey", "id:int");
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql", "");
-    configEntries.put("db.singleDocContentSqlParameters", "");
-    configEntries.put("db.aclSqlParameters", "id");
-    configEntries.put("adaptor.namespace", "Default");
-    configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    configEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName",
-        "id");
-    configEntries.put("docId.isUrl", "true");
-    configEntries.put("db.metadataColumns", "id:col1");
-
-    Config config = createStandardConfig(configEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-
-    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
-    adaptor.getDocIds(pusher);
-
-    Metadata metadata = new Metadata();
-    assertEquals(
-        Arrays.asList(new Record.Builder(new DocId("1001"))
-            .setDeleteFromIndex(true).build()),
-        pusher.getRecords());
-  }
-
-  @Test
-  public void testGetDocIdsActionColumnAdd() throws Exception {
+  public void testGetDocIdsActionColumn() throws Exception {
     executeUpdate("create table data(id integer, action varchar)");
     executeUpdate("insert into data(id, action) values('1001', 'add')");
+    executeUpdate("insert into data(id, action) values('1002', 'delete')");
+    executeUpdate("insert into data(id, action) values('1003', 'DELETE')");
+    executeUpdate("insert into data(id, action) values('1004', 'foo')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.actionColumn", "action");
     configEntries.put("db.user", "sa");
     configEntries.put("db.password", "");
     configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "id:int");
-    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.everyDocIdSql", "select * from data order by id");
     configEntries.put("db.singleDocContentSql", "");
     configEntries.put("db.singleDocContentSqlParameters", "");
     configEntries.put("db.aclSqlParameters", "id");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    configEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName",
-        "id");
     configEntries.put("docId.isUrl", "true");
-    configEntries.put("db.metadataColumns", "id:col1");
+    configEntries.put("db.metadataColumns", "id:id");
+    configEntries.put("db.actionColumn", "action");
 
     Config config = createStandardConfig(configEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -777,48 +706,15 @@ public class DatabaseAdaptorTest {
     RecordingDocIdPusher pusher = new RecordingDocIdPusher();
     adaptor.getDocIds(pusher);
 
-    Metadata metadata = new Metadata();
-    metadata.add("col1",  "1001");
-    assertEquals(
-        Arrays.asList(new Record.Builder(new DocId("1001"))
-          .setMetadata(metadata).build()),
-        pusher.getRecords());
-  }
-
-  @Test
-  public void testGetDocIdsActionColumnOther() throws Exception {
-    executeUpdate("create table data(id integer, action varchar)");
-    executeUpdate("insert into data(id, action) values('1001', 'foo')");
-
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.actionColumn", "action");
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.uniqueKey", "id:int");
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql", "");
-    configEntries.put("db.singleDocContentSqlParameters", "");
-    configEntries.put("db.aclSqlParameters", "id");
-    configEntries.put("adaptor.namespace", "Default");
-    configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    configEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName",
-        "id");
-    configEntries.put("docId.isUrl", "true");
-    configEntries.put("db.metadataColumns", "id:col1");
-
-    Config config = createStandardConfig(configEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-
-    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
-    adaptor.getDocIds(pusher);
-
-    Metadata metadata = new Metadata();
-    metadata.add("col1",  "1001");
-    assertEquals(
-        Arrays.asList(new Record.Builder(new DocId("1001"))
-          .setMetadata(metadata).build()),
+    Metadata metadata1 = new Metadata();
+    metadata1.add("id", "1001");
+    Metadata metadata4 = new Metadata();
+    metadata4.add("id", "1004");
+    assertEquals(Arrays.asList(new Record[] {
+        new Record.Builder(new DocId("1001")).setMetadata(metadata1).build(),
+        new Record.Builder(new DocId("1002")).setDeleteFromIndex(true).build(),
+        new Record.Builder(new DocId("1003")).setDeleteFromIndex(true).build(),
+        new Record.Builder(new DocId("1004")).setMetadata(metadata4).build()}),
         pusher.getRecords());
   }
 
@@ -839,8 +735,6 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.aclSqlParameters", "id");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    configEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName",
-        "id");
     configEntries.put("docId.isUrl", "true");
     configEntries.put("db.metadataColumns", "id:col1");
 
