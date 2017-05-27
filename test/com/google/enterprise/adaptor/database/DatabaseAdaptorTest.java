@@ -156,7 +156,6 @@ public class DatabaseAdaptorTest {
   public void testInitOfUrlMetadataListerDocIdIsUrlFalse() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    moreEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName", "ur");
     moreEntries.put("docId.isUrl", "false");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -169,7 +168,6 @@ public class DatabaseAdaptorTest {
   public void testInitOfUrlMetadataListerDocIdIsUrlTrue() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    moreEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName", "ur");
     moreEntries.put("docId.isUrl", "true");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -596,8 +594,6 @@ public class DatabaseAdaptorTest {
   @Test
   public void testCaseInsensitiveMetadataColumnMap() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("adaptor.namespace", "Default");
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.metadataColumns", "Foo:gsa_foo,Bar:gsa_bar");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -623,8 +619,6 @@ public class DatabaseAdaptorTest {
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    configEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName",
-        "ID");
     configEntries.put("docId.isUrl", "true");
     configEntries.put("db.metadataColumns", "ID:col1, NAME:col2");
 
