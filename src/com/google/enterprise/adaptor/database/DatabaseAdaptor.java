@@ -43,7 +43,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -235,12 +234,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   public void getDocIds(DocIdPusher pusher) throws IOException,
       InterruptedException {
     BufferedPusher outstream = new BufferedPusher(pusher);
-    Connection conn = null;
-    StatementAndResult statementAndResult = null;
-    try {
-      conn = makeNewConnection();
-      statementAndResult = getStreamFromDb(conn, everyDocIdSql);
-      ResultSet rs = statementAndResult.resultSet;
+    try (Connection conn = makeNewConnection();
+        PreparedStatement stmt = getStreamFromDb(conn, everyDocIdSql);
+        ResultSet rs = stmt.executeQuery()) {
+      log.finer("queried for stream");
       while (rs.next()) {
         DocId id = new DocId(uniqueKey.makeUniqueId(rs, encodeDocId));
         DocIdPusher.Record.Builder builder = new DocIdPusher.Record.Builder(id);
@@ -253,9 +250,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       }
     } catch (SQLException ex) {
       throw new IOException(ex);
-    } finally {
-      tryClosingStatementAndResult(statementAndResult);
-      tryClosingConnection(conn);
     }
     outstream.forcePush();
   }
@@ -320,12 +314,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       return;
     }
     DocId id = req.getDocId();
-    Connection conn = null;
-    StatementAndResult statementAndResult = null;
-    try {
-      conn = makeNewConnection();
-      statementAndResult = getDocFromDb(conn, id.getUniqueId());
-      ResultSet rs = statementAndResult.resultSet;
+    try (Connection conn = makeNewConnection();
+        PreparedStatement stmt = getDocFromDb(conn, id.getUniqueId());
+        ResultSet rs = stmt.executeQuery()) {
+      log.finer("got doc");
       // First handle cases with no data to return.
       boolean hasResult = rs.next();
       if (!hasResult) {
@@ -348,9 +340,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       respGenerator.generateResponse(rs, resp);
     } catch (SQLException ex) {
       throw new IOException("retrieval error", ex);
-    } finally {
-      tryClosingStatementAndResult(statementAndResult);
-      tryClosingConnection(conn);
     }
   }
 
@@ -359,14 +348,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   }
   
   private Acl getAcl(Connection conn, String uniqueId) throws SQLException {
-    StatementAndResult statementAndResult = null;
-    try {
-      statementAndResult = getAclFromDb(conn, uniqueId);
-      ResultSet rs = statementAndResult.resultSet;
+    try (PreparedStatement stmt = getAclFromDb(conn, uniqueId);
+        ResultSet rs = stmt.executeQuery()) {
+      log.finer("got acl");
       ResultSetMetaData metadata = rs.getMetaData();
       return buildAcl(rs, metadata, aclPrincipalDelimiter, aclNamespace);
-    } finally {
-      tryClosingStatementAndResult(statementAndResult);
     }
   }
   
@@ -467,21 +453,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     return false;
   }
 
-  private static class StatementAndResult {
-    Statement statement;
-    ResultSet resultSet;
-    StatementAndResult(Statement st, ResultSet rs) { 
-      if (null == st) {
-        throw new NullPointerException();
-      }
-      if (null == rs) {
-        throw new NullPointerException();
-      }
-      statement = st;
-      resultSet = rs;
-    }
-  }
-
   private Connection makeNewConnection() throws SQLException {
     log.finest("about to connect");
     Connection conn = DriverManager.getConnection(dbUrl, user, password);
@@ -489,66 +460,35 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     return conn;
   }
 
-  private StatementAndResult getDocFromDb(Connection conn,
+  private PreparedStatement getDocFromDb(Connection conn,
       String uniqueId) throws SQLException {
     PreparedStatement st = conn.prepareStatement(singleDocContentSql);
     uniqueKey.setContentSqlValues(st, uniqueId);  
     log.log(Level.FINER, "about to get doc: {0}",  uniqueId);
-    ResultSet rs = st.executeQuery();
-    log.finer("got doc");
-    return new StatementAndResult(st, rs); 
+    return st;
   }
 
-  private StatementAndResult getAclFromDb(Connection conn,
+  private PreparedStatement getAclFromDb(Connection conn,
       String uniqueId) throws SQLException {
     PreparedStatement st = conn.prepareStatement(aclSql);
     uniqueKey.setAclSqlValues(st, uniqueId);  
     log.log(Level.FINER, "about to get acl: {0}",  uniqueId);
-    ResultSet rs = st.executeQuery();
-    log.finer("got acl");
-    return new StatementAndResult(st, rs); 
+    return st;
   }
 
-  private StatementAndResult getStreamFromDb(Connection conn,
+  private PreparedStatement getStreamFromDb(Connection conn,
       String query) throws SQLException {
-    Statement st;
+    PreparedStatement st;
     if (disableStreaming) {
-      st = conn.createStatement();
+      st = conn.prepareStatement(query);
     } else {
-      st = conn.createStatement(
+      st = conn.prepareStatement(query,
           /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
           /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
     }
     st.setFetchSize(maxIdsPerFeedFile);  // Integer.MIN_VALUE for MySQL?
     log.log(Level.FINER, "about to query for stream: {0}", query);
-    ResultSet rs = st.executeQuery(query);
-    log.finer("queried for stream");
-    return new StatementAndResult(st, rs); 
-  }
-
-  private static void tryClosingStatementAndResult(StatementAndResult strs) {
-    if (null != strs) {
-      try {
-        strs.resultSet.close();
-      } catch (SQLException ex) {
-        log.log(Level.WARNING, "result set close failed", ex);
-      }
-      try {
-        strs.statement.close();
-      } catch (SQLException ex) {
-        log.log(Level.WARNING, "statement close failed", ex);
-      }
-    }
-  }
-
-  private static void tryClosingConnection(Connection conn) {
-    if (null != conn) {
-      try {
-        conn.close();
-      } catch (SQLException ex) {
-        log.log(Level.WARNING, "connection close failed", ex);
-      }
-    }
+    return st;
   }
 
   /**
@@ -698,17 +638,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     public void getModifiedDocIds(DocIdPusher pusher)
         throws IOException, InterruptedException {
       BufferedPusher outstream = new BufferedPusher(pusher);
-      Connection conn = null;
-      StatementAndResult statementAndResult = null;
       // latestTimestamp will be used to update lastUpdateTimestampInMillis
       // if GSA_TIMESTAMP column is present in the ResultSet and there is at 
       // least one non-null value of that column in the ResultSet.
       Timestamp latestTimestamp = null;
       boolean hasTimestamp = false;
-      try {
-        conn = makeNewConnection();
-        statementAndResult = getUpdateStreamFromDb(conn);
-        ResultSet rs = statementAndResult.resultSet;
+      try (Connection conn = makeNewConnection();
+          PreparedStatement stmt = getUpdateStreamFromDb(conn);
+          ResultSet rs = stmt.executeQuery()) {
         hasTimestamp =
             hasColumn(rs.getMetaData(),
                 GsaSpecialColumns.GSA_TIMESTAMP.toString());
@@ -740,9 +677,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         }
       } catch (SQLException ex) {
         throw new IOException(ex);
-      } finally {
-        tryClosingStatementAndResult(statementAndResult);
-        tryClosingConnection(conn);
       }
       outstream.forcePush();
       if (!hasTimestamp) {
@@ -755,7 +689,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           + formatter.format(new Date(lastUpdateTimestamp.getTime())));
     }
 
-    private StatementAndResult getUpdateStreamFromDb(Connection conn)
+    private PreparedStatement getUpdateStreamFromDb(Connection conn)
         throws SQLException {
       PreparedStatement st;
       if (disableStreaming) {
@@ -766,8 +700,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
       }
       st.setTimestamp(1, lastUpdateTimestamp, updateTimestampTimezone);
-      ResultSet rs = st.executeQuery();
-      return new StatementAndResult(st, rs);
+      return st;
     }
   }
 
@@ -849,9 +782,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           new Object[]{user, userIdentity.getGroups()});
       Map<DocId, AuthzStatus> result
           = new HashMap<DocId, AuthzStatus>(ids.size() * 2);
-      Connection conn = null;
-      try {
-        conn = makeNewConnection();
+      try (Connection conn = makeNewConnection()) {
         for (DocId id : ids) {
           log.log(Level.FINE, "about to get acl of doc {0}", id);
           Acl acl = getAcl(conn, id.getUniqueId());
@@ -867,8 +798,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         }
       } catch (SQLException ex) {
         throw new IOException("authz retrieval error", ex);
-      } finally {
-        tryClosingConnection(conn);
       }
       return Collections.unmodifiableMap(result);
     }
