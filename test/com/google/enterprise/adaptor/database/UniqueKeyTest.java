@@ -104,6 +104,32 @@ public class UniqueKeyTest {
   }
 
   @Test
+  public void testCaseSensitiveNameRepeatsAllowed() {
+    UniqueKey uk = new UniqueKey("num:int,Num:string");
+    assertEquals(2, uk.numElementsForTest());
+    assertEquals("num", uk.nameForTest(0));
+    assertEquals("Num", uk.nameForTest(1));
+    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
+    assertEquals(UniqueKey.ColumnType.STRING, uk.typeForTest(1));
+  }
+
+  @Test
+  public void testCaseInsensitiveNameNotAllowedIfCaseSensitiveKeys() {
+    thrown.expect(InvalidConfigurationException.class);
+    UniqueKey uk = new UniqueKey("id:int,Id:string", "ID", "ID");
+  }
+
+  @Test
+  public void testCaseInsensitiveNameAllowedIfNotCaseSensitiveKeys() {
+    UniqueKey uk = new UniqueKey("id:int", "Id", "ID");
+    assertEquals(1, uk.numElementsForTest());
+    assertEquals("id", uk.nameForTest(0));
+    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
+    assertEquals(UniqueKey.ColumnType.INT, uk.getType("Id"));
+    assertEquals(UniqueKey.ColumnType.INT, uk.getType("ID"));
+  }
+
+  @Test
   public void testBadDef() {
     thrown.expect(InvalidConfigurationException.class);
     UniqueKey uk = new UniqueKey("numnum:int,strstr/string");

@@ -14,6 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static java.util.Locale.US;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 
@@ -49,6 +51,8 @@ class UniqueKey {
   private final List<String> contentSqlCols;  // columns for content query
   private final List<String> aclSqlCols;  // columns for acl query
 
+  private boolean caseSensitiveKeys; // if types map has case sensitive keys
+
   UniqueKey(String ukDecls, String contentSqlColumns, String aclSqlColumns) {
     if (null == ukDecls) {
       throw new NullPointerException();
@@ -81,24 +85,24 @@ class UniqueKey {
       def[1] = def[1].trim();
       String name = def[0];
       ColumnType type;
-      if ("int".equals(def[1].toLowerCase())) {
+      if ("int".equals(def[1].toLowerCase(US))) {
         type = ColumnType.INT;
-      } else if ("string".equals(def[1].toLowerCase())) {
+      } else if ("string".equals(def[1].toLowerCase(US))) {
         type = ColumnType.STRING;
-      } else if ("timestamp".equals(def[1].toLowerCase())) {
+      } else if ("timestamp".equals(def[1].toLowerCase(US))) {
         type = ColumnType.TIMESTAMP;
-      } else if ("date".equals(def[1].toLowerCase())) {
+      } else if ("date".equals(def[1].toLowerCase(US))) {
         type = ColumnType.DATE;
-      } else if ("time".equals(def[1].toLowerCase())) {
+      } else if ("time".equals(def[1].toLowerCase(US))) {
         type = ColumnType.TIME;
-      } else if ("long".equals(def[1].toLowerCase())) {
+      } else if ("long".equals(def[1].toLowerCase(US))) {
         type = ColumnType.LONG;
       } else {
         String errmsg = "Invalid UniqueKey type '" + def[1] + "'. Valid"
             + " types are: int, string, timestamp, date, time, and long.";
         throw new InvalidConfigurationException(errmsg);
       }
-      if (tmpTypes.containsKey(name)) {
+      if (tmpNames.contains(name)) {
         String errmsg = "Invalid db.uniqueKey configuration: key name '"
             + name + "' was repeated.";
         throw new InvalidConfigurationException(errmsg);
@@ -107,28 +111,38 @@ class UniqueKey {
       tmpTypes.put(name, type);
     }
     names = Collections.unmodifiableList(tmpNames);
-    types = Collections.unmodifiableMap(tmpTypes);
+    Map<String, ColumnType> caseInsensitiveTypes = new TreeMap<>();
+    for (Map.Entry<String, ColumnType> entry : tmpTypes.entrySet()) {
+      String lowerKey = entry.getKey().toLowerCase();
+      if (caseInsensitiveTypes.put(lowerKey, entry.getValue()) != null) {
+        caseSensitiveKeys = true;
+        break;
+      }
+    }
+    types = Collections.unmodifiableMap(
+        (caseSensitiveKeys) ? tmpTypes : caseInsensitiveTypes);
 
     if ("".equals(contentSqlColumns.trim())) {
       contentSqlCols = names;
     } else {
-      contentSqlCols = splitIntoNameList(contentSqlColumns, tmpTypes.keySet());
+      contentSqlCols = splitIntoNameList(contentSqlColumns);
     }
 
     if ("".equals(aclSqlColumns.trim())) {
       aclSqlCols = names;
     } else {
-      aclSqlCols = splitIntoNameList(aclSqlColumns, tmpTypes.keySet());
+      aclSqlCols = splitIntoNameList(aclSqlColumns);
     }
   }
 
-  private static List<String> splitIntoNameList(String cols,
-      Set<String> validNames) {
+  private List<String> splitIntoNameList(String cols) {
     List<String> tmpContentCols = new ArrayList<String>();
     for (String name : cols.split(",", 0)) {
       name = name.trim();
-      if (!validNames.contains(name)) {
-        String errmsg = "Unknown column name: '" + name + "'";
+      if (!types.containsKey(
+          (caseSensitiveKeys) ? name : name.toLowerCase())) {
+        String errmsg = "Unknown column name: '" + name + "'. Valid names are "
+            + types.keySet();
         throw new InvalidConfigurationException(errmsg);
       }
       tmpContentCols.add(name);
@@ -139,6 +153,11 @@ class UniqueKey {
   @VisibleForTesting
   UniqueKey(String ukDecls) {
     this(ukDecls, "", "");
+  }
+
+  @VisibleForTesting
+  ColumnType getType(String name) {
+    return types.get((caseSensitiveKeys) ? name : name.toLowerCase());
   }
 
   String makeUniqueId(ResultSet rs, boolean encode) throws SQLException {
@@ -152,7 +171,7 @@ class UniqueKey {
     for (int i = 0; i < names.size(); i++) {
       String name = names.get(i);
       String part;
-      switch (types.get(name)) {
+      switch (getType(name)) {
         case INT:
           part = "" + rs.getInt(name);
           break;
@@ -172,7 +191,7 @@ class UniqueKey {
           part = "" + rs.getLong(name);
           break;
         default:
-          String errmsg = "Invalid type '" + types.get(name) + "' for '"
+          String errmsg = "Invalid type '" + getType(name) + "' for '"
               + name + "'. Valid types are: int, string, timestamp, date"
               + ", time and long.";
           throw new AssertionError(errmsg);
@@ -202,7 +221,7 @@ class UniqueKey {
     }
     for (int i = 0; i < sqlCols.size(); i++) {
       String colName = sqlCols.get(i);
-      ColumnType typeOfCol = types.get(colName);
+      ColumnType typeOfCol = getType(colName);
       String valueOfCol = zip.get(colName);
       switch (typeOfCol) {
         case INT:
@@ -302,7 +321,7 @@ class UniqueKey {
   /** Type of particular column in primary key. */
   @VisibleForTesting
   ColumnType typeForTest(int i) {
-    return types.get(names.get(i));
+    return getType(names.get(i));
   }
 
   @Override
