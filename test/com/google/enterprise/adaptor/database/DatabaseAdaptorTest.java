@@ -572,11 +572,8 @@ public class DatabaseAdaptorTest {
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    assertEquals("{col2=gsa2, db_col1=gsa1}",
-        adaptor.metadataColumns.toString());
-    assertNull(adaptor.metadataColumns.get("fake column"));
-    assertEquals("gsa1", adaptor.metadataColumns.get("db_col1"));
-    assertEquals("gsa2", adaptor.metadataColumns.get("col2"));
+    assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
+                 adaptor.metadataColumns);
 
     executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
     executeUpdate("insert into data(id, db_col1, col2) "
