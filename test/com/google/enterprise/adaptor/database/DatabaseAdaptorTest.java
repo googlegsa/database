@@ -22,7 +22,6 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAnd
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Config;
@@ -36,7 +35,6 @@ import com.google.enterprise.adaptor.UserPrincipal;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
 import java.io.IOException;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -228,8 +226,7 @@ public class DatabaseAdaptorTest {
 
     executeUpdate("create table acl");
     ResultSet rs = executeQuery("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
 
@@ -262,8 +259,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup1")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
 
@@ -312,8 +308,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -354,8 +349,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -383,8 +377,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup1")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -402,7 +395,6 @@ public class DatabaseAdaptorTest {
     List<GroupPrincipal> goldenGroups = Arrays.asList(
         new GroupPrincipal("dgroup1, dgroup2"));
     ResultSet rs = executeQueryAndNext("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
     ArrayList<UserPrincipal> users =
         DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_USERS, "", DEFAULT_NAMESPACE);
@@ -429,7 +421,6 @@ public class DatabaseAdaptorTest {
         new GroupPrincipal("dgroup1"),
         new GroupPrincipal("dgroup2"));
     ResultSet rs = executeQueryAndNext("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
     ArrayList<UserPrincipal> users =
         DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_USERS, " ; ", DEFAULT_NAMESPACE);
