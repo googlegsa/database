@@ -14,9 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.TestHelper.asMap;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -42,20 +41,14 @@ public class MetadataColumnsTest {
   public void testSimpleCase() {
     String configDef = "xf_date:CREATE_DATE,name:AUTHOR";
     MetadataColumns mc = new MetadataColumns(configDef);
-    assertNotNull(mc.get("xf_date"));
-    assertNotNull(mc.get("name"));
-    assertEquals("CREATE_DATE", mc.get("xf_date"));
-    assertEquals("AUTHOR", mc.get("name"));
-    assertNull(mc.get("CREATE_DATE"));
-    assertNull(mc.get("AUTHOR"));
-    assertNull(mc.get("xYz"));
+    assertEquals(asMap("xf_date", "CREATE_DATE", "name", "AUTHOR"), mc);
   }
 
   @Test
   public void testColonInMetadataName() {
     String configDef = "xf_date:DATE:CREATE";
     MetadataColumns mc = new MetadataColumns(configDef);
-    assertEquals("DATE:CREATE", mc.get("xf_date"));
+    assertEquals(asMap("xf_date", "DATE:CREATE"), mc);
   }
 
   @Test

@@ -18,8 +18,8 @@ import com.google.enterprise.adaptor.InvalidConfigurationException;
 
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -29,7 +29,7 @@ import java.util.logging.Logger;
  * Stores mapping of db columns to metadata keys to send.
  * This class is thread-safe.
  */
-class MetadataColumns extends AbstractMap {
+class MetadataColumns extends AbstractMap<String, String> {
   private static final Logger log
       = Logger.getLogger(MetadataColumns.class.getName());
 

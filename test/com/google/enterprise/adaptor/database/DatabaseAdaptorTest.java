@@ -16,11 +16,11 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.DocIdPusher.Record;
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
+import static com.google.enterprise.adaptor.TestHelper.asMap;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
@@ -476,11 +476,8 @@ public class DatabaseAdaptorTest {
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    assertEquals("{col2=gsa2, db_col1=gsa1}",
-        adaptor.metadataColumns.toString());
-    assertNull(adaptor.metadataColumns.get("fake column"));
-    assertEquals("gsa1", adaptor.metadataColumns.get("db_col1"));
-    assertEquals("gsa2", adaptor.metadataColumns.get("col2"));
+    assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
+                 adaptor.metadataColumns);
 
     executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
     executeUpdate("insert into data(id, db_col1, col2) "
@@ -504,8 +501,7 @@ public class DatabaseAdaptorTest {
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    assertEquals("{}", adaptor.metadataColumns.toString());
-    assertNull(adaptor.metadataColumns.get("fake column"));
+    assertEquals(asMap(), adaptor.metadataColumns);
   }
 
   @Test
