@@ -559,6 +559,27 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitVerifyColumnNames_actionColumn() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql", "");
+    moreEntries.put("db.actionColumn", "other");
+    moreEntries.put("adaptor.namespace", "Default");
+    Config config = createStandardConfig(moreEntries);
+
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[other] not found in query");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
   public void testInitVerifyColumnNames_metadataColumns() throws Exception {
     executeUpdate("create table data(id int, other varchar)");
 
@@ -878,8 +899,10 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocIdsActionColumnMissing() throws Exception {
-    executeUpdate("create table data(id integer, name varchar)");
-    executeUpdate("insert into data(id, name) values('1001', 'foo')");
+    // Simulate a skipped column verification by creating the missing
+    // column for init but removing it for getDocIds.
+    executeUpdate("create table data(id integer, action varchar)");
+    executeUpdate("insert into data(id, action) values(1001, 'add')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.actionColumn", "action");
@@ -899,6 +922,8 @@ public class DatabaseAdaptorTest {
     Config config = createStandardConfig(configEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    executeUpdate("alter table data drop column action");
 
     RecordingDocIdPusher pusher = new RecordingDocIdPusher();
     thrown.expect(IOException.class);

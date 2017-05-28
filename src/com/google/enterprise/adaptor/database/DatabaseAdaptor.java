@@ -245,6 +245,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           "db.singleDocContentSqlParameters", uniqueKey.getContentSqlColumns());
       verifyColumnNames(conn, "db.aclSql", aclSql,
           "db.aclSqlParameters", uniqueKey.getAclSqlColumns());
+      if (!actionColumn.isEmpty()) {
+        verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
+            "db.actionColumn", Arrays.asList(actionColumn));
+      }
       if (metadataColumns != null) {
         if ("urlAndMetadataLister".equals(modeOfOperation)) {
           verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
