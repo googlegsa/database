@@ -95,7 +95,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.password", null);
     config.addKey("db.uniqueKey", null);
     config.addKey("db.everyDocIdSql", null);
-    config.addKey("db.singleDocContentSql", null);
+    config.addKey("db.singleDocContentSql", "");
     config.addKey("db.singleDocContentSqlParameters", "");
     config.addKey("db.metadataColumns", "");
     // when set to true, if "db.metadataColumns" is blank, it will use all
@@ -160,10 +160,15 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     password = context.getSensitiveValueDecoder().decodeValue(
         cfg.getValue("db.password"));
 
+    boolean leaveIdAlone = new Boolean(cfg.getValue("docId.isUrl"));
+    encodeDocId = !leaveIdAlone;
+    log.config("encodeDocId: " + encodeDocId);
+
     uniqueKey = new UniqueKey(
         cfg.getValue("db.uniqueKey"),
         cfg.getValue("db.singleDocContentSqlParameters"),
-        cfg.getValue("db.aclSqlParameters")
+        cfg.getValue("db.aclSqlParameters"),
+        encodeDocId
     );
     log.config("primary key: " + uniqueKey);
 
@@ -187,6 +192,40 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       log.config("metadata columns: " + metadataColumns);
     }
 
+    modeOfOperation = cfg.getValue("db.modeOfOperation");
+    if (modeOfOperation.equals("urlAndMetadataLister") && encodeDocId) {
+      String errmsg = "db.modeOfOperation of \"" + modeOfOperation
+          + "\" requires docId.isUrl to be \"true\"";
+      throw new InvalidConfigurationException(errmsg);
+    }
+
+    if (leaveIdAlone) {
+      log.config("adaptor runs in lister-only mode");
+
+      // Warn about ignored properties.
+      TreeSet<String> ignored = new TreeSet<>();
+      if (!singleDocContentSql.isEmpty()) {
+        ignored.add("db.singleDocContentSql");
+      }
+      if (!modeOfOperation.equals("urlAndMetadataLister")) {
+        if (metadataColumns == null) {
+          ignored.add("db.includeAllColumnsAsMetadata");
+        } else if (!metadataColumns.isEmpty()) {
+          ignored.add("db.metadataColumns");
+        }
+      }
+      if (!ignored.isEmpty()) {
+        String modeStr = (modeOfOperation.equals("urlAndMetadataLister"))
+            ? modeOfOperation : "lister-only";
+        log.log(Level.INFO, "The following properties are set but will"
+            + " be ignored in {0} mode: {1}",
+            new Object[] { modeStr, ignored });
+      }
+    } else if (singleDocContentSql.isEmpty()) {
+      throw new InvalidConfigurationException(
+          "db.singleDocContentSql cannot be an empty string");
+    }
+
     respGenerator = loadResponseGenerator(cfg);
     
     if (!isNullOrEmptyString(cfg.getValue("db.aclSql"))) {
@@ -203,20 +242,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         = initDbAdaptorIncrementalLister(cfg);
     if (incrementalLister != null) {
       context.setPollingIncrementalLister(incrementalLister);
-    }
-
-    boolean leaveIdAlone = new Boolean(cfg.getValue("docId.isUrl"));
-    encodeDocId = !leaveIdAlone;
-    log.config("encodeDocId: " + encodeDocId);
-    if (leaveIdAlone) {
-      log.config("adaptor runs in lister-only mode");
-    }
-
-    modeOfOperation = cfg.getValue("db.modeOfOperation");
-    if ("urlAndMetadataLister".equals(modeOfOperation) && encodeDocId) {
-      String errmsg = "db.modeOfOperation of \"" + modeOfOperation
-          + "\" requires docId.isUrl to be \"true\"";
-      throw new InvalidConfigurationException(errmsg);
     }
 
     if (aclSql == null) {

@@ -168,7 +168,12 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName", "ur");
+    moreEntries.put("db.uniqueKey", "url:string");
+    moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.singleDocContentSql", "");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.initConfig(config);
@@ -555,6 +560,24 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testUniqueKeyUrl() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "id:int, url:string");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.initConfig(config);
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("db.uniqueKey value: The key must be a single");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
   public void testIncludeAllColumnsAsMetadataFalse_mcSet() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("adaptor.namespace", "Default");
@@ -623,24 +646,24 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocIds() throws Exception {
-    executeUpdate("create table data(ID  integer, NAME  varchar)");
-    executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
+    executeUpdate("create table data(url varchar, name varchar)");
+    executeUpdate("insert into data(url, name) values('http://', 'John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.user", "sa");
     configEntries.put("db.password", "");
     configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.uniqueKey", "url:string");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql", "");
     configEntries.put("db.singleDocContentSqlParameters", "");
-    configEntries.put("db.aclSqlParameters", "ID");
+    configEntries.put("db.aclSqlParameters", "");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName",
         "ID");
     configEntries.put("docId.isUrl", "true");
-    configEntries.put("db.metadataColumns", "ID:col1, NAME:col2");
+    configEntries.put("db.metadataColumns", "URL:col1, NAME:col2");
 
     Config config = createStandardConfig(configEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -650,10 +673,10 @@ public class DatabaseAdaptorTest {
     adaptor.getDocIds(pusher);
 
     Metadata metadata = new Metadata();
-    metadata.add("col1",  "1001");
+    metadata.add("col1",  "http://");
     metadata.add("col2",  "John");
     assertEquals(
-        Arrays.asList(new Record.Builder(new DocId("1001"))
+        Arrays.asList(new Record.Builder(new DocId("http://"))
           .setMetadata(metadata).build()),
         pusher.getRecords());
   }

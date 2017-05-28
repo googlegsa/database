@@ -98,6 +98,20 @@ public class UniqueKeyTest {
   }
 
   @Test
+  public void testUrlIntColumn() {
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("db.uniqueKey value: The key must be a single");
+    new UniqueKey("numnum:int", "", "", false);
+  }
+
+  @Test
+  public void testUrlTwoColumns() {
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("db.uniqueKey value: The key must be a single");
+    UniqueKey uk = new UniqueKey("str1:string,str2:string", "", "", false);
+  }
+
+  @Test
   public void testNameRepeatsNotAllowed() {
     thrown.expect(InvalidConfigurationException.class);
     UniqueKey uk = new UniqueKey("num:int,num:string");
