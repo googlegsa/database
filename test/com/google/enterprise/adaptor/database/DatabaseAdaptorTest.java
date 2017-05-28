@@ -806,9 +806,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "ID:int");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql", "");
@@ -841,9 +838,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "ID:int");
     configEntries.put("db.everyDocIdSql", "");
     configEntries.put("db.singleDocContentSql",
