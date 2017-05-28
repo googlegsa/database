@@ -14,6 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static java.util.Locale.US;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.enterprise.adaptor.AbstractAdaptor;
 import com.google.enterprise.adaptor.Acl;
@@ -78,6 +80,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private UniqueKey uniqueKey;
   private String everyDocIdSql;
   private String singleDocContentSql;
+  private String actionColumn;
   @VisibleForTesting
   MetadataColumns metadataColumns;
   private ResponseGenerator respGenerator;
@@ -98,6 +101,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.everyDocIdSql", null);
     config.addKey("db.singleDocContentSql", null);
     config.addKey("db.singleDocContentSqlParameters", "");
+    // column that contains either "add" or "delete" action.
+    config.addKey("db.actionColumn", "");
     config.addKey("db.metadataColumns", "");
     // when set to true, if "db.metadataColumns" is blank, it will use all
     // returned columns as metadata.
@@ -173,6 +178,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     singleDocContentSql = cfg.getValue("db.singleDocContentSql");
     log.config("single doc content sql: " + singleDocContentSql);
+
+    actionColumn = cfg.getValue("db.actionColumn");
+    log.config("action column: " + actionColumn);
 
     Boolean includeAllColumnsAsMetadata = new Boolean(cfg.getValue(
         "db.includeAllColumnsAsMetadata"));
@@ -333,7 +341,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       while (rs.next()) {
         DocId id = new DocId(uniqueKey.makeUniqueId(rs, encodeDocId));
         DocIdPusher.Record.Builder builder = new DocIdPusher.Record.Builder(id);
-        if ("urlAndMetadataLister".equals(modeOfOperation)) {
+        if (isDeleteAction(rs)) {
+          builder.setDeleteFromIndex(true);
+        } else if ("urlAndMetadataLister".equals(modeOfOperation)) {
           addMetadataToRecordBuilder(builder, rs);
         }
         DocIdPusher.Record record = builder.build();
@@ -344,6 +354,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       throw new IOException(ex);
     }
     outstream.forcePush();
+  }
+
+  private boolean isDeleteAction(ResultSet rs) throws SQLException {
+    if (!actionColumn.equals("")) {
+      String action = rs.getString(actionColumn);
+      return (action != null && "delete".equals(action.toLowerCase(US)));
+    }
+    return false;
   }
 
   private interface MetadataHandler {
