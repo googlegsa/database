@@ -285,8 +285,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         case Types.CLOB:
           Clob clob = rs.getClob(i);
           if (clob != null) {
-            try (Reader reader = clob.getCharacterStream()) {
-              value = clob.getSubString(1,  4096);
+            try {
+              value = clob.getSubString(1, 4096);
             } finally {
               try {
                 clob.free();
@@ -299,8 +299,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         case Types.NCLOB:
           NClob nclob = rs.getNClob(i);
           if (nclob != null) {
-            try (Reader reader = nclob.getCharacterStream()) {
-              value = nclob.getSubString(1,  4096);
+            try {
+              value = nclob.getSubString(1, 4096);
             } finally {
               try {
                 nclob.free();
@@ -312,19 +312,23 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           break;
         case Types.LONGVARCHAR:
           try (Reader reader = rs.getCharacterStream(i)) {
-            char[] buffer = new char[4096];
-            int len;
-            if ((len = reader.read(buffer)) != -1) {
-              value = new String(buffer, 0, len);
+            if (reader != null) {
+              char[] buffer = new char[4096];
+              int len;
+              if ((len = reader.read(buffer)) != -1) {
+                value = new String(buffer, 0, len);
+              }
             }
           }
           break;
         case Types.LONGNVARCHAR:
           try (Reader reader = rs.getNCharacterStream(i)) {
-            char[] buffer = new char[4096];
-            int len;
-            if ((len = reader.read(buffer)) != -1) {
-              value = new String(buffer, 0, len);
+            if (reader != null) {
+              char[] buffer = new char[4096];
+              int len;
+              if ((len = reader.read(buffer)) != -1) {
+                value = new String(buffer, 0, len);
+              }
             }
           }
           break;
@@ -333,7 +337,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           break;
       }
       String key = metadataColumns.getMetadataName(columnName);
-      if (key != null) {
+      if (key != null && value != null) {
         meta.addMetadata(key, "" + value);
       }
     }

@@ -45,7 +45,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -636,7 +635,7 @@ public class DatabaseAdaptorTest {
   }
 
   private void testColumnTypeMetadata(String content) throws Exception {
-    Map<String, String> configEntries = new TreeMap<String, String>();
+    Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.user", "sa");
     configEntries.put("db.password", "");
     configEntries.put("db.url", JdbcFixture.URL);
@@ -657,14 +656,21 @@ public class DatabaseAdaptorTest {
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
-    Metadata expected = new Metadata();
-    expected.add("col1", "1");
-    expected.add("col2", content);
-    assertEquals(expected, response.getMetadata());
+    if (content != null) {
+      Metadata expected = new Metadata();
+      expected.add("col1", "1");
+      expected.add("col2", content);
+      assertEquals(expected, response.getMetadata());
+    } else {
+      Metadata expected = new Metadata();
+      expected.add("col1", "1");
+      assertEquals(expected, response.getMetadata());
+    }
   }
 
   @Test
   public void testClobColumnAsMetadata() throws Exception {
+    // NCLOB shows up as CLOB in H2
     String content = "Hello World";
     executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -677,8 +683,33 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testVarcharColumnAsMetadata() throws Exception {
+    // LONGVARCHAR, LONGNVARCHAR show up as VARCHAR in H2.
     String content = "Hello World";
     executeUpdate("create table data(id int, content varchar)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, content);
+      assertEquals(1, ps.executeUpdate());
+    }
+    testColumnTypeMetadata(content);
+  }
+
+  @Test
+  public void testIntegerColumnAsMetadata() throws Exception {
+    String content = "345697";
+    executeUpdate("create table data(id int, content integer)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, content);
+      assertEquals(1, ps.executeUpdate());
+    }
+    testColumnTypeMetadata(content);
+  }
+
+  @Test
+  public void testClobColumnWithNullMetadata() throws Exception {
+    String content = null;
+    executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setString(1, content);
