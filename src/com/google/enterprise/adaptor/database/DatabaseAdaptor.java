@@ -337,7 +337,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           break;
       }
       String key = metadataColumns.getMetadataName(columnName);
-      if (key != null && value != null) {
+      if (key != null) {
         meta.addMetadata(key, "" + value);
       }
     }
