@@ -14,20 +14,19 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.DocIdPusher.Record;
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
+import static com.google.enterprise.adaptor.TestHelper.asMap;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Config;
 import com.google.enterprise.adaptor.DocId;
-import com.google.enterprise.adaptor.DocIdPusher.Record;
 import com.google.enterprise.adaptor.GroupPrincipal;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Metadata;
@@ -38,7 +37,6 @@ import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
 import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -172,7 +170,12 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName", "ur");
+    moreEntries.put("db.uniqueKey", "url:string");
+    moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.singleDocContentSql", "");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.initConfig(config);
@@ -193,6 +196,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.singleDocContentSqlParameters", "must be set");
     configEntries.put("db.singleDocContentSql", "must be set");
     configEntries.put("db.aclSqlParameters", "must be set");
+    configEntries.put("db.actionColumn", "");
     configEntries.put("db.includeAllColumnsAsMetadata", "false");
     configEntries.put("db.metadataColumns", "table_col:gsa_col");
     // configEntries.put("db.aclSql", "table_col:gsa_col");
@@ -230,8 +234,7 @@ public class DatabaseAdaptorTest {
 
     executeUpdate("create table acl");
     ResultSet rs = executeQuery("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
 
@@ -264,8 +267,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup1")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
 
@@ -314,8 +316,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -356,8 +357,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -385,8 +385,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup1")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, metadata, ",", DEFAULT_NAMESPACE);
+    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -404,7 +403,6 @@ public class DatabaseAdaptorTest {
     List<GroupPrincipal> goldenGroups = Arrays.asList(
         new GroupPrincipal("dgroup1, dgroup2"));
     ResultSet rs = executeQueryAndNext("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
     ArrayList<UserPrincipal> users =
         DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_USERS, "", DEFAULT_NAMESPACE);
@@ -431,7 +429,6 @@ public class DatabaseAdaptorTest {
         new GroupPrincipal("dgroup1"),
         new GroupPrincipal("dgroup2"));
     ResultSet rs = executeQueryAndNext("select * from acl");
-    ResultSetMetaData metadata = rs.getMetaData();
     ArrayList<UserPrincipal> users =
         DatabaseAdaptor.getUserPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_USERS, " ; ", DEFAULT_NAMESPACE);
@@ -452,13 +449,20 @@ public class DatabaseAdaptorTest {
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    assertEquals("MetadataColumns.AllColumns()",
-        adaptor.metadataColumns.toString());
-    assertEquals("fake column",
-        adaptor.metadataColumns.getMetadataName("fake column"));
-    MetadataColumns emptyMetadataColumns = new MetadataColumns("");
-    assertFalse(emptyMetadataColumns.equals(adaptor.metadataColumns));
-    assertFalse(adaptor.metadataColumns.equals(emptyMetadataColumns));
+    assertEquals(null, adaptor.metadataColumns);
+
+    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate("insert into data(id, foo, bar) "
+                  + "values(1, 'fooVal', 'barVal')");
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("ID", "1");
+    golden.add("FOO", "fooVal");
+    golden.add("BAR", "barVal");
+    assertEquals(golden, builder.build().getMetadata());
   }
 
   @Test
@@ -467,16 +471,24 @@ public class DatabaseAdaptorTest {
     moreEntries.put("adaptor.namespace", "Default");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.includeAllColumnsAsMetadata", "true");
-    moreEntries.put("db.metadataColumns", "");
     moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    assertEquals("MetadataColumns({col2=gsa2, db_col1=gsa1})",
-        adaptor.metadataColumns.toString());
-    assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
-    assertEquals("gsa1", adaptor.metadataColumns.getMetadataName("db_col1"));
-    assertEquals("gsa2", adaptor.metadataColumns.getMetadataName("col2"));
+    assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
+                 adaptor.metadataColumns);
+
+    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
+    executeUpdate("insert into data(id, db_col1, col2) "
+                  + "values(1, 'col1Val', 'col2Val')");
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("gsa1", "col1Val");
+    golden.add("gsa2", "col2Val");
+    assertEquals(golden, builder.build().getMetadata());
   }
 
   @Test
@@ -488,8 +500,7 @@ public class DatabaseAdaptorTest {
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    assertEquals("MetadataColumns({})", adaptor.metadataColumns.toString());
-    assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
+    assertEquals(asMap(), adaptor.metadataColumns);
   }
 
   @Test
@@ -552,6 +563,24 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testUniqueKeyUrl() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "id:int, url:string");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.initConfig(config);
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("db.uniqueKey value: The key must be a single");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
   public void testIncludeAllColumnsAsMetadataFalse_mcSet() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("adaptor.namespace", "Default");
@@ -560,33 +589,85 @@ public class DatabaseAdaptorTest {
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    assertEquals("MetadataColumns({col2=gsa2, db_col1=gsa1})",
-        adaptor.metadataColumns.toString());
-    assertNull(adaptor.metadataColumns.getMetadataName("fake column"));
-    assertEquals("gsa1", adaptor.metadataColumns.getMetadataName("db_col1"));
-    assertEquals("gsa2", adaptor.metadataColumns.getMetadataName("col2"));
+    assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
+                 adaptor.metadataColumns);
+
+    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
+    executeUpdate("insert into data(id, db_col1, col2) "
+                  + "values(1, 'col1Val', 'col2Val')");
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("gsa1", "col1Val");
+    golden.add("gsa2", "col2Val");
+    assertEquals(golden, builder.build().getMetadata());
+  }
+
+  @Test
+  public void testInvalidColumnAsMetadata() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "fake column:gsa1,col2:gsa2");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
+    executeUpdate("insert into data(id, db_col1, col2) "
+                  + "values(1, 'col1Val', 'col2Val')");
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    thrown.expect(SQLException.class);
+    thrown.expectMessage("Column \"fake column\" not found");
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+  }
+
+  @Test
+  public void testCaseInsensitiveMetadataColumnMap() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "Foo:gsa_foo,Bar:gsa_bar");
+    final Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate("insert into data(id, foo, bar) "
+                  + "values(1, 'fooVal', 'barVal')");
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("gsa_foo", "fooVal");
+    golden.add("gsa_bar", "barVal");
+    assertEquals(golden, builder.build().getMetadata());
   }
 
   @Test
   public void testGetDocIds() throws Exception {
-    executeUpdate("create table data(ID  integer, NAME  varchar)");
-    executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
+    executeUpdate("create table data(url varchar, name varchar)");
+    executeUpdate("insert into data(url, name) values('http://', 'John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.user", "sa");
     configEntries.put("db.password", "");
     configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.uniqueKey", "url:string");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql", "");
     configEntries.put("db.singleDocContentSqlParameters", "");
-    configEntries.put("db.aclSqlParameters", "ID");
+    configEntries.put("db.aclSqlParameters", "");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName",
         "ID");
     configEntries.put("docId.isUrl", "true");
-    configEntries.put("db.metadataColumns", "ID:col1, NAME:col2");
+    configEntries.put("db.metadataColumns", "URL:col1, NAME:col2");
 
     Config config = createStandardConfig(configEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
@@ -596,12 +677,84 @@ public class DatabaseAdaptorTest {
     adaptor.getDocIds(pusher);
 
     Metadata metadata = new Metadata();
-    metadata.add("col1",  "1001");
+    metadata.add("col1",  "http://");
     metadata.add("col2",  "John");
     assertEquals(
-        Arrays.asList(new Record.Builder(new DocId("1001"))
+        Arrays.asList(new Record.Builder(new DocId("http://"))
           .setMetadata(metadata).build()),
         pusher.getRecords());
+  }
+
+  @Test
+  public void testGetDocIdsActionColumn() throws Exception {
+    executeUpdate("create table data(id integer, action varchar)");
+    executeUpdate("insert into data(id, action) values('1001', 'add')");
+    executeUpdate("insert into data(id, action) values('1002', 'delete')");
+    executeUpdate("insert into data(id, action) values('1003', 'DELETE')");
+    executeUpdate("insert into data(id, action) values('1004', 'foo')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.user", "sa");
+    configEntries.put("db.password", "");
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select * from data order by id");
+    configEntries.put("db.singleDocContentSql", "");
+    configEntries.put("db.singleDocContentSqlParameters", "");
+    configEntries.put("db.aclSqlParameters", "id");
+    configEntries.put("adaptor.namespace", "Default");
+    configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    configEntries.put("docId.isUrl", "true");
+    configEntries.put("db.metadataColumns", "id:id");
+    configEntries.put("db.actionColumn", "action");
+
+    Config config = createStandardConfig(configEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    adaptor.getDocIds(pusher);
+
+    Metadata metadata1 = new Metadata();
+    metadata1.add("id", "1001");
+    Metadata metadata4 = new Metadata();
+    metadata4.add("id", "1004");
+    assertEquals(Arrays.asList(new Record[] {
+        new Record.Builder(new DocId("1001")).setMetadata(metadata1).build(),
+        new Record.Builder(new DocId("1002")).setDeleteFromIndex(true).build(),
+        new Record.Builder(new DocId("1003")).setDeleteFromIndex(true).build(),
+        new Record.Builder(new DocId("1004")).setMetadata(metadata4).build()}),
+        pusher.getRecords());
+  }
+
+  @Test
+  public void testGetDocIdsActionColumnMissing() throws Exception {
+    executeUpdate("create table data(id integer, name varchar)");
+    executeUpdate("insert into data(id, name) values('1001', 'foo')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.actionColumn", "action");
+    configEntries.put("db.user", "sa");
+    configEntries.put("db.password", "");
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql", "");
+    configEntries.put("db.singleDocContentSqlParameters", "");
+    configEntries.put("db.aclSqlParameters", "id");
+    configEntries.put("adaptor.namespace", "Default");
+    configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    configEntries.put("docId.isUrl", "true");
+    configEntries.put("db.metadataColumns", "id:col1");
+
+    Config config = createStandardConfig(configEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    thrown.expect(IOException.class);
+    thrown.expectMessage("Column \"action\" not found");
+    adaptor.getDocIds(pusher);
   }
 
   @Test

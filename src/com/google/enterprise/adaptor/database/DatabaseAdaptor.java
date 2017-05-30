@@ -14,6 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static java.util.Locale.US;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.enterprise.adaptor.AbstractAdaptor;
 import com.google.enterprise.adaptor.Acl;
@@ -46,7 +48,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.text.DateFormat;
@@ -82,6 +83,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private UniqueKey uniqueKey;
   private String everyDocIdSql;
   private String singleDocContentSql;
+  private String actionColumn;
   @VisibleForTesting
   MetadataColumns metadataColumns;
   private ResponseGenerator respGenerator;
@@ -100,8 +102,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.password", null);
     config.addKey("db.uniqueKey", null);
     config.addKey("db.everyDocIdSql", null);
-    config.addKey("db.singleDocContentSql", null);
+    config.addKey("db.singleDocContentSql", "");
     config.addKey("db.singleDocContentSqlParameters", "");
+    // column that contains either "add" or "delete" action.
+    config.addKey("db.actionColumn", "");
     config.addKey("db.metadataColumns", "");
     // when set to true, if "db.metadataColumns" is blank, it will use all
     // returned columns as metadata.
@@ -165,10 +169,15 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     password = context.getSensitiveValueDecoder().decodeValue(
         cfg.getValue("db.password"));
 
+    boolean leaveIdAlone = new Boolean(cfg.getValue("docId.isUrl"));
+    encodeDocId = !leaveIdAlone;
+    log.config("encodeDocId: " + encodeDocId);
+
     uniqueKey = new UniqueKey(
         cfg.getValue("db.uniqueKey"),
         cfg.getValue("db.singleDocContentSqlParameters"),
-        cfg.getValue("db.aclSqlParameters")
+        cfg.getValue("db.aclSqlParameters"),
+        encodeDocId
     );
     log.config("primary key: " + uniqueKey);
 
@@ -178,6 +187,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     singleDocContentSql = cfg.getValue("db.singleDocContentSql");
     log.config("single doc content sql: " + singleDocContentSql);
 
+    actionColumn = cfg.getValue("db.actionColumn");
+    log.config("action column: " + actionColumn);
+
     Boolean includeAllColumnsAsMetadata = new Boolean(cfg.getValue(
         "db.includeAllColumnsAsMetadata"));
     log.config("include all columns as metadata: "
@@ -185,11 +197,46 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     String metadataColumnsConfig = cfg.getValue("db.metadataColumns");
     if (includeAllColumnsAsMetadata && "".equals(metadataColumnsConfig)) {
-      metadataColumns = new MetadataColumns.AllColumns();
+      metadataColumns = null;
+      log.config("metadata columns: Use all columns in ResultSet");
     } else {
       metadataColumns = new MetadataColumns(metadataColumnsConfig);
+      log.config("metadata columns: " + metadataColumns);
     }
-    log.config("metadata columns: " + metadataColumns);
+
+    modeOfOperation = cfg.getValue("db.modeOfOperation");
+    if (modeOfOperation.equals("urlAndMetadataLister") && encodeDocId) {
+      String errmsg = "db.modeOfOperation of \"" + modeOfOperation
+          + "\" requires docId.isUrl to be \"true\"";
+      throw new InvalidConfigurationException(errmsg);
+    }
+
+    if (leaveIdAlone) {
+      log.config("adaptor runs in lister-only mode");
+
+      // Warn about ignored properties.
+      TreeSet<String> ignored = new TreeSet<>();
+      if (!singleDocContentSql.isEmpty()) {
+        ignored.add("db.singleDocContentSql");
+      }
+      if (!modeOfOperation.equals("urlAndMetadataLister")) {
+        if (metadataColumns == null) {
+          ignored.add("db.includeAllColumnsAsMetadata");
+        } else if (!metadataColumns.isEmpty()) {
+          ignored.add("db.metadataColumns");
+        }
+      }
+      if (!ignored.isEmpty()) {
+        String modeStr = (modeOfOperation.equals("urlAndMetadataLister"))
+            ? modeOfOperation : "lister-only";
+        log.log(Level.INFO, "The following properties are set but will"
+            + " be ignored in {0} mode: {1}",
+            new Object[] { modeStr, ignored });
+      }
+    } else if (singleDocContentSql.isEmpty()) {
+      throw new InvalidConfigurationException(
+          "db.singleDocContentSql cannot be an empty string");
+    }
 
     respGenerator = loadResponseGenerator(cfg);
     
@@ -209,20 +256,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       context.setPollingIncrementalLister(incrementalLister);
     }
 
-    boolean leaveIdAlone = new Boolean(cfg.getValue("docId.isUrl"));
-    encodeDocId = !leaveIdAlone;
-    log.config("encodeDocId: " + encodeDocId);
-    if (leaveIdAlone) {
-      log.config("adaptor runs in lister-only mode");
-    }
-
-    modeOfOperation = cfg.getValue("db.modeOfOperation");
-    if ("urlAndMetadataLister".equals(modeOfOperation) && encodeDocId) {
-      String errmsg = "db.modeOfOperation of \"" + modeOfOperation
-          + "\" requires docId.isUrl to be \"true\"";
-      throw new InvalidConfigurationException(errmsg);
-    }
-
     if (aclSql == null) {
       context.setAuthzAuthority(new AllPublic());
     } else {
@@ -238,16 +271,16 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   public void getDocIds(DocIdPusher pusher) throws IOException,
       InterruptedException {
     BufferedPusher outstream = new BufferedPusher(pusher);
-    Connection conn = null;
-    StatementAndResult statementAndResult = null;
-    try {
-      conn = makeNewConnection();
-      statementAndResult = getStreamFromDb(conn, everyDocIdSql);
-      ResultSet rs = statementAndResult.resultSet;
+    try (Connection conn = makeNewConnection();
+        PreparedStatement stmt = getStreamFromDb(conn, everyDocIdSql);
+        ResultSet rs = stmt.executeQuery()) {
+      log.finer("queried for stream");
       while (rs.next()) {
         DocId id = new DocId(uniqueKey.makeUniqueId(rs, encodeDocId));
         DocIdPusher.Record.Builder builder = new DocIdPusher.Record.Builder(id);
-        if ("urlAndMetadataLister".equals(modeOfOperation)) {
+        if (isDeleteAction(rs)) {
+          builder.setDeleteFromIndex(true);
+        } else if ("urlAndMetadataLister".equals(modeOfOperation)) {
           addMetadataToRecordBuilder(builder, rs);
         }
         DocIdPusher.Record record = builder.build();
@@ -256,11 +289,16 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       }
     } catch (SQLException ex) {
       throw new IOException(ex);
-    } finally {
-      tryClosingStatementAndResult(statementAndResult);
-      tryClosingConnection(conn);
     }
     outstream.forcePush();
+  }
+
+  private boolean isDeleteAction(ResultSet rs) throws SQLException {
+    if (!actionColumn.equals("")) {
+      String action = rs.getString(actionColumn);
+      return (action != null && "delete".equals(action.toLowerCase(US)));
+    }
+    return false;
   }
 
   private interface MetadataHandler {
@@ -270,20 +308,28 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   /*
    * Adds all specified metadata columns to the record or response being built.
    */
+  // TODO(bmj): This will throw SQLException if one of the columnNames in the
+  // Map does not exist in the ResultSet. We should think about how to deal with
+  // that, especially in getDocIds().
   private void addMetadata(MetadataHandler meta, ResultSet rs)
       throws SQLException, IOException {
     ResultSetMetaData rsMetaData = rs.getMetaData();
-    int numberOfColumns = rsMetaData.getColumnCount();
-    for (int i = 1; i < (numberOfColumns + 1); i++) {
-      String columnName = rsMetaData.getColumnLabel(i);
-      int columnType = rsMetaData.getColumnType(i);
+    synchronized (this) {
+      if (metadataColumns == null) {
+        metadataColumns = new MetadataColumns(rsMetaData);
+      }
+    }
+    for (Map.Entry<String, String> entry : metadataColumns.entrySet()) {
+      int index = rs.findColumn(entry.getKey());
+      String columnName = rsMetaData.getColumnLabel(index);
+      int columnType = rsMetaData.getColumnType(index);
       log.log(Level.FINEST, "Column name: {0}, Type: {1}", new Object[] {
           columnName, columnType});
 
       Object value = null;
       switch (columnType) {
         case Types.CLOB:
-          Clob clob = rs.getClob(i);
+          Clob clob = rs.getClob(index);
           if (clob != null) {
             try {
               value = clob.getSubString(1, 4096);
@@ -297,7 +343,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           }
           break;
         case Types.NCLOB:
-          NClob nclob = rs.getNClob(i);
+          NClob nclob = rs.getNClob(index);
           if (nclob != null) {
             try {
               value = nclob.getSubString(1, 4096);
@@ -311,7 +357,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           }
           break;
         case Types.LONGVARCHAR:
-          try (Reader reader = rs.getCharacterStream(i)) {
+          try (Reader reader = rs.getCharacterStream(index)) {
             if (reader != null) {
               char[] buffer = new char[4096];
               int len;
@@ -322,7 +368,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           }
           break;
         case Types.LONGNVARCHAR:
-          try (Reader reader = rs.getNCharacterStream(i)) {
+          try (Reader reader = rs.getNCharacterStream(index)) {
             if (reader != null) {
               char[] buffer = new char[4096];
               int len;
@@ -333,10 +379,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           }
           break;
         default:
-          value = rs.getObject(i);
+          value = rs.getObject(index);
           break;
       }
-      String key = metadataColumns.getMetadataName(columnName);
+      String key = entry.getValue();
       if (key != null) {
         meta.addMetadata(key, "" + value);
       }
@@ -376,12 +422,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       return;
     }
     DocId id = req.getDocId();
-    Connection conn = null;
-    StatementAndResult statementAndResult = null;
-    try {
-      conn = makeNewConnection();
-      statementAndResult = getDocFromDb(conn, id.getUniqueId());
-      ResultSet rs = statementAndResult.resultSet;
+    try (Connection conn = makeNewConnection();
+        PreparedStatement stmt = getDocFromDb(conn, id.getUniqueId());
+        ResultSet rs = stmt.executeQuery()) {
+      log.finer("got doc");
       // First handle cases with no data to return.
       boolean hasResult = rs.next();
       if (!hasResult) {
@@ -404,9 +448,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       respGenerator.generateResponse(rs, resp);
     } catch (SQLException ex) {
       throw new IOException("retrieval error", ex);
-    } finally {
-      tryClosingStatementAndResult(statementAndResult);
-      tryClosingConnection(conn);
     }
   }
 
@@ -415,25 +456,22 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   }
   
   private Acl getAcl(Connection conn, String uniqueId) throws SQLException {
-    StatementAndResult statementAndResult = null;
-    try {
-      statementAndResult = getAclFromDb(conn, uniqueId);
-      ResultSet rs = statementAndResult.resultSet;
-      ResultSetMetaData metadata = rs.getMetaData();
-      return buildAcl(rs, metadata, aclPrincipalDelimiter, aclNamespace);
-    } finally {
-      tryClosingStatementAndResult(statementAndResult);
+    try (PreparedStatement stmt = getAclFromDb(conn, uniqueId);
+        ResultSet rs = stmt.executeQuery()) {
+      log.finer("got acl");
+      return buildAcl(rs, aclPrincipalDelimiter, aclNamespace);
     }
   }
   
   @VisibleForTesting
-  static Acl buildAcl(ResultSet rs, ResultSetMetaData metadata, String delim,
-      String namespace) throws SQLException {
+  static Acl buildAcl(ResultSet rs, String delim, String namespace)
+      throws SQLException {
     boolean hasResult = rs.next();
     if (!hasResult) {
       // empty Acl ensures adaptor will mark this document as secure
       return Acl.EMPTY;
     }
+    ResultSetMetaData metadata = rs.getMetaData();
     Acl.Builder builder = new Acl.Builder();
     ArrayList<UserPrincipal> permitUsers = new ArrayList<UserPrincipal>();
     ArrayList<UserPrincipal> denyUsers = new ArrayList<UserPrincipal>();
@@ -523,21 +561,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     return false;
   }
 
-  private static class StatementAndResult {
-    Statement statement;
-    ResultSet resultSet;
-    StatementAndResult(Statement st, ResultSet rs) { 
-      if (null == st) {
-        throw new NullPointerException();
-      }
-      if (null == rs) {
-        throw new NullPointerException();
-      }
-      statement = st;
-      resultSet = rs;
-    }
-  }
-
   private Connection makeNewConnection() throws SQLException {
     log.finest("about to connect");
     Connection conn = DriverManager.getConnection(dbUrl, user, password);
@@ -545,66 +568,35 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     return conn;
   }
 
-  private StatementAndResult getDocFromDb(Connection conn,
+  private PreparedStatement getDocFromDb(Connection conn,
       String uniqueId) throws SQLException {
     PreparedStatement st = conn.prepareStatement(singleDocContentSql);
     uniqueKey.setContentSqlValues(st, uniqueId);  
     log.log(Level.FINER, "about to get doc: {0}",  uniqueId);
-    ResultSet rs = st.executeQuery();
-    log.finer("got doc");
-    return new StatementAndResult(st, rs); 
+    return st;
   }
 
-  private StatementAndResult getAclFromDb(Connection conn,
+  private PreparedStatement getAclFromDb(Connection conn,
       String uniqueId) throws SQLException {
     PreparedStatement st = conn.prepareStatement(aclSql);
     uniqueKey.setAclSqlValues(st, uniqueId);  
     log.log(Level.FINER, "about to get acl: {0}",  uniqueId);
-    ResultSet rs = st.executeQuery();
-    log.finer("got acl");
-    return new StatementAndResult(st, rs); 
+    return st;
   }
 
-  private StatementAndResult getStreamFromDb(Connection conn,
+  private PreparedStatement getStreamFromDb(Connection conn,
       String query) throws SQLException {
-    Statement st;
+    PreparedStatement st;
     if (disableStreaming) {
-      st = conn.createStatement();
+      st = conn.prepareStatement(query);
     } else {
-      st = conn.createStatement(
+      st = conn.prepareStatement(query,
           /* 1st streaming flag */ java.sql.ResultSet.TYPE_FORWARD_ONLY,
           /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
     }
     st.setFetchSize(maxIdsPerFeedFile);  // Integer.MIN_VALUE for MySQL?
     log.log(Level.FINER, "about to query for stream: {0}", query);
-    ResultSet rs = st.executeQuery(query);
-    log.finer("queried for stream");
-    return new StatementAndResult(st, rs); 
-  }
-
-  private static void tryClosingStatementAndResult(StatementAndResult strs) {
-    if (null != strs) {
-      try {
-        strs.resultSet.close();
-      } catch (SQLException ex) {
-        log.log(Level.WARNING, "result set close failed", ex);
-      }
-      try {
-        strs.statement.close();
-      } catch (SQLException ex) {
-        log.log(Level.WARNING, "statement close failed", ex);
-      }
-    }
-  }
-
-  private static void tryClosingConnection(Connection conn) {
-    if (null != conn) {
-      try {
-        conn.close();
-      } catch (SQLException ex) {
-        log.log(Level.WARNING, "connection close failed", ex);
-      }
-    }
+    return st;
   }
 
   /**
@@ -754,17 +746,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     public void getModifiedDocIds(DocIdPusher pusher)
         throws IOException, InterruptedException {
       BufferedPusher outstream = new BufferedPusher(pusher);
-      Connection conn = null;
-      StatementAndResult statementAndResult = null;
       // latestTimestamp will be used to update lastUpdateTimestampInMillis
       // if GSA_TIMESTAMP column is present in the ResultSet and there is at 
       // least one non-null value of that column in the ResultSet.
       Timestamp latestTimestamp = null;
       boolean hasTimestamp = false;
-      try {
-        conn = makeNewConnection();
-        statementAndResult = getUpdateStreamFromDb(conn);
-        ResultSet rs = statementAndResult.resultSet;
+      try (Connection conn = makeNewConnection();
+          PreparedStatement stmt = getUpdateStreamFromDb(conn);
+          ResultSet rs = stmt.executeQuery()) {
         hasTimestamp =
             hasColumn(rs.getMetaData(),
                 GsaSpecialColumns.GSA_TIMESTAMP.toString());
@@ -796,9 +785,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         }
       } catch (SQLException ex) {
         throw new IOException(ex);
-      } finally {
-        tryClosingStatementAndResult(statementAndResult);
-        tryClosingConnection(conn);
       }
       outstream.forcePush();
       if (!hasTimestamp) {
@@ -811,7 +797,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           + formatter.format(new Date(lastUpdateTimestamp.getTime())));
     }
 
-    private StatementAndResult getUpdateStreamFromDb(Connection conn)
+    private PreparedStatement getUpdateStreamFromDb(Connection conn)
         throws SQLException {
       PreparedStatement st;
       if (disableStreaming) {
@@ -822,8 +808,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             /* 2nd streaming flag */ java.sql.ResultSet.CONCUR_READ_ONLY);
       }
       st.setTimestamp(1, lastUpdateTimestamp, updateTimestampTimezone);
-      ResultSet rs = st.executeQuery();
-      return new StatementAndResult(st, rs);
+      return st;
     }
   }
 
@@ -905,9 +890,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           new Object[]{user, userIdentity.getGroups()});
       Map<DocId, AuthzStatus> result
           = new HashMap<DocId, AuthzStatus>(ids.size() * 2);
-      Connection conn = null;
-      try {
-        conn = makeNewConnection();
+      try (Connection conn = makeNewConnection()) {
         for (DocId id : ids) {
           log.log(Level.FINE, "about to get acl of doc {0}", id);
           Acl acl = getAcl(conn, id.getUniqueId());
@@ -923,8 +906,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         }
       } catch (SQLException ex) {
         throw new IOException("authz retrieval error", ex);
-      } finally {
-        tryClosingConnection(conn);
       }
       return Collections.unmodifiableMap(result);
     }
