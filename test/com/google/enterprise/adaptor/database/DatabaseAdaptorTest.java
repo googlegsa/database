@@ -683,6 +683,13 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testIncludeAllColumnsAsMetadata_mcDefault() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    assertEquals(asMap(), adaptor.metadataColumns);
+  }
+
+  @Test
   public void testUniqueKeyMissingType() throws Exception {
     // Value of unique id cannot be "productid", because that is missing type.
     // The value has to be something like "productid:int"
