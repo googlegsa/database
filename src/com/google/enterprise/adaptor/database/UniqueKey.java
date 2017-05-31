@@ -49,7 +49,8 @@ class UniqueKey {
   private final List<String> contentSqlCols;  // columns for content query
   private final List<String> aclSqlCols;  // columns for acl query
 
-  UniqueKey(String ukDecls, String contentSqlColumns, String aclSqlColumns) {
+  UniqueKey(String ukDecls, String contentSqlColumns, String aclSqlColumns,
+      boolean encode) {
     if (null == ukDecls) {
       throw new NullPointerException();
     }
@@ -106,6 +107,12 @@ class UniqueKey {
       tmpNames.add(name);
       tmpTypes.put(name, type);
     }
+    if (!encode
+        && (tmpTypes.size() != 1
+            || tmpTypes.values().iterator().next() != ColumnType.STRING)) {
+      throw new InvalidConfigurationException("Invalid db.uniqueKey value:"
+          + " The key must be a single string column when docId.isUrl=true.");
+    }
     names = Collections.unmodifiableList(tmpNames);
     types = Collections.unmodifiableMap(tmpTypes);
 
@@ -136,9 +143,28 @@ class UniqueKey {
     return Collections.unmodifiableList(tmpContentCols);
   }
 
+  List<String> getDocIdSqlColumns() {
+    return names;
+  }
+
+  List<String> getContentSqlColumns() {
+    return contentSqlCols;
+  }
+
+  List<String> getAclSqlColumns() {
+    return aclSqlCols;
+  }
+
+  // TODO(jlacey): Move these to the tests or change the tests to use
+  // the actual constructor.
   @VisibleForTesting
   UniqueKey(String ukDecls) {
     this(ukDecls, "", "");
+  }
+
+  @VisibleForTesting
+  UniqueKey(String ukDecls, String contentSqlColumns, String aclSqlColumns) {
+    this(ukDecls, contentSqlColumns, aclSqlColumns, true);
   }
 
   String makeUniqueId(ResultSet rs, boolean encode) throws SQLException {

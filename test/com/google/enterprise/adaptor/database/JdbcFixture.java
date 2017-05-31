@@ -26,8 +26,12 @@ import java.util.ArrayDeque;
 
 /** Manages an in-memory H2 database for test purposes. */
 class JdbcFixture {
+  public static final String DRIVER_CLASS = "org.h2.Driver";
   public static final String URL =
       "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DEFAULT_ESCAPE=";
+  public static final String USER = "sa";
+  public static final String PASSWORD = "";
+
   private static ArrayDeque<AutoCloseable> openObjects = new ArrayDeque<>();
 
   /**
@@ -47,8 +51,8 @@ class JdbcFixture {
     try {
       JdbcDataSource ds = new JdbcDataSource();
       ds.setURL(URL);
-      ds.setUser("sa");
-      ds.setPassword("");
+      ds.setUser(USER);
+      ds.setPassword(PASSWORD);
       return ds.getConnection();
     } catch (SQLException e) {
       throw new RuntimeException(e);

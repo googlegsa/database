@@ -269,7 +269,7 @@ public abstract class ResponseGenerator {
     }
   }
 
-  private abstract static class SingleColumnContent extends ResponseGenerator {
+  abstract static class SingleColumnContent extends ResponseGenerator {
     private final String col;
     private final String contentTypeOverride; // can be null
     private final String contentTypeCol; // can be null
