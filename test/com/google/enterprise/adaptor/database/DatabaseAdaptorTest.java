@@ -1116,9 +1116,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(id, col) values(1001, {d '2004-10-06'})");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.user", "sa");
-    moreEntries.put("db.password", "");
-    moreEntries.put("db.url", JdbcFixture.URL);
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
@@ -1149,9 +1146,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(id) values(1001)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.user", "sa");
-    moreEntries.put("db.password", "");
-    moreEntries.put("db.url", JdbcFixture.URL);
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
@@ -1182,9 +1176,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(id, col) values(1001, {t '09:15:30'})");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.user", "sa");
-    moreEntries.put("db.password", "");
-    moreEntries.put("db.url", JdbcFixture.URL);
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
@@ -1215,9 +1206,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(id) values(1001)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.user", "sa");
-    moreEntries.put("db.password", "");
-    moreEntries.put("db.url", JdbcFixture.URL);
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
@@ -1249,9 +1237,6 @@ public class DatabaseAdaptorTest {
         + "{ts '2009-10-05 09:20:49.512'})");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.user", "sa");
-    moreEntries.put("db.password", "");
-    moreEntries.put("db.url", JdbcFixture.URL);
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
@@ -1282,9 +1267,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(id) values(1001)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.user", "sa");
-    moreEntries.put("db.password", "");
-    moreEntries.put("db.url", JdbcFixture.URL);
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
