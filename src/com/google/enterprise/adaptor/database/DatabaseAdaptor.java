@@ -36,16 +36,20 @@ import com.google.enterprise.adaptor.StartupException;
 import com.google.enterprise.adaptor.UserPrincipal;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -99,7 +103,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.password", null);
     config.addKey("db.uniqueKey", null);
     config.addKey("db.everyDocIdSql", null);
-    config.addKey("db.singleDocContentSql", null);
+    config.addKey("db.singleDocContentSql", "");
     config.addKey("db.singleDocContentSqlParameters", "");
     // column that contains either "add" or "delete" action.
     config.addKey("db.actionColumn", "");
@@ -166,10 +170,15 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     password = context.getSensitiveValueDecoder().decodeValue(
         cfg.getValue("db.password"));
 
+    boolean leaveIdAlone = new Boolean(cfg.getValue("docId.isUrl"));
+    encodeDocId = !leaveIdAlone;
+    log.config("encodeDocId: " + encodeDocId);
+
     uniqueKey = new UniqueKey(
         cfg.getValue("db.uniqueKey"),
         cfg.getValue("db.singleDocContentSqlParameters"),
-        cfg.getValue("db.aclSqlParameters")
+        cfg.getValue("db.aclSqlParameters"),
+        encodeDocId
     );
     log.config("primary key: " + uniqueKey);
 
@@ -196,6 +205,40 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       log.config("metadata columns: " + metadataColumns);
     }
 
+    modeOfOperation = cfg.getValue("db.modeOfOperation");
+    if (modeOfOperation.equals("urlAndMetadataLister") && encodeDocId) {
+      String errmsg = "db.modeOfOperation of \"" + modeOfOperation
+          + "\" requires docId.isUrl to be \"true\"";
+      throw new InvalidConfigurationException(errmsg);
+    }
+
+    if (leaveIdAlone) {
+      log.config("adaptor runs in lister-only mode");
+
+      // Warn about ignored properties.
+      TreeSet<String> ignored = new TreeSet<>();
+      if (!singleDocContentSql.isEmpty()) {
+        ignored.add("db.singleDocContentSql");
+      }
+      if (!modeOfOperation.equals("urlAndMetadataLister")) {
+        if (metadataColumns == null) {
+          ignored.add("db.includeAllColumnsAsMetadata");
+        } else if (!metadataColumns.isEmpty()) {
+          ignored.add("db.metadataColumns");
+        }
+      }
+      if (!ignored.isEmpty()) {
+        String modeStr = (modeOfOperation.equals("urlAndMetadataLister"))
+            ? modeOfOperation : "lister-only";
+        log.log(Level.INFO, "The following properties are set but will"
+            + " be ignored in {0} mode: {1}",
+            new Object[] { modeStr, ignored });
+      }
+    } else if (singleDocContentSql.isEmpty()) {
+      throw new InvalidConfigurationException(
+          "db.singleDocContentSql cannot be an empty string");
+    }
+
     respGenerator = loadResponseGenerator(cfg);
     
     if (!isNullOrEmptyString(cfg.getValue("db.aclSql"))) {
@@ -212,20 +255,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         = initDbAdaptorIncrementalLister(cfg);
     if (incrementalLister != null) {
       context.setPollingIncrementalLister(incrementalLister);
-    }
-
-    boolean leaveIdAlone = new Boolean(cfg.getValue("docId.isUrl"));
-    encodeDocId = !leaveIdAlone;
-    log.config("encodeDocId: " + encodeDocId);
-    if (leaveIdAlone) {
-      log.config("adaptor runs in lister-only mode");
-    }
-
-    modeOfOperation = cfg.getValue("db.modeOfOperation");
-    if ("urlAndMetadataLister".equals(modeOfOperation) && encodeDocId) {
-      String errmsg = "db.modeOfOperation of \"" + modeOfOperation
-          + "\" requires docId.isUrl to be \"true\"";
-      throw new InvalidConfigurationException(errmsg);
     }
 
     if (aclSql == null) {
@@ -379,7 +408,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   // Map does not exist in the ResultSet. We should think about how to deal with
   // that, especially in getDocIds().
   private void addMetadata(MetadataHandler meta, ResultSet rs)
-      throws SQLException {
+      throws SQLException, IOException {
     ResultSetMetaData rsMetaData = rs.getMetaData();
     synchronized (this) {
       if (metadataColumns == null) {
@@ -388,16 +417,77 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
     for (Map.Entry<String, String> entry : metadataColumns.entrySet()) {
       int index = rs.findColumn(entry.getKey());
-      Object value = rs.getObject(index);
-      meta.addMetadata(entry.getValue(), "" + value);
+      String columnName = rsMetaData.getColumnLabel(index);
+      int columnType = rsMetaData.getColumnType(index);
       log.log(Level.FINEST, "Column name: {0}, Type: {1}", new Object[] {
-          entry.getKey(), rsMetaData.getColumnType(index)});
+          columnName, columnType});
+
+      Object value = null;
+      switch (columnType) {
+        case Types.CLOB:
+          Clob clob = rs.getClob(index);
+          if (clob != null) {
+            try {
+              value = clob.getSubString(1, 4096);
+            } finally {
+              try {
+                clob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing CLOB", e);
+              }
+            }
+          }
+          break;
+        case Types.NCLOB:
+          NClob nclob = rs.getNClob(index);
+          if (nclob != null) {
+            try {
+              value = nclob.getSubString(1, 4096);
+            } finally {
+              try {
+                nclob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing NCLOB", e);
+              }
+            }
+          }
+          break;
+        case Types.LONGVARCHAR:
+          try (Reader reader = rs.getCharacterStream(index)) {
+            if (reader != null) {
+              char[] buffer = new char[4096];
+              int len;
+              if ((len = reader.read(buffer)) != -1) {
+                value = new String(buffer, 0, len);
+              }
+            }
+          }
+          break;
+        case Types.LONGNVARCHAR:
+          try (Reader reader = rs.getNCharacterStream(index)) {
+            if (reader != null) {
+              char[] buffer = new char[4096];
+              int len;
+              if ((len = reader.read(buffer)) != -1) {
+                value = new String(buffer, 0, len);
+              }
+            }
+          }
+          break;
+        default:
+          value = rs.getObject(index);
+          break;
+      }
+      String key = entry.getValue();
+      if (key != null) {
+        meta.addMetadata(key, "" + value);
+      }
     }
   }
 
   @VisibleForTesting
   void addMetadataToRecordBuilder(final DocIdPusher.Record.Builder builder,
-      ResultSet rs) throws SQLException {
+      ResultSet rs) throws SQLException, IOException {
     addMetadata(
         new MetadataHandler() {
           @Override public void addMetadata(String k, String v) {
@@ -409,7 +499,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
   @VisibleForTesting
   void addMetadataToResponse(final Response resp, ResultSet rs)
-      throws SQLException {
+      throws SQLException, IOException {
     addMetadata(
         new MetadataHandler() {
           @Override public void addMetadata(String k, String v) {
