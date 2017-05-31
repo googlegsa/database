@@ -35,6 +35,7 @@ import com.google.enterprise.adaptor.TestHelper;
 import com.google.enterprise.adaptor.UserPrincipal;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -84,6 +85,17 @@ public class DatabaseAdaptorTest {
   @Test
   public void testVerifyColumnNames_sqlException() throws Exception {
     executeUpdate("create table data(id int, other varchar)");
+    Connection conn = getConnection();
+    conn.close();
+    DatabaseAdaptor.verifyColumnNames(conn,
+        "found", "select * from data", "found", Arrays.asList("id", "other"));
+  }
+
+  @Test
+  public void testVerifyColumnNames_syntaxError() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Syntax error in query");
     DatabaseAdaptor.verifyColumnNames(getConnection(),
         "found", "select from data", "found", Arrays.asList("id", "other"));
   }
@@ -813,9 +825,11 @@ public class DatabaseAdaptorTest {
                   + "values(1, 'col1Val', 'col2Val')");
     ResultSet resultSet = executeQueryAndNext("select * from data");
     Record.Builder builder = new Record.Builder(new DocId("1"));
-    thrown.expect(SQLException.class);
-    thrown.expectMessage("Column \"fake column\" not found");
     adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("gsa2", "col2Val");
+    assertEquals(golden, builder.build().getMetadata());
   }
 
   @Test

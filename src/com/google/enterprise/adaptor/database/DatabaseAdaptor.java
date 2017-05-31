@@ -359,7 +359,12 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             + sqlConfig + ": " + sql);
       }
     } catch (SQLException e) {
-      // TODO(jlacey): Throw if this is a SQL syntax error (SQL state 42xxx).
+      // Throw if this is a SQL syntax error (SQL state 42xxx).
+      String sqlState = e.getSQLState();
+      if (sqlState != null && sqlState.startsWith("42")) {
+        throw new InvalidConfigurationException(
+            "Syntax error in query " + sqlConfig, e);
+      }
       log.log(Level.WARNING,
           "Unable to validate configured column names for query {0}: {1}",
           new Object[] { sqlConfig, e });
@@ -408,9 +413,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   /*
    * Adds all specified metadata columns to the record or response being built.
    */
-  // TODO(bmj): This will throw SQLException if one of the columnNames in the
-  // Map does not exist in the ResultSet. We should think about how to deal with
-  // that, especially in getDocIds().
   private void addMetadata(MetadataHandler meta, ResultSet rs)
       throws SQLException, IOException {
     ResultSetMetaData rsMetaData = rs.getMetaData();
@@ -420,7 +422,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       }
     }
     for (Map.Entry<String, String> entry : metadataColumns.entrySet()) {
-      int index = rs.findColumn(entry.getKey());
+      int index;
+      try {
+        index = rs.findColumn(entry.getKey());
+      } catch (SQLException e) {
+        log.log(Level.WARNING, "Skipping metadata column ''{0}'': {1}.",
+            new Object[] { entry.getKey(), e.getMessage() });
+        continue;
+      }
       int columnType = rsMetaData.getColumnType(index);
       log.log(Level.FINEST, "Column name: {0}, Type: {1}", new Object[] {
           entry.getKey(), columnType});
