@@ -929,21 +929,24 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_date() throws Exception {
-    executeUpdate("create table data(id  integer, col date)");
+    executeUpdate("create table data(id integer, col date)");
     executeUpdate("insert into data(id, col) values(1001, {d '2004-10-06'})");
 
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql",
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.user", "sa");
+    moreEntries.put("db.password", "");
+    moreEntries.put("db.url", JdbcFixture.URL);
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
-    configEntries.put("adaptor.namespace", "Default");
-    configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
-    Config config = createStandardConfig(configEntries);
+    Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
 
@@ -959,21 +962,24 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_dateNull() throws Exception {
-    executeUpdate("create table data(id  integer, col date)");
+    executeUpdate("create table data(id integer, col date)");
     executeUpdate("insert into data(id) values(1001)");
 
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql",
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.user", "sa");
+    moreEntries.put("db.password", "");
+    moreEntries.put("db.url", JdbcFixture.URL);
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
-    configEntries.put("adaptor.namespace", "Default");
-    configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
-    Config config = createStandardConfig(configEntries);
+    Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
 
@@ -989,21 +995,24 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_time() throws Exception {
-    executeUpdate("create table data(id  integer, col time)");
+    executeUpdate("create table data(id integer, col time)");
     executeUpdate("insert into data(id, col) values(1001, {t '09:15:30'})");
 
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql",
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.user", "sa");
+    moreEntries.put("db.password", "");
+    moreEntries.put("db.url", JdbcFixture.URL);
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
-    configEntries.put("adaptor.namespace", "Default");
-    configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
-    Config config = createStandardConfig(configEntries);
+    Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
 
@@ -1019,21 +1028,24 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_timeNull() throws Exception {
-    executeUpdate("create table data(id  integer, col time)");
+    executeUpdate("create table data(id integer, col time)");
     executeUpdate("insert into data(id) values(1001)");
 
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql",
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.user", "sa");
+    moreEntries.put("db.password", "");
+    moreEntries.put("db.url", JdbcFixture.URL);
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
-    configEntries.put("adaptor.namespace", "Default");
-    configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
-    Config config = createStandardConfig(configEntries);
+    Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
 
@@ -1049,22 +1061,25 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_timestamp() throws Exception {
-    executeUpdate("create table data(id  integer, col timestamp)");
+    executeUpdate("create table data(id integer, col timestamp)");
     executeUpdate("insert into data(id, col) values(1001, "
         + "{ts '2009-10-05 09:20:49.512'})");
 
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql",
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.user", "sa");
+    moreEntries.put("db.password", "");
+    moreEntries.put("db.url", JdbcFixture.URL);
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
-    configEntries.put("adaptor.namespace", "Default");
-    configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
-    Config config = createStandardConfig(configEntries);
+    Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
 
@@ -1080,21 +1095,24 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_timestampNull() throws Exception {
-    executeUpdate("create table data(id  integer, col timestamp)");
+    executeUpdate("create table data(id integer, col timestamp)");
     executeUpdate("insert into data(id) values(1001)");
 
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql",
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.user", "sa");
+    moreEntries.put("db.password", "");
+    moreEntries.put("db.url", JdbcFixture.URL);
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
-    configEntries.put("adaptor.namespace", "Default");
-    configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
-    Config config = createStandardConfig(configEntries);
+    Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
 
