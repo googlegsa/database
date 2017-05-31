@@ -379,16 +379,22 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           }
           break;
         case Types.DATE:
-          Date dt = rs.getDate(index);
-          value = dt.toString();
+          java.sql.Date dt = rs.getDate(index);
+          if (dt != null) {
+            value = dt.toString();
+          }
           break;
         case Types.TIME:
           Time tm = rs.getTime(index);
-          value = tm.toString();
+          if (tm != null) {
+            value = tm.toString();
+          }
           break;
         case Types.TIMESTAMP:
           Timestamp ts = rs.getTimestamp(index);
-          value = ts.toString();
+          if (ts != null) {
+            value = ts.toString();
+          }
           break;
         default:
           value = rs.getObject(index);
