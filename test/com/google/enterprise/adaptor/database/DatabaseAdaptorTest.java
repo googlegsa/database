@@ -30,10 +30,13 @@ import com.google.enterprise.adaptor.DocId;
 import com.google.enterprise.adaptor.GroupPrincipal;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Metadata;
+import com.google.enterprise.adaptor.Principal;
 import com.google.enterprise.adaptor.Response;
 import com.google.enterprise.adaptor.TestHelper;
 import com.google.enterprise.adaptor.UserPrincipal;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -43,15 +46,20 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TemporaryFolder;
 
 /** Test cases for {@link DatabaseAdaptor}. */
 public class DatabaseAdaptorTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();
+
+  @Rule
+  public TemporaryFolder tempFolder = new TemporaryFolder();
 
   @After
   public void dropAllObjects() throws SQLException {
@@ -185,11 +193,9 @@ public class DatabaseAdaptorTest {
     // Suppress column name validation.
     moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql", "");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("requires docId.isUrl to be \"true\"");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -200,11 +206,9 @@ public class DatabaseAdaptorTest {
     // Suppress column name validation.
     moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql", "");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("requires docId.isUrl to be \"true\"");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -218,14 +222,24 @@ public class DatabaseAdaptorTest {
     // Suppress column name validation.
     moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql", "");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.initConfig(config);
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
-  // TODO(bmj): call initConfig() to set defaults for most properties.
-  private Config createStandardConfig(Map<String, String> moreEntries) {
+  /**
+   * Returns a Database adaptor instance with the supplied config overrides.
+   * Adaptor.initConfig() and Adaptor.init() have already been called.
+   */
+  private DatabaseAdaptor getObjectUnderTest(
+      Map<String, String> configOverrides) throws Exception {
+    Config config = createStandardConfig(configOverrides);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    return adaptor;
+  }
+
+  /** DO NOT call adaptor.initConfig() with the returned configuration. */
+  private Config createStandardConfig(Map<String, String> moreEntries)
+      throws IOException {
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.driverClass", JdbcFixture.DRIVER_CLASS);
     configEntries.put("db.url", JdbcFixture.URL);
@@ -235,24 +249,24 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.everyDocIdSql", "select 42 as \"must be set\"");
     configEntries.put("db.singleDocContentSqlParameters", "must be set");
     configEntries.put("db.singleDocContentSql", "select 42 as \"must be set\"");
-    configEntries.put("db.aclSqlParameters", "must be set");
-    configEntries.put("db.actionColumn", "");
-    configEntries.put("db.includeAllColumnsAsMetadata", "false");
-    configEntries.put("db.metadataColumns", "");
-    configEntries.put("db.aclSql", "");
-    configEntries.put("db.aclSqlParameters", "");
-    configEntries.put("db.aclPrincipalDelimiter", ",");
-    configEntries.put("db.disableStreaming", "true");
-    configEntries.put("db.updateTimestampTimezone", "");
-    configEntries.put("db.updateSql", "");
     configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("adaptor.namespace", "Default");
+    configEntries.put("adaptor.namespace", Principal.DEFAULT_NAMESPACE);
+    configEntries.put("gsa.hostname", "localhost");
     configEntries.putAll(moreEntries);
-    final Config config = new Config();
-    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
-      TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
-    }
+
+    Config config = new Config();
+    new DatabaseAdaptor().initConfig(config);
+    config.load(writeConfig(configEntries));
     return config;
+  }
+
+  /** Writes the config out as a Properties file and returns the File. */
+  private File writeConfig(Map<String, String> config) throws IOException {
+    File file = tempFolder.newFile("dba.test.properties");
+    Properties properties = new Properties();
+    properties.putAll(config);
+    properties.store(new FileOutputStream(file), "");
+    return file;
   }
 
   static ResponseGenerator createDummy(Map<String, String> config) {
@@ -418,7 +432,7 @@ public class DatabaseAdaptorTest {
     Acl golden = new Acl.Builder()
         .setDenyUsers(Arrays.asList(
             new UserPrincipal("duser1"),
-            new UserPrincipal("duser2")))
+          new UserPrincipal("duser2")))
         .setPermitGroups(Arrays.asList(
             new GroupPrincipal("pgroup1"),
             new GroupPrincipal("pgroup2")))
@@ -493,12 +507,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql", "");
     moreEntries.put("adaptor.namespace", "Default");
-    Config config = createStandardConfig(moreEntries);
 
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[not_id] not found in query");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -514,12 +526,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
     moreEntries.put("adaptor.namespace", "Default");
-    Config config = createStandardConfig(moreEntries);
 
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[not_id] not found in query");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -535,12 +545,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.singleDocContentSql", "");
     moreEntries.put("db.aclSql", "select other from data where id = ?");
     moreEntries.put("adaptor.namespace", "Default");
-    Config config = createStandardConfig(moreEntries);
 
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[not_id] not found in query");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -557,12 +565,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.singleDocContentSql", "");
     moreEntries.put("db.metadataColumns", "other:other");
     moreEntries.put("adaptor.namespace", "Default");
-    Config config = createStandardConfig(moreEntries);
 
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[other] not found in query");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -578,12 +584,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.singleDocContentSql", "");
     moreEntries.put("db.actionColumn", "other");
     moreEntries.put("adaptor.namespace", "Default");
-    Config config = createStandardConfig(moreEntries);
 
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[other] not found in query");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -600,12 +604,10 @@ public class DatabaseAdaptorTest {
         "select id from data where id = ?");
     moreEntries.put("db.metadataColumns", "other:other");
     moreEntries.put("adaptor.namespace", "Default");
-    Config config = createStandardConfig(moreEntries);
 
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[other] not found in query");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -618,12 +620,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql", "select * from data");
     moreEntries.put("adaptor.namespace", "Default");
-    Config config = createStandardConfig(moreEntries);
 
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[blob] not found in query");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -631,9 +631,7 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.includeAllColumnsAsMetadata", "true");
     moreEntries.put("db.metadataColumns", "");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     assertEquals(null, adaptor.metadataColumns);
 
     executeUpdate("create table data(id int, foo varchar, bar varchar)");
@@ -658,9 +656,7 @@ public class DatabaseAdaptorTest {
     // Suppress column name validation.
     moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql", "");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
                  adaptor.metadataColumns);
 
@@ -682,9 +678,7 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.includeAllColumnsAsMetadata", "false");
     moreEntries.put("db.metadataColumns", "");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     assertEquals(asMap(), adaptor.metadataColumns);
   }
 
@@ -694,11 +688,9 @@ public class DatabaseAdaptorTest {
     // The value has to be something like "productid:int"
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "productid");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("Invalid UniqueKey definition");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -707,11 +699,9 @@ public class DatabaseAdaptorTest {
     // That cat be int, string, timestamp, date, time, and long.
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "productid:notvalid");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("Invalid UniqueKey type 'notvalid'");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -719,11 +709,9 @@ public class DatabaseAdaptorTest {
     // Value of unique key cannot contain repeated key name.
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "productid:int,productid:string");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("key name 'productid' was repeated");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -732,11 +720,9 @@ public class DatabaseAdaptorTest {
     // The value has to be something like "keyname:type"
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("db.uniqueKey parameter: value cannot be empty");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -749,12 +735,9 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.singleDocContentSql", "");
     moreEntries.put("db.singleDocContentSqlParameters", "");
     moreEntries.put("db.aclSqlParameters", "");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.initConfig(config);
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("db.uniqueKey value: The key must be a single");
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    getObjectUnderTest(moreEntries);
   }
 
   @Test
@@ -790,9 +773,7 @@ public class DatabaseAdaptorTest {
     // Suppress column name validation.
     moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql", "");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
 
     executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
     executeUpdate("insert into data(id, db_col1, col2) "
@@ -811,9 +792,7 @@ public class DatabaseAdaptorTest {
     // Suppress column name validation.
     moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql", "");
-    final Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
 
     executeUpdate("create table data(id int, foo varchar, bar varchar)");
     executeUpdate("insert into data(id, foo, bar) "
@@ -844,10 +823,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("docId.isUrl", "true");
     configEntries.put("db.metadataColumns", "URL:col1, NAME:col2");
 
-    Config config = createStandardConfig(configEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
     RecordingDocIdPusher pusher = new RecordingDocIdPusher();
     adaptor.getDocIds(pusher);
 
@@ -881,10 +857,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.metadataColumns", "id:id");
     configEntries.put("db.actionColumn", "action");
 
-    Config config = createStandardConfig(configEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
     RecordingDocIdPusher pusher = new RecordingDocIdPusher();
     adaptor.getDocIds(pusher);
 
@@ -924,9 +897,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("docId.isUrl", "true");
     configEntries.put("db.metadataColumns", "id:col1");
 
-    Config config = createStandardConfig(configEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
 
     executeUpdate("alter table data drop column action");
 
@@ -952,10 +923,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.modeOfOperation", "rowToText");
     configEntries.put("db.metadataColumns", "ID:col1, NAME:col2");
 
-    Config config = createStandardConfig(configEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
     MockRequest request = new MockRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
@@ -987,10 +955,8 @@ public class DatabaseAdaptorTest {
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "rowToText");
     configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
-    Config config = createStandardConfig(configEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
 
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
     MockRequest request = new MockRequest(new DocId("1"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
@@ -1022,10 +988,8 @@ public class DatabaseAdaptorTest {
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "rowToText");
     configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
-    Config config = createStandardConfig(configEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
 
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
     MockRequest request = new MockRequest(new DocId("1"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
@@ -1051,10 +1015,8 @@ public class DatabaseAdaptorTest {
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "rowToText");
     configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
-    Config config = createStandardConfig(configEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
 
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
     MockRequest request = new MockRequest(new DocId("1"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
@@ -1080,10 +1042,8 @@ public class DatabaseAdaptorTest {
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "rowToText");
     configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
-    Config config = createStandardConfig(configEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
 
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
     MockRequest request = new MockRequest(new DocId("1"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
