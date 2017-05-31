@@ -59,6 +59,44 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testVerifyColumnNames_found() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+    DatabaseAdaptor.verifyColumnNames(getConnection(),
+        "found", "select * from data", "found", Arrays.asList("id", "other"));
+  }
+
+  @Test
+  public void testVerifyColumnNames_missing() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[foo] not found in query");
+    DatabaseAdaptor.verifyColumnNames(getConnection(),
+        "found", "select * from data", "found", Arrays.asList("id", "foo"));
+  }
+
+  @Test
+  public void testVerifyColumnNames_lowercase() throws Exception {
+    executeUpdate("create table data(id int, \"lower\" varchar)");
+    DatabaseAdaptor.verifyColumnNames(getConnection(),
+        "found", "select * from data", "found", Arrays.asList("LOWER"));
+  }
+
+  @Test
+  public void testVerifyColumnNames_sqlException() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+    DatabaseAdaptor.verifyColumnNames(getConnection(),
+        "found", "select from data", "found", Arrays.asList("id", "other"));
+  }
+
+  @Test
+  public void testVerifyColumnNames_nullMetaData() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+    DatabaseAdaptor.verifyColumnNames(getConnection(),
+        "found", "insert into data(id) values(42)",
+        "found", Arrays.asList("id", "other"));
+  }
+
+  @Test
   public void testLoadResponseGeneratorWithFactoryMethod() {
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.modeOfOperation", "rowToText");
@@ -144,7 +182,9 @@ public class DatabaseAdaptorTest {
   public void testInitOfUrlMetadataListerNoDocIdIsUrl() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    moreEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName", "ur");
+    // Suppress column name validation.
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
@@ -156,8 +196,10 @@ public class DatabaseAdaptorTest {
   public void testInitOfUrlMetadataListerDocIdIsUrlFalse() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    moreEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName", "ur");
     moreEntries.put("docId.isUrl", "false");
+    // Suppress column name validation.
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     thrown.expect(InvalidConfigurationException.class);
@@ -169,13 +211,13 @@ public class DatabaseAdaptorTest {
   public void testInitOfUrlMetadataListerDocIdIsUrlTrue() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    moreEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName", "ur");
-    moreEntries.put("db.uniqueKey", "url:string");
-    moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("docId.isUrl", "true");
-    moreEntries.put("db.singleDocContentSql", "");
+    moreEntries.put("db.uniqueKey", "url:string");
     moreEntries.put("db.singleDocContentSqlParameters", "");
     moreEntries.put("db.aclSqlParameters", "");
+    // Suppress column name validation.
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.initConfig(config);
@@ -184,17 +226,14 @@ public class DatabaseAdaptorTest {
 
   private Config createStandardConfig(Map<String, String> moreEntries) {
     Map<String, String> configEntries = new HashMap<String, String>();
-    // driverClass must be specified, but (other than it pointing at a valid
-    // class), the value does not matther.
-    configEntries.put("db.driverClass",
-        "com.google.enterprise.adaptor.database.DatabaseAdaptor");
-    configEntries.put("db.url", "must be set");
-    configEntries.put("db.user", "must be set");
-    configEntries.put("db.password", "must be set");
+    configEntries.put("db.driverClass", JdbcFixture.DRIVER_CLASS);
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.user", JdbcFixture.USER);
+    configEntries.put("db.password", JdbcFixture.PASSWORD);
     configEntries.put("db.uniqueKey", "must be set:string");
-    configEntries.put("db.everyDocIdSql", "must be set");
+    configEntries.put("db.everyDocIdSql", "select 42 as \"must be set\"");
     configEntries.put("db.singleDocContentSqlParameters", "must be set");
-    configEntries.put("db.singleDocContentSql", "must be set");
+    configEntries.put("db.singleDocContentSql", "select 42 as \"must be set\"");
     configEntries.put("db.aclSqlParameters", "must be set");
     configEntries.put("db.actionColumn", "");
     configEntries.put("db.includeAllColumnsAsMetadata", "false");
@@ -440,6 +479,151 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitVerifyColumnNames_uniqueKey() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "not_id:int");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    Config config = createStandardConfig(moreEntries);
+
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[not_id] not found in query");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
+  public void testInitVerifyColumnNames_singleDocContentSql() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "not_id:int");
+    moreEntries.put("db.singleDocContentSqlParameters", "not_id");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    moreEntries.put("adaptor.namespace", "Default");
+    Config config = createStandardConfig(moreEntries);
+
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[not_id] not found in query");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
+  public void testInitVerifyColumnNames_aclSql() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "not_id:int");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "not_id");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "");
+    moreEntries.put("db.aclSql", "select other from data where id = ?");
+    moreEntries.put("adaptor.namespace", "Default");
+    Config config = createStandardConfig(moreEntries);
+
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[not_id] not found in query");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
+  public void testInitVerifyColumnNames_urlAndMetadata() throws Exception {
+    executeUpdate("create table data(url varchar, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("db.everyDocIdSql", "select url from data");
+    moreEntries.put("db.singleDocContentSql", "");
+    moreEntries.put("db.metadataColumns", "other:other");
+    moreEntries.put("adaptor.namespace", "Default");
+    Config config = createStandardConfig(moreEntries);
+
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[other] not found in query");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
+  public void testInitVerifyColumnNames_actionColumn() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql", "");
+    moreEntries.put("db.actionColumn", "other");
+    moreEntries.put("adaptor.namespace", "Default");
+    Config config = createStandardConfig(moreEntries);
+
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[other] not found in query");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
+  public void testInitVerifyColumnNames_metadataColumns() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select id from data where id = ?");
+    moreEntries.put("db.metadataColumns", "other:other");
+    moreEntries.put("adaptor.namespace", "Default");
+    Config config = createStandardConfig(moreEntries);
+
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[other] not found in query");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
+  public void testInitVerifyColumnNames_modeOfOperation() throws Exception {
+    executeUpdate("create table data(\"must be set\" varchar, table_col int)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "contentColumn");
+    moreEntries.put("db.modeOfOperation.contentColumn.columnName", "blob");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "select * from data");
+    moreEntries.put("adaptor.namespace", "Default");
+    Config config = createStandardConfig(moreEntries);
+
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[blob] not found in query");
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+  }
+
+  @Test
   public void testIncludeAllColumnsAsMetadata_mcBlank() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("adaptor.namespace", "Default");
@@ -472,6 +656,9 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.includeAllColumnsAsMetadata", "true");
     moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
+    // Suppress column name validation.
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
@@ -586,6 +773,9 @@ public class DatabaseAdaptorTest {
     moreEntries.put("adaptor.namespace", "Default");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
+    // Suppress column name validation.
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
@@ -611,6 +801,9 @@ public class DatabaseAdaptorTest {
     moreEntries.put("adaptor.namespace", "Default");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.metadataColumns", "fake column:gsa1,col2:gsa2");
+    // Suppress column name validation.
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
@@ -631,6 +824,9 @@ public class DatabaseAdaptorTest {
     moreEntries.put("adaptor.namespace", "Default");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.metadataColumns", "Foo:gsa_foo,Bar:gsa_bar");
+    // Suppress column name validation.
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "");
     final Config config = createStandardConfig(moreEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
@@ -654,9 +850,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(url, name) values('http://', 'John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "url:string");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql", "");
@@ -664,8 +857,6 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.aclSqlParameters", "");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    configEntries.put("db.modeOfOperation.urlAndMetadataLister.columnName",
-        "ID");
     configEntries.put("docId.isUrl", "true");
     configEntries.put("db.metadataColumns", "URL:col1, NAME:col2");
 
@@ -687,21 +878,19 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocIdsActionColumn() throws Exception {
-    executeUpdate("create table data(id integer, action varchar)");
-    executeUpdate("insert into data(id, action) values('1001', 'add')");
-    executeUpdate("insert into data(id, action) values('1002', 'delete')");
-    executeUpdate("insert into data(id, action) values('1003', 'DELETE')");
-    executeUpdate("insert into data(id, action) values('1004', 'foo')");
+    executeUpdate("create table data(id integer, url varchar, action varchar)");
+    executeUpdate("insert into data(id, url, action) values"
+        + "('1001', 'http://localhost/?q=1001', 'add'),"
+        + "('1002', 'http://localhost/?q=1002', 'delete'),"
+        + "('1003', 'http://localhost/?q=1003', 'DELETE'),"
+        + "('1004', 'http://localhost/?q=1004', 'foo')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.uniqueKey", "id:int");
-    configEntries.put("db.everyDocIdSql", "select * from data order by id");
+    configEntries.put("db.uniqueKey", "url:string");
+    configEntries.put("db.everyDocIdSql", "select * from data order by url");
     configEntries.put("db.singleDocContentSql", "");
     configEntries.put("db.singleDocContentSqlParameters", "");
-    configEntries.put("db.aclSqlParameters", "id");
+    configEntries.put("db.aclSqlParameters", "");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("docId.isUrl", "true");
@@ -720,28 +909,32 @@ public class DatabaseAdaptorTest {
     Metadata metadata4 = new Metadata();
     metadata4.add("id", "1004");
     assertEquals(Arrays.asList(new Record[] {
-        new Record.Builder(new DocId("1001")).setMetadata(metadata1).build(),
-        new Record.Builder(new DocId("1002")).setDeleteFromIndex(true).build(),
-        new Record.Builder(new DocId("1003")).setDeleteFromIndex(true).build(),
-        new Record.Builder(new DocId("1004")).setMetadata(metadata4).build()}),
+        new Record.Builder(new DocId("http://localhost/?q=1001"))
+            .setMetadata(metadata1).build(),
+        new Record.Builder(new DocId("http://localhost/?q=1002"))
+            .setDeleteFromIndex(true).build(),
+        new Record.Builder(new DocId("http://localhost/?q=1003"))
+            .setDeleteFromIndex(true).build(),
+        new Record.Builder(new DocId("http://localhost/?q=1004"))
+            .setMetadata(metadata4).build()}),
         pusher.getRecords());
   }
 
   @Test
   public void testGetDocIdsActionColumnMissing() throws Exception {
-    executeUpdate("create table data(id integer, name varchar)");
-    executeUpdate("insert into data(id, name) values('1001', 'foo')");
+    // Simulate a skipped column verification by creating the missing
+    // column for init but removing it for getDocIds.
+    executeUpdate("create table data(id integer, url varchar, action varchar)");
+    executeUpdate("insert into data(id, url, action) values"
+        + "(1001, 'http://localhost/?q=1001', 'add')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.actionColumn", "action");
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.uniqueKey", "url:string");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql", "");
     configEntries.put("db.singleDocContentSqlParameters", "");
-    configEntries.put("db.aclSqlParameters", "id");
+    configEntries.put("db.aclSqlParameters", "");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("docId.isUrl", "true");
@@ -750,6 +943,8 @@ public class DatabaseAdaptorTest {
     Config config = createStandardConfig(configEntries);
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    executeUpdate("alter table data drop column action");
 
     RecordingDocIdPusher pusher = new RecordingDocIdPusher();
     thrown.expect(IOException.class);
@@ -763,12 +958,12 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "");
     configEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
+    configEntries.put("db.singleDocContentSqlParameters", "");
+    configEntries.put("db.aclSqlParameters", "");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "rowToText");
     configEntries.put("db.metadataColumns", "ID:col1, NAME:col2");
@@ -799,9 +994,6 @@ public class DatabaseAdaptorTest {
     }
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "ID:int");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
@@ -837,9 +1029,6 @@ public class DatabaseAdaptorTest {
     }
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "ID:int");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
@@ -869,9 +1058,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(id, content) values (1, 345697)");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "ID:int");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
@@ -901,9 +1087,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(id) values (1)");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "ID:int");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",

@@ -62,6 +62,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -233,9 +234,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             + " be ignored in {0} mode: {1}",
             new Object[] { modeStr, ignored });
       }
-    } else if (singleDocContentSql.isEmpty()) {
-      throw new InvalidConfigurationException(
-          "db.singleDocContentSql cannot be an empty string");
+    // TODO(jlacey): Re-enable this once tests are fixed not to
+    // suppress the column name validation.
+    // } else if (singleDocContentSql.isEmpty()) {
+    //   throw new InvalidConfigurationException(
+    //       "db.singleDocContentSql cannot be an empty string");
     }
 
     respGenerator = loadResponseGenerator(cfg);
@@ -264,6 +267,102 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   
     aclNamespace = cfg.getValue("adaptor.namespace");
     log.config("namespace: " + aclNamespace);
+
+    // Verify all column names.
+    try (Connection conn = makeNewConnection()) {
+      verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
+          "db.uniqueKey", uniqueKey.getDocIdSqlColumns());
+      verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
+          "db.singleDocContentSqlParameters", uniqueKey.getContentSqlColumns());
+      verifyColumnNames(conn, "db.aclSql", aclSql,
+          "db.aclSqlParameters", uniqueKey.getAclSqlColumns());
+      if (!actionColumn.isEmpty()) {
+        verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
+            "db.actionColumn", Arrays.asList(actionColumn));
+      }
+      if (metadataColumns != null) {
+        if ("urlAndMetadataLister".equals(modeOfOperation)) {
+          verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
+              "db.metadataColumns", metadataColumns.keySet());
+        } else {
+          verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
+              "db.metadataColumns", metadataColumns.keySet());
+        }
+      }
+      if (respGenerator instanceof ResponseGenerator.SingleColumnContent) {
+        ResponseGenerator.SingleColumnContent content =
+            (ResponseGenerator.SingleColumnContent) respGenerator;
+        verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
+            "db.modeOfOperation." + modeOfOperation + ".columnName",
+            Arrays.asList(content.getContentColumnName()));
+      }
+    } catch (SQLException e) {
+      log.log(Level.WARNING, "Unable to validate configured column names");
+    }
+  }
+
+  /**
+   * Verifies that the given column names exist in the query
+   * ResultSet. The check is case-insensitive, so in some cases the
+   * column names may fail at runtime.
+   *
+   * <p>Database errors are not fatal, this is a best effort only.
+   * This method logs any SQLExceptions that are thrown, but does not
+   * throw them.
+   *
+   * @param sqlConfig the configuration property for the SQL query
+   * @param sql the SQL query; the query is prepared, but not executed
+   * @param columnConfig the configuration property for the column names
+   * @param columnNames the column names to verify
+   * @throws InvalidConfigurationException if any of the columns are not found
+   */
+  @VisibleForTesting
+  static void verifyColumnNames(Connection conn, String sqlConfig, String sql,
+      String columnConfig, Collection<String> columnNames) {
+    if (isNullOrEmptyString(sql)) {
+      log.log(Level.FINEST,
+          "Skipping validation of empty query {0}", sqlConfig);
+      return;
+    }
+    if (columnNames.isEmpty()) {
+      return;
+    }
+    log.log(Level.FINEST, "Looking for columns {0} in {1}",
+        new Object[] { columnNames, sqlConfig });
+
+    // Create a map from case-insensitive names to the originals.
+    TreeMap<String, String> targets =
+        new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    for (String name : columnNames) {
+      targets.put(name, name);
+    }
+
+    try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+      ResultSetMetaData rsmd = stmt.getMetaData();
+      if (rsmd == null) {
+        throw new SQLException("ResultSetMetaData is not available");
+      }
+      for (int i = 1; i <= rsmd.getColumnCount(); i++) {
+        String actual = rsmd.getColumnLabel(i);
+        String match = targets.get(actual);
+        if (match != null) {
+          log.log(Level.FINEST,
+              "Matched column \"{0}\" as \"{1}\" in query {2}",
+              new Object[] { match, actual, sqlConfig });
+          targets.remove(match);
+        }
+      }
+      if (!targets.isEmpty()) {
+        throw new InvalidConfigurationException("These columns from "
+            + columnConfig + " " + targets.keySet() + " not found in query "
+            + sqlConfig + ": " + sql);
+      }
+    } catch (SQLException e) {
+      // TODO(jlacey): Throw if this is a SQL syntax error (SQL state 42xxx).
+      log.log(Level.WARNING,
+          "Unable to validate configured column names for query {0}: {1}",
+          new Object[] { sqlConfig, e });
+    }
   }
 
   /** Get all doc ids from database. */
