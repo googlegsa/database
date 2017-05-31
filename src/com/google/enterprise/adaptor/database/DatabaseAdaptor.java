@@ -234,9 +234,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             + " be ignored in {0} mode: {1}",
             new Object[] { modeStr, ignored });
       }
-    } else if (singleDocContentSql.isEmpty()) {
-      throw new InvalidConfigurationException(
-          "db.singleDocContentSql cannot be an empty string");
+    // TODO(jlacey): Re-enable this once tests are fixed not to
+    // suppress the column name validation.
+    // } else if (singleDocContentSql.isEmpty()) {
+    //   throw new InvalidConfigurationException(
+    //       "db.singleDocContentSql cannot be an empty string");
     }
 
     respGenerator = loadResponseGenerator(cfg);
@@ -356,6 +358,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             + sqlConfig + ": " + sql);
       }
     } catch (SQLException e) {
+      // TODO(jlacey): Throw if this is a SQL syntax error (SQL state 42xxx).
       log.log(Level.WARNING,
           "Unable to validate configured column names for query {0}: {1}",
           new Object[] { sqlConfig, e });

@@ -542,15 +542,15 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitVerifyColumnNames_urlAndMetadata() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(url varchar, other varchar)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("docId.isUrl", "true");
-    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.uniqueKey", "url:string");
     moreEntries.put("db.singleDocContentSqlParameters", "");
     moreEntries.put("db.aclSqlParameters", "");
-    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.everyDocIdSql", "select url from data");
     moreEntries.put("db.singleDocContentSql", "");
     moreEntries.put("db.metadataColumns", "other:other");
     moreEntries.put("adaptor.namespace", "Default");
@@ -614,7 +614,6 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.modeOfOperation.contentColumn.columnName", "blob");
     moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql", "select * from data");
-    moreEntries.put("docId.isUrl", "true");
     moreEntries.put("adaptor.namespace", "Default");
     Config config = createStandardConfig(moreEntries);
 
@@ -879,21 +878,19 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocIdsActionColumn() throws Exception {
-    executeUpdate("create table data(id integer, action varchar)");
-    executeUpdate("insert into data(id, action) values('1001', 'add')");
-    executeUpdate("insert into data(id, action) values('1002', 'delete')");
-    executeUpdate("insert into data(id, action) values('1003', 'DELETE')");
-    executeUpdate("insert into data(id, action) values('1004', 'foo')");
+    executeUpdate("create table data(id integer, url varchar, action varchar)");
+    executeUpdate("insert into data(id, url, action) values"
+        + "('1001', 'http://localhost/?q=1001', 'add'),"
+        + "('1002', 'http://localhost/?q=1002', 'delete'),"
+        + "('1003', 'http://localhost/?q=1003', 'DELETE'),"
+        + "('1004', 'http://localhost/?q=1004', 'foo')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.uniqueKey", "id:int");
-    configEntries.put("db.everyDocIdSql", "select * from data order by id");
+    configEntries.put("db.uniqueKey", "url:string");
+    configEntries.put("db.everyDocIdSql", "select * from data order by url");
     configEntries.put("db.singleDocContentSql", "");
     configEntries.put("db.singleDocContentSqlParameters", "");
-    configEntries.put("db.aclSqlParameters", "id");
+    configEntries.put("db.aclSqlParameters", "");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("docId.isUrl", "true");
@@ -912,10 +909,14 @@ public class DatabaseAdaptorTest {
     Metadata metadata4 = new Metadata();
     metadata4.add("id", "1004");
     assertEquals(Arrays.asList(new Record[] {
-        new Record.Builder(new DocId("1001")).setMetadata(metadata1).build(),
-        new Record.Builder(new DocId("1002")).setDeleteFromIndex(true).build(),
-        new Record.Builder(new DocId("1003")).setDeleteFromIndex(true).build(),
-        new Record.Builder(new DocId("1004")).setMetadata(metadata4).build()}),
+        new Record.Builder(new DocId("http://localhost/?q=1001"))
+            .setMetadata(metadata1).build(),
+        new Record.Builder(new DocId("http://localhost/?q=1002"))
+            .setDeleteFromIndex(true).build(),
+        new Record.Builder(new DocId("http://localhost/?q=1003"))
+            .setDeleteFromIndex(true).build(),
+        new Record.Builder(new DocId("http://localhost/?q=1004"))
+            .setMetadata(metadata4).build()}),
         pusher.getRecords());
   }
 
@@ -923,19 +924,17 @@ public class DatabaseAdaptorTest {
   public void testGetDocIdsActionColumnMissing() throws Exception {
     // Simulate a skipped column verification by creating the missing
     // column for init but removing it for getDocIds.
-    executeUpdate("create table data(id integer, action varchar)");
-    executeUpdate("insert into data(id, action) values(1001, 'add')");
+    executeUpdate("create table data(id integer, url varchar, action varchar)");
+    executeUpdate("insert into data(id, url, action) values"
+        + "(1001, 'http://localhost/?q=1001', 'add')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.actionColumn", "action");
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.uniqueKey", "url:string");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql", "");
     configEntries.put("db.singleDocContentSqlParameters", "");
-    configEntries.put("db.aclSqlParameters", "id");
+    configEntries.put("db.aclSqlParameters", "");
     configEntries.put("adaptor.namespace", "Default");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("docId.isUrl", "true");
@@ -995,9 +994,6 @@ public class DatabaseAdaptorTest {
     }
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "ID:int");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
@@ -1033,9 +1029,6 @@ public class DatabaseAdaptorTest {
     }
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "ID:int");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
@@ -1065,9 +1058,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(id, content) values (1, 345697)");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "ID:int");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
@@ -1097,9 +1087,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(id) values (1)");
 
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.user", "sa");
-    configEntries.put("db.password", "");
-    configEntries.put("db.url", JdbcFixture.URL);
     configEntries.put("db.uniqueKey", "ID:int");
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
