@@ -52,6 +52,20 @@ public class MetadataColumnsTest {
   }
 
   @Test
+  public void testIdentityColumns() {
+    String configDef = "id, name, account:acct";
+    MetadataColumns mc = new MetadataColumns(configDef);
+    assertEquals(asMap("id", "id", "name", "name", "account", "acct"), mc);
+  }
+
+  @Test
+  public void testEmptyEntry() {
+    String configDef = "id,,name";
+    MetadataColumns mc = new MetadataColumns(configDef);
+    assertEquals(asMap("id", "id", "name", "name"), mc);
+  }
+
+  @Test
   public void testSpacesBetweenDeclerations() {
     String configDef = "xf_date:CREATE_DATE,name:AUTHOR";
     MetadataColumns mc = new MetadataColumns(configDef);
