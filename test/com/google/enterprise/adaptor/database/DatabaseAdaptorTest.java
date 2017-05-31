@@ -983,7 +983,7 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testClobColumnAsMetadata() throws Exception {
+  public void testMetadataColumns_clob() throws Exception {
     // NCLOB shows up as CLOB in H2
     String content = "Hello World";
     executeUpdate("create table data(id int, content clob)");
@@ -1018,7 +1018,7 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testVarcharColumnAsMetadata() throws Exception {
+  public void testMetadataColumns_varchar() throws Exception {
     // LONGVARCHAR, LONGNVARCHAR show up as VARCHAR in H2.
     String content = "Hello World";
     executeUpdate("create table data(id int, content varchar)");
@@ -1053,7 +1053,7 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testIntegerColumnAsMetadata() throws Exception {
+  public void testMetadataColumns_integer() throws Exception {
     executeUpdate("create table data(id int, content integer)");
     executeUpdate("insert into data(id, content) values (1, 345697)");
 
@@ -1082,7 +1082,7 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testClobColumnWithNullMetadata() throws Exception {
+  public void testMetadataColumns_clobNull() throws Exception {
     executeUpdate("create table data(id int, content clob)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -1108,5 +1108,186 @@ public class DatabaseAdaptorTest {
     expected.add("col1", "1");
     expected.add("col2", "null");
     assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_date() throws Exception {
+    executeUpdate("create table data(id integer, col date)");
+    executeUpdate("insert into data(id, col) values(1001, {d '2004-10-06'})");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where ID = ?");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+
+    Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata metadata = new Metadata();
+    metadata.add("col1", "1001");
+    metadata.add("col2", "2004-10-06");
+    assertEquals(metadata, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_dateNull() throws Exception {
+    executeUpdate("create table data(id integer, col date)");
+    executeUpdate("insert into data(id) values(1001)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where ID = ?");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+
+    Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata metadata = new Metadata();
+    metadata.add("col1", "1001");
+    metadata.add("col2", "null");
+    assertEquals(metadata, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_time() throws Exception {
+    executeUpdate("create table data(id integer, col time)");
+    executeUpdate("insert into data(id, col) values(1001, {t '09:15:30'})");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where ID = ?");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+
+    Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata metadata = new Metadata();
+    metadata.add("col1", "1001");
+    metadata.add("col2", "09:15:30");
+    assertEquals(metadata, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_timeNull() throws Exception {
+    executeUpdate("create table data(id integer, col time)");
+    executeUpdate("insert into data(id) values(1001)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where ID = ?");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+
+    Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata metadata = new Metadata();
+    metadata.add("col1", "1001");
+    metadata.add("col2", "null");
+    assertEquals(metadata, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_timestamp() throws Exception {
+    executeUpdate("create table data(id integer, col timestamp)");
+    executeUpdate("insert into data(id, col) values(1001, "
+        + "{ts '2009-10-05 09:20:49.512'})");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where ID = ?");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+
+    Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata metadata = new Metadata();
+    metadata.add("col1", "1001");
+    metadata.add("col2", "2009-10-05 09:20:49.512");
+    assertEquals(metadata, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_timestampNull() throws Exception {
+    executeUpdate("create table data(id integer, col timestamp)");
+    executeUpdate("insert into data(id) values(1001)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where ID = ?");
+    moreEntries.put("db.singleDocContentSqlParameters", "");
+    moreEntries.put("db.aclSqlParameters", "");
+    moreEntries.put("adaptor.namespace", "Default");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
+
+    Config config = createStandardConfig(moreEntries);
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata metadata = new Metadata();
+    metadata.add("col1", "1001");
+    metadata.add("col2", "null");
+    assertEquals(metadata, response.getMetadata());
   }
 }
