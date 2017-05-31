@@ -143,6 +143,18 @@ class UniqueKey {
     return Collections.unmodifiableList(tmpContentCols);
   }
 
+  List<String> getDocIdSqlColumns() {
+    return names;
+  }
+
+  List<String> getContentSqlColumns() {
+    return contentSqlCols;
+  }
+
+  List<String> getAclSqlColumns() {
+    return aclSqlCols;
+  }
+
   // TODO(jlacey): Move these to the tests or change the tests to use
   // the actual constructor.
   @VisibleForTesting
