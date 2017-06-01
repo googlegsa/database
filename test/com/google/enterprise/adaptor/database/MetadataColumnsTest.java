@@ -14,9 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.TestHelper.asMap;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -35,34 +34,42 @@ public class MetadataColumnsTest {
   @Test
   public void testMissingColumnNameGivesNull() {
     MetadataColumns mc = new MetadataColumns(" ");
-    assertEquals(null, mc.getMetadataName("not-exist"));
+    assertEquals(null, mc.get("not-exist"));
   }
 
   @Test
   public void testSimpleCase() {
     String configDef = "xf_date:CREATE_DATE,name:AUTHOR";
     MetadataColumns mc = new MetadataColumns(configDef);
-    assertNotNull(mc.getMetadataName("xf_date"));
-    assertNotNull(mc.getMetadataName("name"));
-    assertEquals("CREATE_DATE", mc.getMetadataName("xf_date"));
-    assertEquals("AUTHOR", mc.getMetadataName("name"));
-    assertNull(mc.getMetadataName("CREATE_DATE"));
-    assertNull(mc.getMetadataName("AUTHOR"));
-    assertNull(mc.getMetadataName("xYz"));
+    assertEquals(asMap("xf_date", "CREATE_DATE", "name", "AUTHOR"), mc);
   }
 
   @Test
   public void testColonInMetadataName() {
     String configDef = "xf_date:DATE:CREATE";
     MetadataColumns mc = new MetadataColumns(configDef);
-    assertEquals("DATE:CREATE", mc.getMetadataName("xf_date"));
+    assertEquals(asMap("xf_date", "DATE:CREATE"), mc);
   }
 
   @Test
-  public void testToString() {
-    String configDef = "xf_date:DATE:CREATE,a:b";
+  public void testIdentityColumns() {
+    String configDef = "id, name, account:acct";
     MetadataColumns mc = new MetadataColumns(configDef);
-    assertEquals("MetadataColumns({a=b, xf_date=DATE:CREATE})", "" + mc);
+    assertEquals(asMap("id", "id", "name", "name", "account", "acct"), mc);
+  }
+
+  @Test
+  public void testEmptyEntry() {
+    String configDef = "id,,name";
+    MetadataColumns mc = new MetadataColumns(configDef);
+    assertEquals(asMap("id", "id", "name", "name"), mc);
+  }
+
+  @Test
+  public void testEmptyMetadataKey() {
+    String configDef = "id:,name";
+    MetadataColumns mc = new MetadataColumns(configDef);
+    assertEquals(asMap("id", "id", "name", "name"), mc);
   }
 
   @Test

@@ -172,7 +172,7 @@ public abstract class ResponseGenerator {
         throws TransformerConfigurationException, IOException {
       super(config);
       String stylesheetFilename = emptyToNull(getConfig().get("stylesheet"));
-      InputStream xsl = null;
+      InputStream xsl;
       if (null != stylesheetFilename) {
         xsl = new FileInputStream(stylesheetFilename);
       } else {
@@ -182,10 +182,10 @@ public abstract class ResponseGenerator {
           throw new AssertionError("Default stylesheet not found in resources");
         }
       }
-
-      TransformerFactory transFactory = TransformerFactory.newInstance();
-      template = transFactory.newTemplates(new StreamSource(xsl));
-      xsl.close();
+      try (InputStream in = xsl) {
+        TransformerFactory transFactory = TransformerFactory.newInstance();
+        template = transFactory.newTemplates(new StreamSource(in));
+      }
     }
 
     @Override
@@ -269,7 +269,7 @@ public abstract class ResponseGenerator {
     }
   }
 
-  private abstract static class SingleColumnContent extends ResponseGenerator {
+  abstract static class SingleColumnContent extends ResponseGenerator {
     private final String col;
     private final String contentTypeOverride; // can be null
     private final String contentTypeCol; // can be null
@@ -344,15 +344,9 @@ public abstract class ResponseGenerator {
           resp.setContentType(contentType);
         }
       }
-      InputStream in = null;
-      try {
-        in = con.getInputStream();
+      try (InputStream in = con.getInputStream()) {
         OutputStream out = resp.getOutputStream();
         com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
-      } finally {
-        if (null != in) {
-          in.close();
-        }
       }
     }
   }
@@ -387,15 +381,9 @@ public abstract class ResponseGenerator {
       overrideContentType(rs, resp);
       overrideDisplayUrl(rs, resp);
       String path = rs.getString(getContentColumnName());
-      InputStream in = null;
-      try {
-        in = new FileInputStream(path);
+      try (InputStream in = new FileInputStream(path)) {
         OutputStream out = resp.getOutputStream();
         com.google.enterprise.adaptor.IOHelper.copyStream(in, out);
-      } finally {
-        if (null != in) {
-          in.close();
-        }
       }
     }
   }

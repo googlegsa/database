@@ -45,27 +45,36 @@ public class UniqueKeyTest {
     JdbcFixture.dropAllObjects();
   }
 
+  private UniqueKey newUniqueKey(String ukDecls) {
+    return newUniqueKey(ukDecls, "", "");
+  }
+
+  private UniqueKey newUniqueKey(String ukDecls, String contentSqlColumns,
+      String aclSqlColumns) {
+    return new UniqueKey(ukDecls, contentSqlColumns, aclSqlColumns, true);
+  }
+
   @Test
   public void testNullKeys() {
     thrown.expect(NullPointerException.class);
-    UniqueKey uk = new UniqueKey(null, "", "");
+    UniqueKey uk = newUniqueKey(null, "", "");
   }
 
   @Test
   public void testNullContentCols() {
     thrown.expect(NullPointerException.class);
-    UniqueKey uk = new UniqueKey("num:int", null, "");
+    UniqueKey uk = newUniqueKey("num:int", null, "");
   }
 
   @Test
   public void testNullAclCols() {
     thrown.expect(NullPointerException.class);
-    UniqueKey uk = new UniqueKey("num:int", "", null);
+    UniqueKey uk = newUniqueKey("num:int", "", null);
   }
 
   @Test
   public void testSingleInt() {
-    UniqueKey uk = new UniqueKey("numnum:int");
+    UniqueKey uk = newUniqueKey("numnum:int");
     assertEquals(1, uk.numElementsForTest());
     assertEquals("numnum", uk.nameForTest(0));
     assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
@@ -74,12 +83,12 @@ public class UniqueKeyTest {
   @Test
   public void testEmptyThrows() {
     thrown.expect(InvalidConfigurationException.class);
-    UniqueKey uk = new UniqueKey(" ");
+    UniqueKey uk = newUniqueKey(" ");
   }
 
   @Test
   public void testTwoInt() {
-    UniqueKey uk = new UniqueKey("numnum:int,other:int");
+    UniqueKey uk = newUniqueKey("numnum:int,other:int");
     assertEquals(2, uk.numElementsForTest());
     assertEquals("numnum", uk.nameForTest(0));
     assertEquals("other", uk.nameForTest(1));
@@ -89,7 +98,7 @@ public class UniqueKeyTest {
 
   @Test
   public void testIntString() {
-    UniqueKey uk = new UniqueKey("numnum:int,strstr:string");
+    UniqueKey uk = newUniqueKey("numnum:int,strstr:string");
     assertEquals(2, uk.numElementsForTest());
     assertEquals("numnum", uk.nameForTest(0));
     assertEquals("strstr", uk.nameForTest(1));
@@ -98,14 +107,28 @@ public class UniqueKeyTest {
   }
 
   @Test
+  public void testUrlIntColumn() {
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("db.uniqueKey value: The key must be a single");
+    new UniqueKey("numnum:int", "", "", false);
+  }
+
+  @Test
+  public void testUrlTwoColumns() {
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("db.uniqueKey value: The key must be a single");
+    UniqueKey uk = new UniqueKey("str1:string,str2:string", "", "", false);
+  }
+
+  @Test
   public void testNameRepeatsNotAllowed() {
     thrown.expect(InvalidConfigurationException.class);
-    UniqueKey uk = new UniqueKey("num:int,num:string");
+    UniqueKey uk = newUniqueKey("num:int,num:string");
   }
 
   @Test
   public void testCaseSensitiveNameRepeatsAllowed() {
-    UniqueKey uk = new UniqueKey("num:int,Num:string");
+    UniqueKey uk = newUniqueKey("num:int,Num:string");
     assertEquals(2, uk.numElementsForTest());
     assertEquals("num", uk.nameForTest(0));
     assertEquals("Num", uk.nameForTest(1));
@@ -116,12 +139,12 @@ public class UniqueKeyTest {
   @Test
   public void testCaseInsensitiveNameNotAllowedIfCaseSensitiveKeys() {
     thrown.expect(InvalidConfigurationException.class);
-    UniqueKey uk = new UniqueKey("id:int,Id:string", "ID", "ID");
+    UniqueKey uk = newUniqueKey("id:int,Id:string", "ID", "ID");
   }
 
   @Test
   public void testCaseInsensitiveNameAllowedIfNotCaseSensitiveKeys() {
-    UniqueKey uk = new UniqueKey("id:int", "Id", "ID");
+    UniqueKey uk = newUniqueKey("id:int", "Id", "ID");
     assertEquals(1, uk.numElementsForTest());
     assertEquals("id", uk.nameForTest(0));
     assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
@@ -132,20 +155,20 @@ public class UniqueKeyTest {
   @Test
   public void testBadDef() {
     thrown.expect(InvalidConfigurationException.class);
-    UniqueKey uk = new UniqueKey("numnum:int,strstr/string");
+    UniqueKey uk = newUniqueKey("numnum:int,strstr/string");
   }
 
   @Test
   public void testUnknownContentCol() {
     thrown.expect(InvalidConfigurationException.class);
-    UniqueKey uk = new UniqueKey("numnum:int,strstr:string",
+    UniqueKey uk = newUniqueKey("numnum:int,strstr:string",
         "numnum,IsStranger,strstr", "");
   }
 
   @Test
   public void testUnknownAclCol() {
     thrown.expect(InvalidConfigurationException.class);
-    UniqueKey uk = new UniqueKey("numnum:int,strstr:string", "",
+    UniqueKey uk = newUniqueKey("numnum:int,strstr:string", "",
         "numnum,IsStranger,strstr");
   }
 
@@ -156,7 +179,7 @@ public class UniqueKeyTest {
 
     try (Statement stmt = getConnection().createStatement();
         ResultSet rs = stmt.executeQuery("select * from data")) {
-      UniqueKey uk = new UniqueKey("numnum:int,strstr:string");
+      UniqueKey uk = newUniqueKey("numnum:int,strstr:string");
       assertTrue("ResultSet is empty", rs.next());
       assertEquals("345/abc", uk.makeUniqueId(rs, /*encode=*/ true));
     }
@@ -169,7 +192,7 @@ public class UniqueKeyTest {
 
     try (Statement stmt = getConnection().createStatement();
         ResultSet rs = stmt.executeQuery("select * from data")) {
-      UniqueKey uk = new UniqueKey("a:string,b:string");
+      UniqueKey uk = newUniqueKey("a:string,b:string");
       assertTrue("ResultSet is empty", rs.next());
       assertEquals("5_/5/6_/6", uk.makeUniqueId(rs, /*encode=*/ true));
     }
@@ -182,7 +205,7 @@ public class UniqueKeyTest {
 
     try (Statement stmt = getConnection().createStatement();
         ResultSet rs = stmt.executeQuery("select * from data")) {
-      UniqueKey uk = new UniqueKey("a:string,b:string");
+      UniqueKey uk = newUniqueKey("a:string,b:string");
       assertTrue("ResultSet is empty", rs.next());
       assertEquals("5_/5_/_/_//_/_/6_/6",
           uk.makeUniqueId(rs, /*encode=*/ true));
@@ -199,7 +222,7 @@ public class UniqueKeyTest {
         + "numnum, strstr, timestamp, date, time, long)"
         + " values (?, ?, ?, ?, ?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      UniqueKey uk = new UniqueKey("numnum:int,strstr:string,"
+      UniqueKey uk = newUniqueKey("numnum:int,strstr:string,"
           + "timestamp:timestamp,date:date,time:time,long:long");
       uk.setContentSqlValues(ps,
           "888/bluesky/1414701070212/2014-01-01/02:03:04/123");
@@ -227,7 +250,7 @@ public class UniqueKeyTest {
     String sql = "insert into data(col1, col2, col3, col4, col5, col6, col7)"
         + " values (?, ?, ?, ?, ?, ?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      UniqueKey uk = new UniqueKey("numnum:int,strstr:string",
+      UniqueKey uk = newUniqueKey("numnum:int,strstr:string",
           "numnum,numnum,strstr,numnum,strstr,strstr,numnum", "");
       uk.setContentSqlValues(ps, "888/bluesky");
       assertEquals(1, ps.executeUpdate());
@@ -252,7 +275,7 @@ public class UniqueKeyTest {
 
     String sql = "insert into data(a, b, c) values (?, ?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      UniqueKey uk = new UniqueKey("a:string,b:string", "a,b,a", "");
+      UniqueKey uk = newUniqueKey("a:string,b:string", "a,b,a", "");
       uk.setContentSqlValues(ps, "5_/5/6_/6");
       assertEquals(1, ps.executeUpdate());
     }
@@ -292,7 +315,7 @@ public class UniqueKeyTest {
       executeUpdate(
           "insert into data(a, b) values('" + elem1 + "', '" + elem2 + "')");
 
-      UniqueKey uk = new UniqueKey("a:string,b:string");
+      UniqueKey uk = newUniqueKey("a:string,b:string");
       String id;
       try (Statement stmt = getConnection().createStatement();
           ResultSet rs = stmt.executeQuery("select * from data")) {
@@ -390,52 +413,52 @@ public class UniqueKeyTest {
 
   @Test
   public void testSpacesBetweenUniqueKeyDeclerations() {
-    UniqueKey uk = new UniqueKey("numnum:int,other:int");
-    assertEquals(uk, new UniqueKey(" numnum:int,other:int"));
-    assertEquals(uk, new UniqueKey("numnum:int ,other:int"));
-    assertEquals(uk, new UniqueKey("numnum:int, other:int"));
-    assertEquals(uk, new UniqueKey("numnum:int , other:int"));
-    assertEquals(uk, new UniqueKey("   numnum:int  ,  other:int   "));
+    UniqueKey uk = newUniqueKey("numnum:int,other:int");
+    assertEquals(uk, newUniqueKey(" numnum:int,other:int"));
+    assertEquals(uk, newUniqueKey("numnum:int ,other:int"));
+    assertEquals(uk, newUniqueKey("numnum:int, other:int"));
+    assertEquals(uk, newUniqueKey("numnum:int , other:int"));
+    assertEquals(uk, newUniqueKey("   numnum:int  ,  other:int   "));
   }
 
   @Test
   public void testSpacesWithinUniqueKeyDeclerations() {
-    UniqueKey uk = new UniqueKey("numnum:int,other:int");
-    assertEquals(uk, new UniqueKey("numnum :int,other:int"));
-    assertEquals(uk, new UniqueKey("numnum: int,other:int"));
-    assertEquals(uk, new UniqueKey("numnum : int,other:int"));
-    assertEquals(uk, new UniqueKey("numnum : int,other   :    int"));
+    UniqueKey uk = newUniqueKey("numnum:int,other:int");
+    assertEquals(uk, newUniqueKey("numnum :int,other:int"));
+    assertEquals(uk, newUniqueKey("numnum: int,other:int"));
+    assertEquals(uk, newUniqueKey("numnum : int,other:int"));
+    assertEquals(uk, newUniqueKey("numnum : int,other   :    int"));
   }
 
   @Test
   public void testSpacesBetweenContentSqlCols() {
-    UniqueKey uk = new UniqueKey("numnum:int,strstr:string",
+    UniqueKey uk = newUniqueKey("numnum:int,strstr:string",
         "numnum,numnum,strstr,numnum,strstr,strstr,numnum", "");
-    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
         "numnum ,numnum,strstr,numnum,strstr,strstr,numnum", ""));
-    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
         "numnum, numnum,strstr,numnum,strstr,strstr,numnum", ""));
-    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
         "numnum , numnum,strstr,numnum,strstr,strstr,numnum", ""));
-    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
         "numnum  ,   numnum,strstr,numnum,strstr,strstr,numnum", ""));
-    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
         "numnum  ,   numnum , strstr   ,  numnum,strstr,strstr, numnum ", ""));
   }
 
   @Test
   public void testSpacesBetweenAclSqlCols() {
-    UniqueKey uk = new UniqueKey("numnum:int,strstr:string",
+    UniqueKey uk = newUniqueKey("numnum:int,strstr:string",
         "", "numnum,numnum,strstr,numnum,strstr,strstr,numnum");
-    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
         "", "numnum ,numnum,strstr,numnum,strstr,strstr,numnum"));
-    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
         "", "numnum, numnum,strstr,numnum,strstr,strstr,numnum"));
-    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
         "", "numnum , numnum,strstr,numnum,strstr,strstr,numnum"));
-    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
         "", "numnum  ,   numnum,strstr,numnum,strstr,strstr,numnum"));
-    assertEquals(uk, new UniqueKey("numnum:int,strstr:string",
+    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
         "", "numnum  ,   numnum , strstr   ,  numnum,strstr,strstr, numnum "));
   }
 }

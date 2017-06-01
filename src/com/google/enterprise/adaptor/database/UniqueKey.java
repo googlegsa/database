@@ -28,7 +28,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.logging.Logger;
 
@@ -51,9 +50,8 @@ class UniqueKey {
   private final List<String> contentSqlCols;  // columns for content query
   private final List<String> aclSqlCols;  // columns for acl query
 
-  private boolean caseSensitiveKeys; // if types map has case sensitive keys
-
-  UniqueKey(String ukDecls, String contentSqlColumns, String aclSqlColumns) {
+  UniqueKey(String ukDecls, String contentSqlColumns, String aclSqlColumns,
+      boolean encode) {
     if (null == ukDecls) {
       throw new NullPointerException();
     }
@@ -70,7 +68,8 @@ class UniqueKey {
     }
 
     List<String> tmpNames = new ArrayList<String>();
-    Map<String, ColumnType> tmpTypes = new TreeMap<String, ColumnType>();
+    Map<String, ColumnType> tmpTypes =
+        new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     for (String e : ukDecls.split(",", 0)) {
       log.fine("element: `" + e + "'");
       e = e.trim();
@@ -106,21 +105,26 @@ class UniqueKey {
         String errmsg = "Invalid db.uniqueKey configuration: key name '"
             + name + "' was repeated.";
         throw new InvalidConfigurationException(errmsg);
+      } else if (tmpTypes.containsKey(name) && tmpTypes.get(name) != type) {
+        // The ukDecls contain two keys that differ only in case but are of
+        // different types. Force a case-sensitive type lookup.
+        Map<String, ColumnType> caseSensitiveTypes = new TreeMap<>();
+        for (String nombre : tmpNames) {
+          caseSensitiveTypes.put(nombre, tmpTypes.get(nombre));
+        }
+        tmpTypes = caseSensitiveTypes;
       }
       tmpNames.add(name);
       tmpTypes.put(name, type);
     }
-    names = Collections.unmodifiableList(tmpNames);
-    Map<String, ColumnType> caseInsensitiveTypes = new TreeMap<>();
-    for (Map.Entry<String, ColumnType> entry : tmpTypes.entrySet()) {
-      String lowerKey = entry.getKey().toLowerCase();
-      if (caseInsensitiveTypes.put(lowerKey, entry.getValue()) != null) {
-        caseSensitiveKeys = true;
-        break;
-      }
+    if (!encode
+        && (tmpTypes.size() != 1
+            || tmpTypes.values().iterator().next() != ColumnType.STRING)) {
+      throw new InvalidConfigurationException("Invalid db.uniqueKey value:"
+          + " The key must be a single string column when docId.isUrl=true.");
     }
-    types = Collections.unmodifiableMap(
-        (caseSensitiveKeys) ? tmpTypes : caseInsensitiveTypes);
+    names = Collections.unmodifiableList(tmpNames);
+    types = Collections.unmodifiableMap(tmpTypes);
 
     if ("".equals(contentSqlColumns.trim())) {
       contentSqlCols = names;
@@ -139,10 +143,9 @@ class UniqueKey {
     List<String> tmpContentCols = new ArrayList<String>();
     for (String name : cols.split(",", 0)) {
       name = name.trim();
-      if (!types.containsKey(
-          (caseSensitiveKeys) ? name : name.toLowerCase())) {
+      if (!types.containsKey(name)) {
         String errmsg = "Unknown column name: '" + name + "'. Valid names are "
-            + types.keySet();
+            + names;
         throw new InvalidConfigurationException(errmsg);
       }
       tmpContentCols.add(name);
@@ -150,14 +153,16 @@ class UniqueKey {
     return Collections.unmodifiableList(tmpContentCols);
   }
 
-  @VisibleForTesting
-  UniqueKey(String ukDecls) {
-    this(ukDecls, "", "");
+  List<String> getDocIdSqlColumns() {
+    return names;
   }
 
-  @VisibleForTesting
-  ColumnType getType(String name) {
-    return types.get((caseSensitiveKeys) ? name : name.toLowerCase());
+  List<String> getContentSqlColumns() {
+    return contentSqlCols;
+  }
+
+  List<String> getAclSqlColumns() {
+    return aclSqlCols;
   }
 
   String makeUniqueId(ResultSet rs, boolean encode) throws SQLException {
@@ -322,6 +327,12 @@ class UniqueKey {
   @VisibleForTesting
   ColumnType typeForTest(int i) {
     return getType(names.get(i));
+  }
+
+  /** Type of a named column in primary key. */
+  @VisibleForTesting
+  ColumnType getType(String name) {
+    return types.get(name);
   }
 
   @Override

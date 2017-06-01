@@ -14,10 +14,9 @@
 
 package com.google.enterprise.adaptor.database;
 
-import com.google.enterprise.adaptor.InvalidConfigurationException;
-
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -28,7 +27,7 @@ import java.util.logging.Logger;
  * Stores mapping of db columns to metadata keys to send.
  * This class is thread-safe.
  */
-class MetadataColumns {
+class MetadataColumns extends AbstractMap<String, String> {
   private static final Logger log
       = Logger.getLogger(MetadataColumns.class.getName());
 
@@ -47,7 +46,7 @@ class MetadataColumns {
 
   /**
    * Constructs a Map based upon a configuration string of the form:
-   * dbColumnName:metadataLabel[, ...]
+   * dbColumnName[:metadataLabel][, ...]
    */
   MetadataColumns(String configDef) {
     if ("".equals(configDef.trim())) {
@@ -61,41 +60,21 @@ class MetadataColumns {
       log.fine("element: `" + e + "'");
       e = e.trim(); 
       String def[] = e.split(":", 2);
-      if (2 != def.length) {
-        String errmsg = "expected two parts separated by colon: `" + e + "'";
-        throw new InvalidConfigurationException(errmsg);
-      }
       String columnName = def[0].trim();
-      String metadataKey = def[1].trim();
-      tmp.put(columnName, metadataKey);
+      if (def.length == 1) {
+        if (!columnName.isEmpty()) {
+          tmp.put(columnName, columnName);
+        } // else it was an empty entry, like foo,,bar
+      } else {
+        String metadataKey = def[1].trim();
+        tmp.put(columnName, metadataKey.isEmpty() ? columnName : metadataKey);
+      }
     }
     columnNameToMetadataKey = Collections.unmodifiableMap(tmp);
   }
 
+  @Override
   public Set<Map.Entry<String, String>> entrySet() {
     return columnNameToMetadataKey.entrySet();
-  }
-
-  public String getMetadataName(String columnName) {
-    return columnNameToMetadataKey.get(columnName);
-  }
-
-  @Override
-  public String toString() {
-    return "MetadataColumns(" + columnNameToMetadataKey + ")";
-  }
-
-  @Override
-  public boolean equals(Object other) {
-    if (other instanceof MetadataColumns) {
-      MetadataColumns mc = (MetadataColumns) other;
-      return columnNameToMetadataKey.equals(mc.columnNameToMetadataKey);
-    }
-    return false;
-  }
-
-  @Override
-  public int hashCode() {
-    return columnNameToMetadataKey.hashCode();
   }
 }
