@@ -60,13 +60,14 @@ class MetadataColumns extends AbstractMap<String, String> {
       log.fine("element: `" + e + "'");
       e = e.trim(); 
       String def[] = e.split(":", 2);
+      String columnName = def[0].trim();
       if (def.length == 1) {
-        String columnName = def[0].trim();
         if (!columnName.isEmpty()) {
           tmp.put(columnName, columnName);
-        }
-      } else if (def.length == 2) {
-          tmp.put(def[0].trim(), def[1].trim());
+        } // else it was an empty entry, like foo,,bar
+      } else {
+        String metadataKey = def[1].trim();
+        tmp.put(columnName, metadataKey.isEmpty() ? columnName : metadataKey);
       }
     }
     columnNameToMetadataKey = Collections.unmodifiableMap(tmp);
