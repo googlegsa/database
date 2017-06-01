@@ -186,6 +186,37 @@ public class DatabaseAdaptorTest {
     DatabaseAdaptor.loadResponseGenerator(config);
   }
 
+  /**
+   * Returns a Database adaptor instance with the supplied config overrides.
+   * Adaptor.initConfig() and Adaptor.init() have already been called.
+   */
+  private DatabaseAdaptor getObjectUnderTest(Map<String, String> moreEntries)
+      throws Exception {
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.driverClass", JdbcFixture.DRIVER_CLASS);
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.user", JdbcFixture.USER);
+    configEntries.put("db.password", JdbcFixture.PASSWORD);
+    configEntries.put("gsa.hostname", "localhost");
+    configEntries.putAll(moreEntries);
+
+    Config config = new Config();
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.initConfig(config);
+    config.load(writeConfig(configEntries));
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    return adaptor;
+  }
+
+  /** Writes the config out as a Properties file and returns the File. */
+  private File writeConfig(Map<String, String> config) throws IOException {
+    File file = tempFolder.newFile("dba.test.properties");
+    Properties properties = new Properties();
+    properties.putAll(config);
+    properties.store(new FileOutputStream(file), "");
+    return file;
+  }
+
   @Test
   public void testInitOfUrlMetadataListerNoDocIdIsUrl() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -220,37 +251,6 @@ public class DatabaseAdaptorTest {
     // Required for validation, but not specific to this test.
     moreEntries.put("db.everyDocIdSql", "");
     getObjectUnderTest(moreEntries);
-  }
-
-  /**
-   * Returns a Database adaptor instance with the supplied config overrides.
-   * Adaptor.initConfig() and Adaptor.init() have already been called.
-   */
-  private DatabaseAdaptor getObjectUnderTest(Map<String, String> moreEntries)
-      throws Exception {
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.driverClass", JdbcFixture.DRIVER_CLASS);
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.user", JdbcFixture.USER);
-    configEntries.put("db.password", JdbcFixture.PASSWORD);
-    configEntries.put("gsa.hostname", "localhost");
-    configEntries.putAll(moreEntries);
-
-    Config config = new Config();
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.initConfig(config);
-    config.load(writeConfig(configEntries));
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    return adaptor;
-  }
-
-  /** Writes the config out as a Properties file and returns the File. */
-  private File writeConfig(Map<String, String> config) throws IOException {
-    File file = tempFolder.newFile("dba.test.properties");
-    Properties properties = new Properties();
-    properties.putAll(config);
-    properties.store(new FileOutputStream(file), "");
-    return file;
   }
 
   static ResponseGenerator createDummy(Map<String, String> config) {
@@ -416,7 +416,7 @@ public class DatabaseAdaptorTest {
     Acl golden = new Acl.Builder()
         .setDenyUsers(Arrays.asList(
             new UserPrincipal("duser1"),
-          new UserPrincipal("duser2")))
+            new UserPrincipal("duser2")))
         .setPermitGroups(Arrays.asList(
             new GroupPrincipal("pgroup1"),
             new GroupPrincipal("pgroup2")))
