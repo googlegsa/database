@@ -85,21 +85,11 @@ class UniqueKey {
       def[1] = def[1].trim();
       String name = def[0];
       ColumnType type;
-      if ("int".equals(def[1].toLowerCase(US))) {
-        type = ColumnType.INT;
-      } else if ("string".equals(def[1].toLowerCase(US))) {
-        type = ColumnType.STRING;
-      } else if ("timestamp".equals(def[1].toLowerCase(US))) {
-        type = ColumnType.TIMESTAMP;
-      } else if ("date".equals(def[1].toLowerCase(US))) {
-        type = ColumnType.DATE;
-      } else if ("time".equals(def[1].toLowerCase(US))) {
-        type = ColumnType.TIME;
-      } else if ("long".equals(def[1].toLowerCase(US))) {
-        type = ColumnType.LONG;
-      } else {
+      try {
+        type = ColumnType.valueOf(def[1].toUpperCase(US));
+      } catch (IllegalArgumentException iae) {
         String errmsg = "Invalid UniqueKey type '" + def[1] + "'. Valid"
-            + " types are: int, string, timestamp, date, time, and long.";
+            + " types are: " + ColumnType.values();
         throw new InvalidConfigurationException(errmsg);
       }
       if (tmpNames.contains(name)) {
@@ -108,7 +98,8 @@ class UniqueKey {
         throw new InvalidConfigurationException(errmsg);
       } else if (tmpTypes.containsKey(name) && tmpTypes.get(name) != type) {
         // The ukDecls contain two keys that differ only in case but are of
-        // different types. Force a case-sensitive type lookup.
+        // different types. Force a case-sensitive type lookup by replacing
+        // the case-insensitive type map with a case-sensitive one.
         Map<String, ColumnType> caseSensitiveTypes = new TreeMap<>();
         for (String nombre : tmpNames) {
           caseSensitiveTypes.put(nombre, tmpTypes.get(nombre));
@@ -178,7 +169,7 @@ class UniqueKey {
     for (int i = 0; i < names.size(); i++) {
       String name = names.get(i);
       String part;
-      switch (getType(name)) {
+      switch (types.get(name)) {
         case INT:
           part = "" + rs.getInt(name);
           break;
@@ -198,7 +189,7 @@ class UniqueKey {
           part = "" + rs.getLong(name);
           break;
         default:
-          String errmsg = "Invalid type '" + getType(name) + "' for '"
+          String errmsg = "Invalid type '" + types.get(name) + "' for '"
               + name + "'. Valid types are: int, string, timestamp, date"
               + ", time and long.";
           throw new AssertionError(errmsg);
@@ -228,7 +219,7 @@ class UniqueKey {
     }
     for (int i = 0; i < sqlCols.size(); i++) {
       String colName = sqlCols.get(i);
-      ColumnType typeOfCol = getType(colName);
+      ColumnType typeOfCol = types.get(colName);
       String valueOfCol = zip.get(colName);
       switch (typeOfCol) {
         case INT:
@@ -328,12 +319,12 @@ class UniqueKey {
   /** Type of particular column in primary key. */
   @VisibleForTesting
   ColumnType typeForTest(int i) {
-    return getType(names.get(i));
+    return types.get(names.get(i));
   }
 
   /** Type of a named column in primary key. */
   @VisibleForTesting
-  ColumnType getType(String name) {
+  ColumnType typeForTest(String name) {
     return types.get(name);
   }
 

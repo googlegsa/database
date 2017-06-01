@@ -128,28 +128,40 @@ public class UniqueKeyTest {
 
   @Test
   public void testCaseSensitiveNameRepeatsAllowed() {
+    // If we have multiple column names that differ in both case and type,
+    // assume we have a database that supports case-sensitive column names
+    // and force the parameter column names to exactly match one of them.
     UniqueKey uk = newUniqueKey("num:int,Num:string");
     assertEquals(2, uk.numElementsForTest());
     assertEquals("num", uk.nameForTest(0));
     assertEquals("Num", uk.nameForTest(1));
     assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
     assertEquals(UniqueKey.ColumnType.STRING, uk.typeForTest(1));
+    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest("num"));
+    assertEquals(UniqueKey.ColumnType.STRING, uk.typeForTest("Num"));
+    assertEquals(null, uk.typeForTest("NUM"));
   }
 
   @Test
   public void testCaseInsensitiveNameNotAllowedIfCaseSensitiveKeys() {
+    // If we have multiple column names that differ in both case and type,
+    // assume we have a database that supports case-sensitive column names
+    // and force the parameter column names to exactly match one of them.
     thrown.expect(InvalidConfigurationException.class);
     UniqueKey uk = newUniqueKey("id:int,Id:string", "ID", "ID");
   }
 
   @Test
   public void testCaseInsensitiveNameAllowedIfNotCaseSensitiveKeys() {
+    // If there are no case variants in the unique key columns, we can be
+    // more lenient in looking up the associated types case-insensitively.
     UniqueKey uk = newUniqueKey("id:int", "Id", "ID");
     assertEquals(1, uk.numElementsForTest());
     assertEquals("id", uk.nameForTest(0));
     assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
-    assertEquals(UniqueKey.ColumnType.INT, uk.getType("Id"));
-    assertEquals(UniqueKey.ColumnType.INT, uk.getType("ID"));
+    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest("id"));
+    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest("Id"));
+    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest("ID"));
   }
 
   @Test
