@@ -933,8 +933,6 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
-    configEntries.put("db.aclSqlParameters", "ID");
-    configEntries.put("db.singleDocContentSqlParameters", "ID");
     configEntries.put("db.modeOfOperation", "rowToText");
     configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
 
@@ -965,8 +963,6 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
-    configEntries.put("db.aclSqlParameters", "ID");
-    configEntries.put("db.singleDocContentSqlParameters", "ID");
     configEntries.put("db.modeOfOperation", "rowToText");
     configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
 
@@ -991,8 +987,6 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
-    configEntries.put("db.aclSqlParameters", "ID");
-    configEntries.put("db.singleDocContentSqlParameters", "ID");
     configEntries.put("db.modeOfOperation", "rowToText");
     configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
 
@@ -1017,8 +1011,6 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.everyDocIdSql", "select * from data");
     configEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
-    configEntries.put("db.aclSqlParameters", "ID");
-    configEntries.put("db.singleDocContentSqlParameters", "ID");
     configEntries.put("db.modeOfOperation", "rowToText");
     configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
 
