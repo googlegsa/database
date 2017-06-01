@@ -235,11 +235,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             + " be ignored in {0} mode: {1}",
             new Object[] { modeStr, ignored });
       }
-    // TODO(jlacey): Re-enable this once tests are fixed not to
-    // suppress the column name validation.
-    // } else if (singleDocContentSql.isEmpty()) {
-    //   throw new InvalidConfigurationException(
-    //       "db.singleDocContentSql cannot be an empty string");
+    } else if (singleDocContentSql.isEmpty()) {
+      throw new InvalidConfigurationException(
+          "db.singleDocContentSql cannot be an empty string");
     }
 
     respGenerator = loadResponseGenerator(cfg);

@@ -21,6 +21,7 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
+import static org.hamcrest.CoreMatchers.isA;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -487,16 +488,50 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitEmptyQuery_singleDocContentSql() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("insert into data(id) values(1001)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("db.singleDocContentSql cannot be an empty string");
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitEmptyQuery_singleDocContentSql_lister() throws Exception {
+    executeUpdate("create table data(url varchar, other varchar)");
+    executeUpdate("insert into data(url) values('http://')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql", "");
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+  }
+
+  @Test
   public void testInitVerifyColumnNames_uniqueKey() throws Exception {
     executeUpdate("create table data(id int, other varchar)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "not_id:int");
-    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select other from data");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
 
     thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("[not_id] not found in query");
+    thrown.expectMessage("[id] not found in query");
     getObjectUnderTest(moreEntries);
   }
 
@@ -506,13 +541,13 @@ public class DatabaseAdaptorTest {
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "not_id:int");
+    moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
+        "select other from data where id = ?");
 
     thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("[not_id] not found in query");
+    thrown.expectMessage("[id] not found in query");
     getObjectUnderTest(moreEntries);
   }
 
@@ -522,12 +557,15 @@ public class DatabaseAdaptorTest {
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "not_id:int");
+    moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.aclSql", "select other from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
 
     thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("[not_id] not found in query");
+    thrown.expectMessage("[id] not found in query");
     getObjectUnderTest(moreEntries);
   }
 
@@ -556,6 +594,9 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.actionColumn", "other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
 
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[other] not found in query");
@@ -597,6 +638,10 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testIncludeAllColumnsAsMetadata_mcBlank() throws Exception {
+    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate("insert into data(id, foo, bar) "
+                  + "values(1, 'fooVal', 'barVal')");
+
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.includeAllColumnsAsMetadata", "true");
     moreEntries.put("db.metadataColumns", "");
@@ -604,12 +649,12 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     assertEquals(null, adaptor.metadataColumns);
 
-    executeUpdate("create table data(id int, foo varchar, bar varchar)");
-    executeUpdate("insert into data(id, foo, bar) "
-                  + "values(1, 'fooVal', 'barVal')");
     ResultSet resultSet = executeQueryAndNext("select * from data");
     Record.Builder builder = new Record.Builder(new DocId("1"));
     adaptor.addMetadataToRecordBuilder(builder, resultSet);
@@ -623,6 +668,10 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testIncludeAllColumnsAsMetadata_mcSet() throws Exception {
+    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
+    executeUpdate("insert into data(id, db_col1, col2) "
+                  + "values(1, 'col1Val', 'col2Val')");
+
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.includeAllColumnsAsMetadata", "true");
     moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
@@ -630,13 +679,13 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
                  adaptor.metadataColumns);
 
-    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
-    executeUpdate("insert into data(id, db_col1, col2) "
-                  + "values(1, 'col1Val', 'col2Val')");
     ResultSet resultSet = executeQueryAndNext("select * from data");
     Record.Builder builder = new Record.Builder(new DocId("1"));
     adaptor.addMetadataToRecordBuilder(builder, resultSet);
@@ -652,10 +701,15 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.includeAllColumnsAsMetadata", "false");
     moreEntries.put("db.metadataColumns", "");
+
     // Required for validation, but not specific to this test.
+    executeUpdate("create table data(id int)");
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "not_id:int");
+    moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     assertEquals(asMap(), adaptor.metadataColumns);
   }
@@ -663,10 +717,15 @@ public class DatabaseAdaptorTest {
   @Test
   public void testIncludeAllColumnsAsMetadata_mcDefault() throws Exception {
     Map<String, String> moreEntries = new HashMap<String, String>();
+
     // Required for validation, but not specific to this test.
+    executeUpdate("create table data(id int)");
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "not_id:int");
+    moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     assertEquals(asMap(), adaptor.metadataColumns);
   }
@@ -741,19 +800,23 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testIncludeAllColumnsAsMetadataFalse_mcSet() throws Exception {
+    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
+    executeUpdate("insert into data(id, db_col1, col2) "
+                  + "values(1, 'col1Val', 'col2Val')");
+
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "not_id:int");
+    moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
                  adaptor.metadataColumns);
 
-    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
-    executeUpdate("insert into data(id, db_col1, col2) "
-                  + "values(1, 'col1Val', 'col2Val')");
     ResultSet resultSet = executeQueryAndNext("select * from data");
     Record.Builder builder = new Record.Builder(new DocId("1"));
     adaptor.addMetadataToRecordBuilder(builder, resultSet);
@@ -766,17 +829,25 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInvalidColumnAsMetadata() throws Exception {
+    // Simulate a skipped column verification by creating the missing
+    // column for init but removing it for addMetadataToRecordBuilder.
+    executeUpdate(
+        "create table data(id int, \"fake column\" varchar, col2 varchar)");
+    executeUpdate("insert into data(id, col2) values(1, 'col2Val')");
+
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.metadataColumns", "fake column:gsa1,col2:gsa2");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "not_id:int");
+    moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
 
-    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
-    executeUpdate("insert into data(id, db_col1, col2) "
-                  + "values(1, 'col1Val', 'col2Val')");
+    executeUpdate("alter table data drop column \"fake column\"");
+
     ResultSet resultSet = executeQueryAndNext("select * from data");
     Record.Builder builder = new Record.Builder(new DocId("1"));
     adaptor.addMetadataToRecordBuilder(builder, resultSet);
@@ -788,17 +859,20 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testCaseInsensitiveMetadataColumnMap() throws Exception {
+    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate("insert into data(id, foo, bar) "
+                  + "values(1, 'fooVal', 'barVal')");
+
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.metadataColumns", "Foo:gsa_foo,Bar:gsa_bar");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "not_id:int");
+    moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "");
-    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
 
-    executeUpdate("create table data(id int, foo varchar, bar varchar)");
-    executeUpdate("insert into data(id, foo, bar) "
-                  + "values(1, 'fooVal', 'barVal')");
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     ResultSet resultSet = executeQueryAndNext("select * from data");
     Record.Builder builder = new Record.Builder(new DocId("1"));
     adaptor.addMetadataToRecordBuilder(builder, resultSet);
@@ -896,6 +970,7 @@ public class DatabaseAdaptorTest {
 
     RecordingDocIdPusher pusher = new RecordingDocIdPusher();
     thrown.expect(IOException.class);
+    thrown.expectCause(isA(SQLException.class));
     thrown.expectMessage("Column \"action\" not found");
     adaptor.getDocIds(pusher);
   }
