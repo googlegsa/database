@@ -14,8 +14,6 @@
 
 package com.google.enterprise.adaptor.database;
 
-import com.google.enterprise.adaptor.InvalidConfigurationException;
-
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.AbstractMap;
@@ -48,7 +46,7 @@ class MetadataColumns extends AbstractMap<String, String> {
 
   /**
    * Constructs a Map based upon a configuration string of the form:
-   * dbColumnName:metadataLabel[, ...]
+   * dbColumnName[:metadataLabel][, ...]
    */
   MetadataColumns(String configDef) {
     if ("".equals(configDef.trim())) {
@@ -62,13 +60,15 @@ class MetadataColumns extends AbstractMap<String, String> {
       log.fine("element: `" + e + "'");
       e = e.trim(); 
       String def[] = e.split(":", 2);
-      if (2 != def.length) {
-        String errmsg = "expected two parts separated by colon: `" + e + "'";
-        throw new InvalidConfigurationException(errmsg);
-      }
       String columnName = def[0].trim();
-      String metadataKey = def[1].trim();
-      tmp.put(columnName, metadataKey);
+      if (def.length == 1) {
+        if (!columnName.isEmpty()) {
+          tmp.put(columnName, columnName);
+        } // else it was an empty entry, like foo,,bar
+      } else {
+        String metadataKey = def[1].trim();
+        tmp.put(columnName, metadataKey.isEmpty() ? columnName : metadataKey);
+      }
     }
     columnNameToMetadataKey = Collections.unmodifiableMap(tmp);
   }
