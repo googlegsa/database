@@ -1035,16 +1035,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
-    moreEntries.put("db.singleDocContentSqlParameters", "");
-    moreEntries.put("db.aclSqlParameters", "");
-    moreEntries.put("adaptor.namespace", "Default");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
-    Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     MockRequest request = new MockRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
@@ -1065,16 +1059,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
-    moreEntries.put("db.singleDocContentSqlParameters", "");
-    moreEntries.put("db.aclSqlParameters", "");
-    moreEntries.put("adaptor.namespace", "Default");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
-    Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     MockRequest request = new MockRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
@@ -1095,16 +1083,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
-    moreEntries.put("db.singleDocContentSqlParameters", "");
-    moreEntries.put("db.aclSqlParameters", "");
-    moreEntries.put("adaptor.namespace", "Default");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
-    Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     MockRequest request = new MockRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
@@ -1125,16 +1107,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
-    moreEntries.put("db.singleDocContentSqlParameters", "");
-    moreEntries.put("db.aclSqlParameters", "");
-    moreEntries.put("adaptor.namespace", "Default");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
-    Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     MockRequest request = new MockRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
@@ -1156,16 +1132,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
-    moreEntries.put("db.singleDocContentSqlParameters", "");
-    moreEntries.put("db.aclSqlParameters", "");
-    moreEntries.put("adaptor.namespace", "Default");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
-    Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     MockRequest request = new MockRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
@@ -1186,16 +1156,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
-    moreEntries.put("db.singleDocContentSqlParameters", "");
-    moreEntries.put("db.aclSqlParameters", "");
-    moreEntries.put("adaptor.namespace", "Default");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
-    Config config = createStandardConfig(moreEntries);
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     MockRequest request = new MockRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
