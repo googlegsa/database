@@ -34,16 +34,17 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.sql.Blob;
 import java.sql.Clob;
+import java.sql.Date;
 import java.sql.NClob;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -152,6 +153,11 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
       String sqlTypeName = getColumnTypeName(sqlType, rsmd, col);
       atts.addAttribute("", "SQLType", "SQLType", "NMTOKEN", sqlTypeName);
       log.fine("sqlTypeName: " + sqlTypeName);
+
+      // This code tries to ready every SQL type.
+      // TODO(jlacey): The handling of numbers, booleans, characters,
+      // and other objects is very similar. The differences are getString
+      // versus getObject and whether copyValidXmlCharacters is called.
       switch (sqlType) {
         case Types.DATE:
           Date dateValue = resultSet.getDate(col);
@@ -196,7 +202,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.BLOB:
           Blob blob = resultSet.getBlob(col);
           if (blob != null) {
-            try (InputStream lob = resultSet.getBinaryStream(col)) {
+            try (InputStream lob = blob.getBinaryStream()) {
               atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
                   "base64binary");
               handler.startElement("", columnName, columnName, atts);
@@ -228,7 +234,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.NCLOB:
           NClob nclob = resultSet.getNClob(col);
           if (nclob != null) {
-            try (Reader reader = resultSet.getNCharacterStream(col)) {
+            try (Reader reader = nclob.getCharacterStream()) {
               handler.startElement("", columnName, columnName, atts);
               copyValidXmlCharacters(reader, handler);
             } finally {
@@ -236,6 +242,21 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
                 nclob.free();
               } catch (Exception e) {
                 log.log(Level.FINEST, "Error closing NCLOB", e);
+              }
+            }
+          }
+          break;
+        case Types.SQLXML:
+          SQLXML sqlxml = resultSet.getSQLXML(col);
+          if (sqlxml != null) {
+            try (Reader reader = sqlxml.getCharacterStream()) {
+              handler.startElement("", columnName, columnName, atts);
+              copyValidXmlCharacters(reader, handler);
+            } finally {
+              try {
+                sqlxml.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing SQLXML", e);
               }
             }
           }
@@ -252,13 +273,15 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
             }
           }
           break;
-        case Types.SMALLINT:
         case Types.TINYINT:
+        case Types.SMALLINT:
+        case Types.INTEGER:
+        case Types.BIGINT:
+        case Types.REAL:
         case Types.FLOAT:
+        case Types.DOUBLE:
         case Types.DECIMAL:
         case Types.NUMERIC:
-        case Types.DOUBLE:
-        case Types.INTEGER:
           String string = resultSet.getString(col);
           if (string != null) {
             try (Writer outWriter = new ContentHandlerWriter(handler)) {
@@ -303,7 +326,13 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
             }
           }
           break;
-        case Types.OTHER:
+        case Types.ARRAY:
+        case Types.JAVA_OBJECT:
+        case Types.REF:
+        case Types.STRUCT:
+          log.log(Level.FINEST, "Column type not supported in XML: {0}",
+              sqlTypeName);
+          continue;
         default:
           value = resultSet.getObject(col);
           if (value != null) {

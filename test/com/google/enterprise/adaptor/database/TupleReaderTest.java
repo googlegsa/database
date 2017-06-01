@@ -117,6 +117,26 @@ public class TupleReaderTest {
   }
 
   @Test
+  public void testVarchar_xml() throws Exception {
+    final String template = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"VARCHAR\">%s</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    String xml = String.format(template, "onevalue");
+    executeUpdate("create table data(colname varchar)");
+    executeUpdate("insert into data(colname) values('" + xml + "')");
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(
+        String.format(template, xml.replace("<", "&lt;").replace(">", "&gt;")),
+        result);
+  }
+
+  @Test
   public void testVarchar_null() throws Exception {
     executeUpdate("create table data(colname varchar)");
     executeUpdate("insert into data(colname) values(null)");
@@ -487,6 +507,41 @@ public class TupleReaderTest {
         + "<table_rec>"
         + "<COLNAME SQLType=\"CLOB\" ISNULL=\"true\"/>"
         + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testArray() throws Exception {
+    String[] array = { "hello", "world" };
+    executeUpdate("create table data(colname array)");
+    String sql = "insert into data(colname) values (?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setObject(1, array);
+      assertEquals(1, ps.executeUpdate());
+    }
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec/>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testArray_null() throws Exception {
+    executeUpdate("create table data(other array)");
+    executeUpdate("insert into data(other) values(null)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec/>"
         + "</table>"
         + "</database>";
     ResultSet rs = executeQueryAndNext("select * from data");

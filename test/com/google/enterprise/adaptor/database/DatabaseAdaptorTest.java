@@ -21,6 +21,7 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAnd
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.isA;
@@ -1934,7 +1935,6 @@ public class DatabaseAdaptorTest {
 
     Metadata expected = new Metadata();
     expected.add("col1", "1");
-    expected.add("col2", "null");
     assertEquals(expected, response.getMetadata());
   }
 
@@ -1982,7 +1982,6 @@ public class DatabaseAdaptorTest {
 
     Metadata metadata = new Metadata();
     metadata.add("col1", "1001");
-    metadata.add("col2", "null");
     assertEquals(metadata, response.getMetadata());
   }
 
@@ -2030,7 +2029,6 @@ public class DatabaseAdaptorTest {
 
     Metadata metadata = new Metadata();
     metadata.add("col1", "1001");
-    metadata.add("col2", "null");
     assertEquals(metadata, response.getMetadata());
   }
 
@@ -2079,8 +2077,125 @@ public class DatabaseAdaptorTest {
 
     Metadata metadata = new Metadata();
     metadata.add("col1", "1001");
-    metadata.add("col2", "null");
     assertEquals(metadata, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_blob() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content blob)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setBytes(1, content.getBytes(UTF_8));
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "id, content");
+
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class,
+        "Metadata column type not supported", messages);
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    assertEquals(messages.toString(), 1, messages.size());
+    Metadata expected = new Metadata();
+    expected.add("id", "1");
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_blobNull() throws Exception {
+    executeUpdate("create table data(id int, content blob)");
+    executeUpdate("insert into data(id) values (1)");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "id, content");
+
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class,
+        "Metadata column type not supported", messages);
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    assertEquals(messages.toString(), 1, messages.size());
+    Metadata expected = new Metadata();
+    expected.add("id", "1");
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_array() throws Exception {
+    String[] content = { "hello", "world" };
+    executeUpdate("create table data(id int, content array)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setObject(1, content);
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "id, content");
+
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class,
+        "Metadata column type not supported", messages);
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    assertEquals(messages.toString(), 1, messages.size());
+    Metadata expected = new Metadata();
+    expected.add("id", "1");
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_arrayNull() throws Exception {
+    executeUpdate("create table data(id int, content array)");
+    executeUpdate("insert into data(id) values (1)");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "id, content");
+
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class,
+        "Metadata column type not supported", messages);
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    assertEquals(messages.toString(), 1, messages.size());
+    Metadata expected = new Metadata();
+    expected.add("id", "1");
+    assertEquals(expected, response.getMetadata());
   }
 
   @Test

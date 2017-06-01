@@ -48,7 +48,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Time;
+import java.sql.SQLXML;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.text.DateFormat;
@@ -459,6 +459,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       log.log(Level.FINEST, "Column name: {0}, Type: {1}", new Object[] {
           entry.getKey(), columnType});
 
+      // This code does not support binary or structured types.
       Object value = null;
       switch (columnType) {
         case Types.CLOB:
@@ -489,6 +490,24 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             }
           }
           break;
+        case Types.SQLXML:
+          SQLXML sqlxml = rs.getSQLXML(index);
+          if (sqlxml != null) {
+            try (Reader reader = sqlxml.getCharacterStream()) {
+              char[] buffer = new char[4096];
+              int len;
+              if ((len = reader.read(buffer)) != -1) {
+                value = new String(buffer, 0, len);
+              }
+            } finally {
+              try {
+                sqlxml.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing SQLXML", e);
+              }
+            }
+          }
+          break;
         case Types.LONGVARCHAR:
           try (Reader reader = rs.getCharacterStream(index)) {
             if (reader != null) {
@@ -512,28 +531,38 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           }
           break;
         case Types.DATE:
-          java.sql.Date dt = rs.getDate(index);
-          if (dt != null) {
-            value = dt.toString();
-          }
+          value = rs.getDate(index);
           break;
         case Types.TIME:
-          Time tm = rs.getTime(index);
-          if (tm != null) {
-            value = tm.toString();
-          }
+          value = rs.getTime(index);
           break;
         case Types.TIMESTAMP:
-          Timestamp ts = rs.getTimestamp(index);
-          if (ts != null) {
-            value = ts.toString();
-          }
+          value = rs.getTimestamp(index);
+          break;
+        case Types.BINARY:
+        case Types.VARBINARY:
+        case Types.LONGVARBINARY:
+        case Types.BLOB:
+        case -13: // Oracle BFILE.
+        case Types.ARRAY:
+        case Types.JAVA_OBJECT:
+        case Types.REF:
+        case Types.STRUCT:
+          log.log(Level.FINEST, "Metadata column type not supported: {0}",
+              columnType);
           break;
         default:
-          value = rs.getObject(index);
+          try {
+            value = rs.getObject(index);
+          } catch (SQLException e) {
+            log.log(Level.WARNING, "Skipping metadata column ''{0}'': {1}.",
+                new Object[] { entry.getKey(), e.getMessage() });
+          }
           break;
       }
-      meta.addMetadata(entry.getValue(), "" + value);
+      if (value != null) {
+        meta.addMetadata(entry.getValue(), value.toString());
+      }
     }
   }
 
