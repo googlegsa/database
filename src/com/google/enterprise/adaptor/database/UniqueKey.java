@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.logging.Logger;
 
@@ -129,23 +130,24 @@ class UniqueKey {
     if ("".equals(contentSqlColumns.trim())) {
       contentSqlCols = names;
     } else {
-      contentSqlCols = splitIntoNameList(contentSqlColumns);
+      contentSqlCols = splitIntoNameList(contentSqlColumns, tmpTypes.keySet());
     }
 
     if ("".equals(aclSqlColumns.trim())) {
       aclSqlCols = names;
     } else {
-      aclSqlCols = splitIntoNameList(aclSqlColumns);
+      aclSqlCols = splitIntoNameList(aclSqlColumns, tmpTypes.keySet());
     }
   }
 
-  private List<String> splitIntoNameList(String cols) {
+  private static List<String> splitIntoNameList(String cols,
+      Set<String> validNames) {
     List<String> tmpContentCols = new ArrayList<String>();
     for (String name : cols.split(",", 0)) {
       name = name.trim();
-      if (!types.containsKey(name)) {
+      if (!validNames.contains(name)) {
         String errmsg = "Unknown column name: '" + name + "'. Valid names are "
-            + names;
+            + validNames;
         throw new InvalidConfigurationException(errmsg);
       }
       tmpContentCols.add(name);
