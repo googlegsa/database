@@ -155,18 +155,6 @@ class UniqueKey {
     return aclSqlCols;
   }
 
-  // TODO(jlacey): Move these to the tests or change the tests to use
-  // the actual constructor.
-  @VisibleForTesting
-  UniqueKey(String ukDecls) {
-    this(ukDecls, "", "");
-  }
-
-  @VisibleForTesting
-  UniqueKey(String ukDecls, String contentSqlColumns, String aclSqlColumns) {
-    this(ukDecls, contentSqlColumns, aclSqlColumns, true);
-  }
-
   String makeUniqueId(ResultSet rs, boolean encode) throws SQLException {
     if (!encode) {
       if (names.size() == 1) {
