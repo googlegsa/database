@@ -30,7 +30,6 @@ import com.google.enterprise.adaptor.DocId;
 import com.google.enterprise.adaptor.GroupPrincipal;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Metadata;
-import com.google.enterprise.adaptor.Principal;
 import com.google.enterprise.adaptor.Response;
 import com.google.enterprise.adaptor.TestHelper;
 import com.google.enterprise.adaptor.UserPrincipal;
@@ -198,23 +197,19 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.user", JdbcFixture.USER);
     configEntries.put("db.password", JdbcFixture.PASSWORD);
     configEntries.put("gsa.hostname", "localhost");
-    configEntries.putAll(moreEntries);
+
+    File file = tempFolder.newFile("dba.test.properties");
+    Properties properties = new Properties();
+    properties.putAll(configEntries);
+    properties.putAll(moreEntries);
+    properties.store(new FileOutputStream(file), "");
 
     Config config = new Config();
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.initConfig(config);
-    config.load(writeConfig(configEntries));
+    config.load(file);
     adaptor.init(TestHelper.createConfigAdaptorContext(config));
     return adaptor;
-  }
-
-  /** Writes the config out as a Properties file and returns the File. */
-  private File writeConfig(Map<String, String> config) throws IOException {
-    File file = tempFolder.newFile("dba.test.properties");
-    Properties properties = new Properties();
-    properties.putAll(config);
-    properties.store(new FileOutputStream(file), "");
-    return file;
   }
 
   @Test
@@ -500,7 +495,6 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "not_id:int");
-    moreEntries.put("db.singleDocContentSqlParameters", "not_id");
     moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
@@ -517,7 +511,6 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "not_id:int");
-    moreEntries.put("db.aclSqlParameters", "not_id");
     moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.aclSql", "select other from data where id = ?");
 
@@ -576,15 +569,15 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitVerifyColumnNames_modeOfOperation() throws Exception {
-    executeUpdate("create table data(\"must be set\" varchar, table_col int)");
+    executeUpdate("create table data(id int, other varchar)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "contentColumn");
     moreEntries.put("db.modeOfOperation.contentColumn.columnName", "blob");
-    moreEntries.put("db.uniqueKey", "table_col:int");
+    moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "");
-    moreEntries.put("db.singleDocContentSql", "select * from data");
-
+    moreEntries.put("db.singleDocContentSql",
+        "select id from data where id = ?");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[blob] not found in query");
     getObjectUnderTest(moreEntries);
