@@ -131,13 +131,16 @@ public class UniqueKeyTest {
     // If we have multiple column names that differ in both case and type,
     // assume we have a database that supports case-sensitive column names
     // and force the parameter column names to exactly match one of them.
-    UniqueKey uk = newUniqueKey("num:int,Num:string");
-    assertEquals(2, uk.numElementsForTest());
+    UniqueKey uk = newUniqueKey("num:int,nuM:int,Num:string");
+    assertEquals(3, uk.numElementsForTest());
     assertEquals("num", uk.nameForTest(0));
-    assertEquals("Num", uk.nameForTest(1));
+    assertEquals("nuM", uk.nameForTest(1));
+    assertEquals("Num", uk.nameForTest(2));
     assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
-    assertEquals(UniqueKey.ColumnType.STRING, uk.typeForTest(1));
+    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(1));
+    assertEquals(UniqueKey.ColumnType.STRING, uk.typeForTest(2));
     assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest("num"));
+    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest("nuM"));
     assertEquals(UniqueKey.ColumnType.STRING, uk.typeForTest("Num"));
     assertEquals(null, uk.typeForTest("NUM"));
   }

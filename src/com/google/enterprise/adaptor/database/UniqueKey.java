@@ -99,7 +99,7 @@ class UniqueKey {
       } else if (tmpTypes.containsKey(name) && tmpTypes.get(name) != type) {
         // The ukDecls contain two keys that differ only in case but are of
         // different types. Force a case-sensitive type lookup by replacing
-        // the case-insensitive type map with a case-sensitive one.
+        // the partial case-insensitive type map with a case-sensitive copy.
         Map<String, ColumnType> caseSensitiveTypes = new TreeMap<>();
         for (String nombre : tmpNames) {
           caseSensitiveTypes.put(nombre, tmpTypes.get(nombre));
