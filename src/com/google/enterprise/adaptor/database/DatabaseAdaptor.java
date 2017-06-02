@@ -601,13 +601,13 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     ArrayList<GroupPrincipal> permitGroups = new ArrayList<GroupPrincipal>();
     ArrayList<GroupPrincipal> denyGroups = new ArrayList<GroupPrincipal>();
     boolean hasPermitUsers =
-        hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_USERS.toString());
+        hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_USERS);
     boolean hasDenyUsers =
-        hasColumn(metadata, GsaSpecialColumns.GSA_DENY_USERS.toString());
+        hasColumn(metadata, GsaSpecialColumns.GSA_DENY_USERS);
     boolean hasPermitGroups =
-        hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_GROUPS.toString());
+        hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_GROUPS);
     boolean hasDenyGroups =
-        hasColumn(metadata, GsaSpecialColumns.GSA_DENY_GROUPS.toString());
+        hasColumn(metadata, GsaSpecialColumns.GSA_DENY_GROUPS);
     do {
       if (hasPermitUsers) {
         permitUsers.addAll(getUserPrincipalsFromResultSet(rs,
@@ -673,11 +673,12 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     return principals;
   }
   
-  private static boolean hasColumn(ResultSetMetaData metadata, String column)
+  @VisibleForTesting
+  static boolean hasColumn(ResultSetMetaData metadata, GsaSpecialColumns column)
       throws SQLException {
     int columns = metadata.getColumnCount();
     for (int x = 1; x <= columns; x++) {
-      if (column.equals(metadata.getColumnLabel(x))) {
+      if (column.toString().equalsIgnoreCase(metadata.getColumnLabel(x))) {
         return true;
       }
     }
@@ -878,8 +879,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           PreparedStatement stmt = getUpdateStreamFromDb(conn);
           ResultSet rs = stmt.executeQuery()) {
         hasTimestamp =
-            hasColumn(rs.getMetaData(),
-                GsaSpecialColumns.GSA_TIMESTAMP.toString());
+            hasColumn(rs.getMetaData(), GsaSpecialColumns.GSA_TIMESTAMP);
         log.log(Level.FINEST, "hasTimestamp: {0}", hasTimestamp);
         while (rs.next()) {
           DocId id = new DocId(uniqueKey.makeUniqueId(rs, encodeDocId));
@@ -957,23 +957,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   
   @VisibleForTesting
   enum GsaSpecialColumns {
-    GSA_PERMIT_USERS("GSA_PERMIT_USERS"),
-    GSA_DENY_USERS("GSA_DENY_USERS"),
-    GSA_PERMIT_GROUPS("GSA_PERMIT_GROUPS"),
-    GSA_DENY_GROUPS("GSA_DENY_GROUPS"),
-    GSA_TIMESTAMP("GSA_TIMESTAMP")
-    ;
-
-    private final String text;
-
-    private GsaSpecialColumns(final String text) {
-      this.text = text;
-    }
-
-    @Override
-    public String toString() {
-      return text;
-    }
+    GSA_PERMIT_USERS,
+    GSA_DENY_USERS,
+    GSA_PERMIT_GROUPS,
+    GSA_DENY_GROUPS,
+    GSA_TIMESTAMP;
   }
 
   private static class AllPublic implements AuthzAuthority {

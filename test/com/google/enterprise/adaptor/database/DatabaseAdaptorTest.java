@@ -22,7 +22,9 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAnd
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Config;
@@ -40,6 +42,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -195,6 +198,39 @@ public class DatabaseAdaptorTest {
     }
     thrown.expect(InvalidConfigurationException.class);
     DatabaseAdaptor.loadResponseGenerator(config);
+  }
+
+  @Test
+  public void testHasColumn() throws Exception {
+    executeUpdate("create table acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar,"
+        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar,"
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+    executeUpdate("insert into acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
+        + GsaSpecialColumns.GSA_PERMIT_USERS + ","
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
+        + "'pgroup1, pgroup2', 'puser1, puser2', "
+        + "'dgroup1, dgroup2', 'duser1, duser2')");
+    String query = "select " + GsaSpecialColumns.GSA_PERMIT_GROUPS
+        + ", " + GsaSpecialColumns.GSA_PERMIT_USERS
+        + ", " + GsaSpecialColumns.GSA_DENY_GROUPS + " as \"gsa_deny_groups\""
+        + ", " + GsaSpecialColumns.GSA_DENY_USERS + " as \"gsa_deny_users\""
+        + " from acl";
+    ResultSet rs = executeQuery(query);
+    ResultSetMetaData rsMetaData = rs.getMetaData();
+    assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
+        GsaSpecialColumns.GSA_PERMIT_GROUPS));
+    assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
+        GsaSpecialColumns.GSA_PERMIT_USERS));
+    assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
+        GsaSpecialColumns.GSA_DENY_GROUPS));
+    assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
+        GsaSpecialColumns.GSA_DENY_GROUPS));
+    assertFalse(DatabaseAdaptor.hasColumn(rsMetaData,
+        GsaSpecialColumns.GSA_TIMESTAMP));
   }
 
   /**
