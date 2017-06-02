@@ -209,6 +209,7 @@ public class DatabaseAdaptorTest {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("No class noThisClass found");
     DatabaseAdaptor.loadResponseGenerator(config);
   }
 
@@ -613,7 +614,7 @@ public class DatabaseAdaptorTest {
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
 
@@ -640,7 +641,7 @@ public class DatabaseAdaptorTest {
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
 
@@ -667,7 +668,7 @@ public class DatabaseAdaptorTest {
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
 
@@ -695,7 +696,7 @@ public class DatabaseAdaptorTest {
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
 
@@ -723,7 +724,7 @@ public class DatabaseAdaptorTest {
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
 
@@ -790,7 +791,8 @@ public class DatabaseAdaptorTest {
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "url:string");
     // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "");
+    executeUpdate("create table data(url varchar)");
+    moreEntries.put("db.everyDocIdSql", "select url from data");
     getObjectUnderTest(moreEntries);
   }
 
@@ -801,9 +803,10 @@ public class DatabaseAdaptorTest {
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql", "");
     moreEntries.put("db.modeOfOperation", "rowToText");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
 
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("db.singleDocContentSql cannot be an empty string");
@@ -818,10 +821,28 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "url:string");
-    moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql", "");
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select url from data");
 
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitEmptyQuery_everyDocIdSql() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("insert into data(id) values(1001)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("db.everyDocIdSql cannot be an empty string");
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
   }
 
@@ -849,9 +870,10 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql",
         "select other from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
 
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[id] not found in query");
@@ -865,9 +887,9 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.aclSql", "select other from data where id = ?");
     // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
 
@@ -917,10 +939,11 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql",
         "select id from data where id = ?");
     moreEntries.put("db.metadataColumns", "other:other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
 
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[other] not found in query");
@@ -935,9 +958,11 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.modeOfOperation", "contentColumn");
     moreEntries.put("db.modeOfOperation.contentColumn.columnName", "blob");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
     moreEntries.put("db.singleDocContentSql",
         "select id from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[blob] not found in query");
     getObjectUnderTest(moreEntries);
@@ -951,7 +976,6 @@ public class DatabaseAdaptorTest {
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "url:string");
     configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql", "");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("docId.isUrl", "true");
     configEntries.put("db.metadataColumns", "URL:col1, NAME:col2");
@@ -981,7 +1005,6 @@ public class DatabaseAdaptorTest {
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "url:string");
     configEntries.put("db.everyDocIdSql", "select * from data order by url");
-    configEntries.put("db.singleDocContentSql", "");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("docId.isUrl", "true");
     configEntries.put("db.metadataColumns", "id:id");
@@ -1019,7 +1042,6 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.actionColumn", "action");
     configEntries.put("db.uniqueKey", "url:string");
     configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql", "");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("docId.isUrl", "true");
     configEntries.put("db.metadataColumns", "id:col1");
@@ -1042,7 +1064,7 @@ public class DatabaseAdaptorTest {
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "ID:int");
-    configEntries.put("db.everyDocIdSql", "");
+    configEntries.put("db.everyDocIdSql", "select id from data");
     configEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
     configEntries.put("db.modeOfOperation", "rowToText");

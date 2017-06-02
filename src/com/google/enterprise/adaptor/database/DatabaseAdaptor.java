@@ -239,6 +239,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           "db.singleDocContentSql cannot be an empty string");
     }
 
+    if (everyDocIdSql.isEmpty()) {
+      throw new InvalidConfigurationException(
+          "db.everyDocIdSql cannot be an empty string");
+    }
+
     respGenerator = loadResponseGenerator(cfg);
     
     if (!isNullOrEmptyString(cfg.getValue("db.aclSql"))) {
