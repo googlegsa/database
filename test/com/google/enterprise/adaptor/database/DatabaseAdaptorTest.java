@@ -59,6 +59,17 @@ import org.junit.rules.TemporaryFolder;
 
 /** Test cases for {@link DatabaseAdaptor}. */
 public class DatabaseAdaptorTest {
+  // Class order:
+  //     JUnit helpers
+  //     Tests of static DatabaseAdaptor methods
+  //     getObjectUnderTest
+  //     Tests that use getObjectUnderTest
+  //         init
+  //         getDocIds
+  //         getDocContent
+  //
+  // Test names: test<Method><Feature>_<testCase>
+
   @Rule
   public ExpectedException thrown = ExpectedException.none();
 
@@ -219,69 +230,6 @@ public class DatabaseAdaptorTest {
         GsaSpecialColumns.GSA_DENY_USERS));
     assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
         GsaSpecialColumns.GSA_TIMESTAMP));
-  }
-
-  /**
-   * Returns a Database adaptor instance with the supplied config overrides.
-   * Adaptor.initConfig() and Adaptor.init() have already been called.
-   */
-  private DatabaseAdaptor getObjectUnderTest(Map<String, String> moreEntries)
-      throws Exception {
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.driverClass", JdbcFixture.DRIVER_CLASS);
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.user", JdbcFixture.USER);
-    configEntries.put("db.password", JdbcFixture.PASSWORD);
-    configEntries.put("gsa.hostname", "localhost");
-
-    File file = tempFolder.newFile("dba.test.properties");
-    Properties properties = new Properties();
-    properties.putAll(configEntries);
-    properties.putAll(moreEntries);
-    properties.store(new FileOutputStream(file), "");
-
-    Config config = new Config();
-    DatabaseAdaptor adaptor = new DatabaseAdaptor();
-    adaptor.initConfig(config);
-    config.load(file);
-    adaptor.init(TestHelper.createConfigAdaptorContext(config));
-    return adaptor;
-  }
-
-  @Test
-  public void testInitOfUrlMetadataListerNoDocIdIsUrl() throws Exception {
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    moreEntries.put("db.uniqueKey", "url:string");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "");
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("requires docId.isUrl to be \"true\"");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
-  public void testInitOfUrlMetadataListerDocIdIsUrlFalse() throws Exception {
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    moreEntries.put("docId.isUrl", "false");
-    moreEntries.put("db.uniqueKey", "url:string");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "");
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("requires docId.isUrl to be \"true\"");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
-  public void testInitOfUrlMetadataListerDocIdIsUrlTrue() throws Exception {
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    moreEntries.put("docId.isUrl", "true");
-    moreEntries.put("db.uniqueKey", "url:string");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "");
-    getObjectUnderTest(moreEntries);
   }
 
   static ResponseGenerator createDummy(Map<String, String> config) {
@@ -510,6 +458,316 @@ public class DatabaseAdaptorTest {
     assertEquals(goldenGroups, groups);
   }
 
+  /**
+   * Returns a Database adaptor instance with the supplied config overrides.
+   * Adaptor.initConfig() and Adaptor.init() have already been called.
+   */
+  private DatabaseAdaptor getObjectUnderTest(Map<String, String> moreEntries)
+      throws Exception {
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.driverClass", JdbcFixture.DRIVER_CLASS);
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.user", JdbcFixture.USER);
+    configEntries.put("db.password", JdbcFixture.PASSWORD);
+    configEntries.put("gsa.hostname", "localhost");
+
+    File file = tempFolder.newFile("dba.test.properties");
+    Properties properties = new Properties();
+    properties.putAll(configEntries);
+    properties.putAll(moreEntries);
+    properties.store(new FileOutputStream(file), "");
+
+    Config config = new Config();
+    DatabaseAdaptor adaptor = new DatabaseAdaptor();
+    adaptor.initConfig(config);
+    config.load(file);
+    adaptor.init(TestHelper.createConfigAdaptorContext(config));
+    return adaptor;
+  }
+
+  @Test
+  public void testInitUniqueKeyMissingType() throws Exception {
+    // Value of unique id cannot be "productid", because that is missing type.
+    // The value has to be something like "productid:int"
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "productid");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Invalid UniqueKey definition");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitUniqueKeyInvalidType() throws Exception {
+    // Type of unique key id value cannot be "notvalid", since it's invalid.
+    // That cat be int, string, timestamp, date, time, and long.
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "productid:notvalid");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Invalid UniqueKey type 'notvalid'");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitUniqueKeyContainsRepeatedKeyName() throws Exception {
+    // Value of unique key cannot contain repeated key name.
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "productid:int,productid:string");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("key name 'productid' was repeated");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitUniqueKeyEmpty() throws Exception {
+    // Value of unique id cannot be empty.
+    // The value has to be something like "keyname:type"
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("db.everyDocIdSql", "");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("db.uniqueKey parameter: value cannot be empty");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitUniqueKeyUrl() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "id:int, url:string");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("db.uniqueKey value: The key must be a single");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitMetadataColumns_defaults() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+
+    // Required for validation, but not specific to this test.
+    executeUpdate("create table data(id int)");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    assertEquals(asMap(), adaptor.metadataColumns);
+  }
+
+  @Test
+  public void testInitMetadataColumns_falseBlank() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.includeAllColumnsAsMetadata", "false");
+    moreEntries.put("db.metadataColumns", "");
+
+    // Required for validation, but not specific to this test.
+    executeUpdate("create table data(id int)");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    assertEquals(asMap(), adaptor.metadataColumns);
+  }
+
+  @Test
+  public void testInitMetadataColumns_trueBlank() throws Exception {
+    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate("insert into data(id, foo, bar) "
+                  + "values(1, 'fooVal', 'barVal')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.includeAllColumnsAsMetadata", "true");
+    moreEntries.put("db.metadataColumns", "");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    assertEquals(null, adaptor.metadataColumns);
+
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("ID", "1");
+    golden.add("FOO", "fooVal");
+    golden.add("BAR", "barVal");
+    assertEquals(golden, builder.build().getMetadata());
+  }
+
+  @Test
+  public void testInitMetadataColumns_falseSet() throws Exception {
+    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
+    executeUpdate("insert into data(id, db_col1, col2) "
+                  + "values(1, 'col1Val', 'col2Val')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
+                 adaptor.metadataColumns);
+
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("gsa1", "col1Val");
+    golden.add("gsa2", "col2Val");
+    assertEquals(golden, builder.build().getMetadata());
+  }
+
+  @Test
+  public void testInitMetadataColumns_trueSet() throws Exception {
+    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
+    executeUpdate("insert into data(id, db_col1, col2) "
+                  + "values(1, 'col1Val', 'col2Val')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.includeAllColumnsAsMetadata", "true");
+    moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
+                 adaptor.metadataColumns);
+
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("gsa1", "col1Val");
+    golden.add("gsa2", "col2Val");
+    assertEquals(golden, builder.build().getMetadata());
+  }
+
+  @Test
+  public void testInitMetadataColumns_invalid() throws Exception {
+    // Simulate a skipped column verification by creating the missing
+    // column for init but removing it for addMetadataToRecordBuilder.
+    executeUpdate(
+        "create table data(id int, \"fake column\" varchar, col2 varchar)");
+    executeUpdate("insert into data(id, col2) values(1, 'col2Val')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.metadataColumns", "fake column:gsa1,col2:gsa2");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+
+    executeUpdate("alter table data drop column \"fake column\"");
+
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("gsa2", "col2Val");
+    assertEquals(golden, builder.build().getMetadata());
+  }
+
+  @Test
+  public void testInitMetadataColumns_caseInsensitive() throws Exception {
+    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate("insert into data(id, foo, bar) "
+                  + "values(1, 'fooVal', 'barVal')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.metadataColumns", "Foo:gsa_foo,Bar:gsa_bar");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    Metadata golden = new Metadata();
+    golden.add("gsa_foo", "fooVal");
+    golden.add("gsa_bar", "barVal");
+    assertEquals(golden, builder.build().getMetadata());
+  }
+
+  @Test
+  public void testInitUrlMetadataLister_noDocIdIsUrl() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("db.uniqueKey", "url:string");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("requires docId.isUrl to be \"true\"");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitUrlMetadataLister_docIdIsUrlFalse() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("docId.isUrl", "false");
+    moreEntries.put("db.uniqueKey", "url:string");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("requires docId.isUrl to be \"true\"");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitUrlMetadataLister_docIdIsUrlTrue() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "");
+    getObjectUnderTest(moreEntries);
+  }
+
   @Test
   public void testInitEmptyQuery_singleDocContentSql() throws Exception {
     executeUpdate("create table data(id int, other varchar)");
@@ -657,253 +915,6 @@ public class DatabaseAdaptorTest {
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[blob] not found in query");
     getObjectUnderTest(moreEntries);
-  }
-
-  @Test
-  public void testIncludeAllColumnsAsMetadata_mcBlank() throws Exception {
-    executeUpdate("create table data(id int, foo varchar, bar varchar)");
-    executeUpdate("insert into data(id, foo, bar) "
-                  + "values(1, 'fooVal', 'barVal')");
-
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.includeAllColumnsAsMetadata", "true");
-    moreEntries.put("db.metadataColumns", "");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    assertEquals(null, adaptor.metadataColumns);
-
-    ResultSet resultSet = executeQueryAndNext("select * from data");
-    Record.Builder builder = new Record.Builder(new DocId("1"));
-    adaptor.addMetadataToRecordBuilder(builder, resultSet);
-
-    Metadata golden = new Metadata();
-    golden.add("ID", "1");
-    golden.add("FOO", "fooVal");
-    golden.add("BAR", "barVal");
-    assertEquals(golden, builder.build().getMetadata());
-  }
-
-  @Test
-  public void testIncludeAllColumnsAsMetadata_mcSet() throws Exception {
-    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
-    executeUpdate("insert into data(id, db_col1, col2) "
-                  + "values(1, 'col1Val', 'col2Val')");
-
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.includeAllColumnsAsMetadata", "true");
-    moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
-                 adaptor.metadataColumns);
-
-    ResultSet resultSet = executeQueryAndNext("select * from data");
-    Record.Builder builder = new Record.Builder(new DocId("1"));
-    adaptor.addMetadataToRecordBuilder(builder, resultSet);
-
-    Metadata golden = new Metadata();
-    golden.add("gsa1", "col1Val");
-    golden.add("gsa2", "col2Val");
-    assertEquals(golden, builder.build().getMetadata());
-  }
-
-  @Test
-  public void testIncludeAllColumnsAsMetadataFalse_mcBlank() throws Exception {
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.includeAllColumnsAsMetadata", "false");
-    moreEntries.put("db.metadataColumns", "");
-
-    // Required for validation, but not specific to this test.
-    executeUpdate("create table data(id int)");
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    assertEquals(asMap(), adaptor.metadataColumns);
-  }
-
-  @Test
-  public void testIncludeAllColumnsAsMetadata_mcDefault() throws Exception {
-    Map<String, String> moreEntries = new HashMap<String, String>();
-
-    // Required for validation, but not specific to this test.
-    executeUpdate("create table data(id int)");
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    assertEquals(asMap(), adaptor.metadataColumns);
-  }
-
-  @Test
-  public void testUniqueKeyMissingType() throws Exception {
-    // Value of unique id cannot be "productid", because that is missing type.
-    // The value has to be something like "productid:int"
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.uniqueKey", "productid");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.everyDocIdSql", "");
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("Invalid UniqueKey definition");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
-  public void testUniqueKeyInvalidType() throws Exception {
-    // Type of unique key id value cannot be "notvalid", since it's invalid.
-    // That cat be int, string, timestamp, date, time, and long.
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.uniqueKey", "productid:notvalid");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.everyDocIdSql", "");
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("Invalid UniqueKey type 'notvalid'");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
-  public void testUniqueKeyContainsRepeatedKeyName() throws Exception {
-    // Value of unique key cannot contain repeated key name.
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.uniqueKey", "productid:int,productid:string");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.everyDocIdSql", "");
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("key name 'productid' was repeated");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
-  public void testUniqueKeyEmpty() throws Exception {
-    // Value of unique id cannot be empty.
-    // The value has to be something like "keyname:type"
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.uniqueKey", "");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    moreEntries.put("db.everyDocIdSql", "");
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("db.uniqueKey parameter: value cannot be empty");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
-  public void testUniqueKeyUrl() throws Exception {
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    moreEntries.put("docId.isUrl", "true");
-    moreEntries.put("db.uniqueKey", "id:int, url:string");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "");
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("db.uniqueKey value: The key must be a single");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
-  public void testIncludeAllColumnsAsMetadataFalse_mcSet() throws Exception {
-    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
-    executeUpdate("insert into data(id, db_col1, col2) "
-                  + "values(1, 'col1Val', 'col2Val')");
-
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.metadataColumns", "db_col1:gsa1,col2:gsa2");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
-                 adaptor.metadataColumns);
-
-    ResultSet resultSet = executeQueryAndNext("select * from data");
-    Record.Builder builder = new Record.Builder(new DocId("1"));
-    adaptor.addMetadataToRecordBuilder(builder, resultSet);
-
-    Metadata golden = new Metadata();
-    golden.add("gsa1", "col1Val");
-    golden.add("gsa2", "col2Val");
-    assertEquals(golden, builder.build().getMetadata());
-  }
-
-  @Test
-  public void testInvalidColumnAsMetadata() throws Exception {
-    // Simulate a skipped column verification by creating the missing
-    // column for init but removing it for addMetadataToRecordBuilder.
-    executeUpdate(
-        "create table data(id int, \"fake column\" varchar, col2 varchar)");
-    executeUpdate("insert into data(id, col2) values(1, 'col2Val')");
-
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.metadataColumns", "fake column:gsa1,col2:gsa2");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-
-    executeUpdate("alter table data drop column \"fake column\"");
-
-    ResultSet resultSet = executeQueryAndNext("select * from data");
-    Record.Builder builder = new Record.Builder(new DocId("1"));
-    adaptor.addMetadataToRecordBuilder(builder, resultSet);
-
-    Metadata golden = new Metadata();
-    golden.add("gsa2", "col2Val");
-    assertEquals(golden, builder.build().getMetadata());
-  }
-
-  @Test
-  public void testCaseInsensitiveMetadataColumnMap() throws Exception {
-    executeUpdate("create table data(id int, foo varchar, bar varchar)");
-    executeUpdate("insert into data(id, foo, bar) "
-                  + "values(1, 'fooVal', 'barVal')");
-
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.metadataColumns", "Foo:gsa_foo,Bar:gsa_bar");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    ResultSet resultSet = executeQueryAndNext("select * from data");
-    Record.Builder builder = new Record.Builder(new DocId("1"));
-    adaptor.addMetadataToRecordBuilder(builder, resultSet);
-
-    Metadata golden = new Metadata();
-    golden.add("gsa_foo", "fooVal");
-    golden.add("gsa_bar", "barVal");
-    assertEquals(golden, builder.build().getMetadata());
   }
 
   @Test
