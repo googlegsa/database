@@ -14,6 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static java.util.Locale.US;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 
@@ -67,7 +69,8 @@ class UniqueKey {
     }
 
     List<String> tmpNames = new ArrayList<String>();
-    Map<String, ColumnType> tmpTypes = new TreeMap<String, ColumnType>();
+    Map<String, ColumnType> tmpTypes =
+        new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     for (String e : ukDecls.split(",", 0)) {
       log.fine("element: `" + e + "'");
       e = e.trim();
@@ -82,27 +85,26 @@ class UniqueKey {
       def[1] = def[1].trim();
       String name = def[0];
       ColumnType type;
-      if ("int".equals(def[1].toLowerCase())) {
-        type = ColumnType.INT;
-      } else if ("string".equals(def[1].toLowerCase())) {
-        type = ColumnType.STRING;
-      } else if ("timestamp".equals(def[1].toLowerCase())) {
-        type = ColumnType.TIMESTAMP;
-      } else if ("date".equals(def[1].toLowerCase())) {
-        type = ColumnType.DATE;
-      } else if ("time".equals(def[1].toLowerCase())) {
-        type = ColumnType.TIME;
-      } else if ("long".equals(def[1].toLowerCase())) {
-        type = ColumnType.LONG;
-      } else {
+      try {
+        type = ColumnType.valueOf(def[1].toUpperCase(US));
+      } catch (IllegalArgumentException iae) {
         String errmsg = "Invalid UniqueKey type '" + def[1] + "'. Valid"
-            + " types are: int, string, timestamp, date, time, and long.";
+            + " types are: " + ColumnType.values();
         throw new InvalidConfigurationException(errmsg);
       }
-      if (tmpTypes.containsKey(name)) {
+      if (tmpNames.contains(name)) {
         String errmsg = "Invalid db.uniqueKey configuration: key name '"
             + name + "' was repeated.";
         throw new InvalidConfigurationException(errmsg);
+      } else if (tmpTypes.containsKey(name) && tmpTypes.get(name) != type) {
+        // The ukDecls contain two keys that differ only in case but are of
+        // different types. Force a case-sensitive type lookup by replacing
+        // the partial case-insensitive type map with a case-sensitive copy.
+        Map<String, ColumnType> caseSensitiveTypes = new TreeMap<>();
+        for (String nombre : tmpNames) {
+          caseSensitiveTypes.put(nombre, tmpTypes.get(nombre));
+        }
+        tmpTypes = caseSensitiveTypes;
       }
       tmpNames.add(name);
       tmpTypes.put(name, type);
@@ -135,7 +137,8 @@ class UniqueKey {
     for (String name : cols.split(",", 0)) {
       name = name.trim();
       if (!validNames.contains(name)) {
-        String errmsg = "Unknown column name: '" + name + "'";
+        String errmsg = "Unknown column name: '" + name + "'. Valid names are "
+            + validNames;
         throw new InvalidConfigurationException(errmsg);
       }
       tmpContentCols.add(name);
@@ -317,6 +320,12 @@ class UniqueKey {
   @VisibleForTesting
   ColumnType typeForTest(int i) {
     return types.get(names.get(i));
+  }
+
+  /** Type of a named column in primary key. */
+  @VisibleForTesting
+  ColumnType typeForTest(String name) {
+    return types.get(name);
   }
 
   @Override
