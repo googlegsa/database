@@ -677,7 +677,7 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testInitMetadataColumns_invalid() throws Exception {
+  public void testInitMetadataColumns_columnNotFound() throws Exception {
     // Simulate a skipped column verification by creating the missing
     // column for init but removing it for addMetadataToRecordBuilder.
     executeUpdate(
@@ -730,6 +730,26 @@ public class DatabaseAdaptorTest {
     golden.add("gsa_foo", "fooVal");
     golden.add("gsa_bar", "barVal");
     assertEquals(golden, builder.build().getMetadata());
+  }
+
+  @Test
+  public void testInitMetadataColumns_emptyColumnName() throws Exception {
+    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate("insert into data(id, foo, bar) "
+                  + "values(1, 'fooVal', 'barVal')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.metadataColumns", "Foo:gsa_foo,:");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("column names from db.metadataColumns are empty");
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
   }
 
   @Test

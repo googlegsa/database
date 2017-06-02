@@ -333,6 +333,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     TreeMap<String, String> targets =
         new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     for (String name : columnNames) {
+      if (name.isEmpty()) {
+        throw new InvalidConfigurationException("One or more column names from "
+            + columnConfig + " are empty: " + columnNames);
+      }
       targets.put(name, name);
     }
 
