@@ -183,7 +183,7 @@ public class UniqueKeyTest {
   public void testUnknownContentCol() {
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage(
-        "Unknown column 'IsStranger' from db.singleDocContentSql");
+        "Unknown column 'IsStranger' from db.singleDocContentSqlParameters");
     UniqueKey uk = newUniqueKey("numnum:int,strstr:string",
         "numnum,IsStranger,strstr", "");
   }
@@ -191,7 +191,8 @@ public class UniqueKeyTest {
   @Test
   public void testUnknownAclCol() {
     thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("Unknown column 'IsStranger' from db.aclSql");
+    thrown.expectMessage(
+        "Unknown column 'IsStranger' from db.aclSqlParameters");
     UniqueKey uk = newUniqueKey("numnum:int,strstr:string", "",
         "numnum,IsStranger,strstr");
   }

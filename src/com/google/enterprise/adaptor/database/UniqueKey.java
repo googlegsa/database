@@ -121,14 +121,14 @@ class UniqueKey {
     if ("".equals(contentSqlColumns.trim())) {
       contentSqlCols = names;
     } else {
-      contentSqlCols = splitIntoNameList("db.singleDocContentSql",
+      contentSqlCols = splitIntoNameList("db.singleDocContentSqlParameters",
           contentSqlColumns, tmpTypes.keySet());
     }
 
     if ("".equals(aclSqlColumns.trim())) {
       aclSqlCols = names;
     } else {
-      aclSqlCols = splitIntoNameList("db.aclSql", aclSqlColumns,
+      aclSqlCols = splitIntoNameList("db.aclSqlParameters", aclSqlColumns,
           tmpTypes.keySet());
     }
   }
