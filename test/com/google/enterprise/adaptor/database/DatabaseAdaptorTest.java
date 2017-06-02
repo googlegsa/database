@@ -16,7 +16,6 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.DocIdPusher.Record;
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
-import static com.google.enterprise.adaptor.TestHelper.asMap;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
@@ -25,6 +24,7 @@ import static org.hamcrest.CoreMatchers.isA;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.google.enterprise.adaptor.Acl;
@@ -555,36 +555,50 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitMetadataColumns_defaults() throws Exception {
+    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate("insert into data(id, foo, bar) "
+                  + "values(1, 'fooVal', 'barVal')");
+
     Map<String, String> moreEntries = new HashMap<String, String>();
 
     // Required for validation, but not specific to this test.
-    executeUpdate("create table data(id int)");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    assertEquals(asMap(), adaptor.metadataColumns);
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    assertNull(builder.build().getMetadata());
   }
 
   @Test
   public void testInitMetadataColumns_falseBlank() throws Exception {
+    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate("insert into data(id, foo, bar) "
+                  + "values(1, 'fooVal', 'barVal')");
+
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.includeAllColumnsAsMetadata", "false");
     moreEntries.put("db.metadataColumns", "");
 
     // Required for validation, but not specific to this test.
-    executeUpdate("create table data(id int)");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    assertEquals(asMap(), adaptor.metadataColumns);
+    ResultSet resultSet = executeQueryAndNext("select * from data");
+    Record.Builder builder = new Record.Builder(new DocId("1"));
+    adaptor.addMetadataToRecordBuilder(builder, resultSet);
+
+    assertNull(builder.build().getMetadata());
   }
 
   @Test
@@ -604,8 +618,6 @@ public class DatabaseAdaptorTest {
         "select * from data where id = ?");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    assertEquals(null, adaptor.metadataColumns);
-
     ResultSet resultSet = executeQueryAndNext("select * from data");
     Record.Builder builder = new Record.Builder(new DocId("1"));
     adaptor.addMetadataToRecordBuilder(builder, resultSet);
@@ -633,9 +645,6 @@ public class DatabaseAdaptorTest {
         "select * from data where id = ?");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
-                 adaptor.metadataColumns);
-
     ResultSet resultSet = executeQueryAndNext("select * from data");
     Record.Builder builder = new Record.Builder(new DocId("1"));
     adaptor.addMetadataToRecordBuilder(builder, resultSet);
@@ -663,9 +672,6 @@ public class DatabaseAdaptorTest {
         "select * from data where id = ?");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    assertEquals(asMap("db_col1", "gsa1", "col2", "gsa2"),
-                 adaptor.metadataColumns);
-
     ResultSet resultSet = executeQueryAndNext("select * from data");
     Record.Builder builder = new Record.Builder(new DocId("1"));
     adaptor.addMetadataToRecordBuilder(builder, resultSet);

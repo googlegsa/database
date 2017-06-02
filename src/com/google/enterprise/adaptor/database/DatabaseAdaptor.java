@@ -86,8 +86,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String everyDocIdSql;
   private String singleDocContentSql;
   private String actionColumn;
-  @VisibleForTesting
-  MetadataColumns metadataColumns;
+  private MetadataColumns metadataColumns;
   private ResponseGenerator respGenerator;
   private String aclSql;
   private String aclPrincipalDelimiter;
