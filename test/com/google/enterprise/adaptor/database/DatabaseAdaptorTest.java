@@ -23,7 +23,9 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static org.hamcrest.CoreMatchers.isA;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Config;
@@ -41,6 +43,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -196,6 +199,26 @@ public class DatabaseAdaptorTest {
     }
     thrown.expect(InvalidConfigurationException.class);
     DatabaseAdaptor.loadResponseGenerator(config);
+  }
+
+  @Test
+  public void testHasColumn() throws Exception {
+    executeUpdate("create table acl(id int, col1 varchar, col2 varchar, "
+        + "col3 timestamp)");
+    String query = "select id, col1 as GSA_PERMIT_GROUPS, "
+        + "col2 as \"gsa_permit_users\", col3 as \"GSA_TimeStamp\" from acl";
+    ResultSet rs = executeQuery(query);
+    ResultSetMetaData rsMetaData = rs.getMetaData();
+    assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
+        GsaSpecialColumns.GSA_PERMIT_GROUPS));
+    assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
+        GsaSpecialColumns.GSA_PERMIT_USERS));
+    assertFalse(DatabaseAdaptor.hasColumn(rsMetaData,
+        GsaSpecialColumns.GSA_DENY_GROUPS));
+    assertFalse(DatabaseAdaptor.hasColumn(rsMetaData,
+        GsaSpecialColumns.GSA_DENY_USERS));
+    assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
+        GsaSpecialColumns.GSA_TIMESTAMP));
   }
 
   /**
