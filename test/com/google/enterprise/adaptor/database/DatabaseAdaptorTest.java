@@ -202,34 +202,21 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testHasColumn() throws Exception {
-    executeUpdate("create table acl("
-        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
-    executeUpdate("insert into acl("
-        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
-        + GsaSpecialColumns.GSA_PERMIT_USERS + ","
-        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
-        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
-        + "'pgroup1, pgroup2', 'puser1, puser2', "
-        + "'dgroup1, dgroup2', 'duser1, duser2')");
-    String query = "select " + GsaSpecialColumns.GSA_PERMIT_GROUPS
-        + ", " + GsaSpecialColumns.GSA_PERMIT_USERS
-        + ", " + GsaSpecialColumns.GSA_DENY_GROUPS + " as \"gsa_deny_groups\""
-        + ", " + GsaSpecialColumns.GSA_DENY_USERS + " as \"gsa_deny_users\""
-        + " from acl";
+    executeUpdate("create table acl(id int, col1 varchar, col2 varchar, "
+        + "col3 timestamp)");
+    String query = "select id, col1 as GSA_PERMIT_GROUPS, "
+        + "col2 as \"gsa_permit_users\", col3 as \"GSA_TimeStamp\" from acl";
     ResultSet rs = executeQuery(query);
     ResultSetMetaData rsMetaData = rs.getMetaData();
     assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
         GsaSpecialColumns.GSA_PERMIT_GROUPS));
     assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
         GsaSpecialColumns.GSA_PERMIT_USERS));
-    assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
-        GsaSpecialColumns.GSA_DENY_GROUPS));
-    assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
+    assertFalse(DatabaseAdaptor.hasColumn(rsMetaData,
         GsaSpecialColumns.GSA_DENY_GROUPS));
     assertFalse(DatabaseAdaptor.hasColumn(rsMetaData,
+        GsaSpecialColumns.GSA_DENY_USERS));
+    assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
         GsaSpecialColumns.GSA_TIMESTAMP));
   }
 
