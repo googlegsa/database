@@ -121,24 +121,26 @@ class UniqueKey {
     if ("".equals(contentSqlColumns.trim())) {
       contentSqlCols = names;
     } else {
-      contentSqlCols = splitIntoNameList(contentSqlColumns, tmpTypes.keySet());
+      contentSqlCols = splitIntoNameList("db.singleDocContentSql",
+          contentSqlColumns, tmpTypes.keySet());
     }
 
     if ("".equals(aclSqlColumns.trim())) {
       aclSqlCols = names;
     } else {
-      aclSqlCols = splitIntoNameList(aclSqlColumns, tmpTypes.keySet());
+      aclSqlCols = splitIntoNameList("db.aclSql", aclSqlColumns,
+          tmpTypes.keySet());
     }
   }
 
-  private static List<String> splitIntoNameList(String cols,
+  private static List<String> splitIntoNameList(String paramConfig, String cols,
       Set<String> validNames) {
     List<String> tmpContentCols = new ArrayList<String>();
     for (String name : cols.split(",", 0)) {
       name = name.trim();
       if (!validNames.contains(name)) {
-        String errmsg = "Unknown column name: '" + name + "'. Valid names are "
-            + validNames;
+        String errmsg = "Unknown column '" + name + "' from "+ paramConfig
+            + " not found in db.uniqueKey: " + validNames;
         throw new InvalidConfigurationException(errmsg);
       }
       tmpContentCols.add(name);

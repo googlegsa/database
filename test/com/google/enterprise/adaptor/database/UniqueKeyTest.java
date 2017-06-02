@@ -83,6 +83,8 @@ public class UniqueKeyTest {
   @Test
   public void testEmptyThrows() {
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage(
+        "Invalid db.uniqueKey parameter: value cannot be empty.");
     UniqueKey uk = newUniqueKey(" ");
   }
 
@@ -123,6 +125,8 @@ public class UniqueKeyTest {
   @Test
   public void testNameRepeatsNotAllowed() {
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage(
+        "Invalid db.uniqueKey configuration: key name 'num' was repeated.");
     UniqueKey uk = newUniqueKey("num:int,num:string");
   }
 
@@ -151,6 +155,7 @@ public class UniqueKeyTest {
     // assume we have a database that supports case-sensitive column names
     // and force the parameter column names to exactly match one of them.
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Unknown column 'ID'");
     UniqueKey uk = newUniqueKey("id:int,Id:string", "ID", "ID");
   }
 
@@ -170,12 +175,15 @@ public class UniqueKeyTest {
   @Test
   public void testBadDef() {
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Invalid UniqueKey definition for 'strstr/string'.");
     UniqueKey uk = newUniqueKey("numnum:int,strstr/string");
   }
 
   @Test
   public void testUnknownContentCol() {
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage(
+        "Unknown column 'IsStranger' from db.singleDocContentSql");
     UniqueKey uk = newUniqueKey("numnum:int,strstr:string",
         "numnum,IsStranger,strstr", "");
   }
@@ -183,6 +191,7 @@ public class UniqueKeyTest {
   @Test
   public void testUnknownAclCol() {
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Unknown column 'IsStranger' from db.aclSql");
     UniqueKey uk = newUniqueKey("numnum:int,strstr:string", "",
         "numnum,IsStranger,strstr");
   }
