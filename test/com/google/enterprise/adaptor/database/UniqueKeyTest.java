@@ -155,7 +155,7 @@ public class UniqueKeyTest {
     // assume we have a database that supports case-sensitive column names
     // and force the parameter column names to exactly match one of them.
     thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("unknown column name 'ID'");
+    thrown.expectMessage("Unknown column 'ID'");
     UniqueKey uk = newUniqueKey("id:int,Id:string", "ID", "ID");
   }
 
@@ -182,8 +182,8 @@ public class UniqueKeyTest {
   @Test
   public void testUnknownContentCol() {
     thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("Invalid db.singleDocContentSql value: "
-        + "unknown column name 'IsStranger'.");
+    thrown.expectMessage(
+        "Unknown column 'IsStranger' from db.singleDocContentSql");
     UniqueKey uk = newUniqueKey("numnum:int,strstr:string",
         "numnum,IsStranger,strstr", "");
   }
@@ -191,8 +191,7 @@ public class UniqueKeyTest {
   @Test
   public void testUnknownAclCol() {
     thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("Invalid db.aclSql value: "
-        + "unknown column name 'IsStranger'.");
+    thrown.expectMessage("Unknown column 'IsStranger' from db.aclSql");
     UniqueKey uk = newUniqueKey("numnum:int,strstr:string", "",
         "numnum,IsStranger,strstr");
   }

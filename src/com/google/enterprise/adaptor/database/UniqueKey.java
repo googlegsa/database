@@ -133,14 +133,14 @@ class UniqueKey {
     }
   }
 
-  private static List<String> splitIntoNameList(String sqlConfig, String cols,
+  private static List<String> splitIntoNameList(String paramConfig, String cols,
       Set<String> validNames) {
     List<String> tmpContentCols = new ArrayList<String>();
     for (String name : cols.split(",", 0)) {
       name = name.trim();
       if (!validNames.contains(name)) {
-        String errmsg = "Invalid " + sqlConfig + " value: unknown column name "
-            + "'" + name + "'. Valid names are " + validNames;
+        String errmsg = "Unknown column '" + name + "' from "+ paramConfig
+            + " not found in db.uniqueKey: " + validNames;
         throw new InvalidConfigurationException(errmsg);
       }
       tmpContentCols.add(name);
