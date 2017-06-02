@@ -26,6 +26,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.io.Writer;
+import java.sql.Blob;
+import java.sql.Clob;
+import java.sql.NClob;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -36,6 +39,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.xml.bind.DatatypeConverter;
@@ -138,7 +142,6 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
     ResultSetMetaData rsmd = resultSet.getMetaData();
     int colCount = rsmd.getColumnCount();
 
-    Writer outWriter = new BufferedWriter(new ContentHandlerWriter(handler));
     for (int col = 1; col <= colCount; col++) {
       atts.clear();
       String columnName = rsmd.getColumnLabel(col);
@@ -151,49 +154,130 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
       if (resultSet.getObject(col) == null) {
         atts.addAttribute("", "ISNULL", "ISNULL", "NMTOKEN", "true");
         handler.startElement("", columnName, columnName, atts);
-        // TODO: Re-examine this need for flush.
-        outWriter.flush();
         handler.endElement("", columnName, columnName);
         continue;
       }
       switch (sqlType) {
         case Types.DATE:
           Date dateValue = resultSet.getDate(col);
-          handler.startElement("", columnName, columnName, atts);
-          outWriter.write(DATEFMT.format(dateValue));
+          if (dateValue != null) {
+            try (Writer writer =
+                new BufferedWriter(new ContentHandlerWriter(handler))) {
+              handler.startElement("", columnName, columnName, atts);
+              writer.write(DATEFMT.format(dateValue));
+            }
+          }
           break;
         case Types.TIMESTAMP:
           // TODO: probably need to change to calling getTimestamp with Calendar
           // parameter.
           Timestamp tsValue = resultSet.getTimestamp(col);
-          handler.startElement("", columnName, columnName, atts);
-          String timezone = TIMEZONEFMT.format(tsValue);
-          // java timezone not ISO compliant
-          timezone =
-              timezone.substring(0, timezone.length() - 2) + ":"
-                  + timezone.substring(timezone.length() - 2);
-          outWriter.write(DATEFMT.format(tsValue) + "T"
-              + TIMEFMT.format(tsValue) + timezone);
+          if (tsValue != null) {
+            try (Writer writer =
+                new BufferedWriter(new ContentHandlerWriter(handler))) {
+              handler.startElement("", columnName, columnName, atts);
+              String timezone = TIMEZONEFMT.format(tsValue);
+              // java timezone not ISO compliant
+              timezone =
+                  timezone.substring(0, timezone.length() - 2) + ":"
+                      + timezone.substring(timezone.length() - 2);
+              writer.write(DATEFMT.format(tsValue) + "T"
+                  + TIMEFMT.format(tsValue) + timezone);
+            }
+          }
           break;
         case Types.TIME:
           Time timeValue = resultSet.getTime(col);
-          handler.startElement("", columnName, columnName, atts);
-          timezone = TIMEZONEFMT.format(timeValue);
-          // java timezone not ISO compliant
-          timezone =
-              timezone.substring(0, timezone.length() - 2) + ":"
-                  + timezone.substring(timezone.length() - 2);
-          outWriter.write(TIMEFMT.format(timeValue) + timezone);
+          if (timeValue != null) {
+            try (Writer writer =
+                new BufferedWriter(new ContentHandlerWriter(handler))) {
+              handler.startElement("", columnName, columnName, atts);
+              String timezone = TIMEZONEFMT.format(timeValue);
+              // java timezone not ISO compliant
+              timezone =
+                  timezone.substring(0, timezone.length() - 2) + ":"
+                      + timezone.substring(timezone.length() - 2);
+              writer.write(TIMEFMT.format(timeValue) + timezone);
+            }
+          }
           break;
         case Types.BLOB:
+          Blob blob = resultSet.getBlob(col);
+          if (blob != null) {
+            try (InputStream lob = resultSet.getBinaryStream(col);
+                Writer writer =
+                    new BufferedWriter(new ContentHandlerWriter(handler))) {
+              // so encode using Base64
+              atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
+                  "base64binary");
+              handler.startElement("", columnName, columnName, atts);
+              encode(lob, writer);
+            } finally {
+              try {
+                blob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing BLOB", e);
+              }
+            }
+          }
+          break;
+        case Types.CLOB:
+          Clob clob = resultSet.getClob(col);
+          if (clob != null) {
+            try (Reader reader = clob.getCharacterStream();
+                Writer writer =
+                    new BufferedWriter(new ContentHandlerWriter(handler))) {
+              handler.startElement("", columnName, columnName, atts);
+              copyValidXMLCharacters(reader, writer);
+            } finally {
+              try {
+                clob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing CLOB", e);
+              }
+            }
+          }
+          break;
+        case Types.NCLOB:
+          NClob nclob = resultSet.getNClob(col);
+          if (nclob != null) {
+            try (Reader reader = resultSet.getNCharacterStream(col);
+                Writer writer =
+                    new BufferedWriter(new ContentHandlerWriter(handler))) {
+              handler.startElement("", columnName, columnName, atts);
+              copyValidXMLCharacters(reader, writer);
+            } finally {
+              try {
+                nclob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing NCLOB", e);
+              }
+            }
+          }
+          break;
         case Types.VARBINARY:
         case Types.LONGVARBINARY:
-          InputStream lob = resultSet.getBinaryStream(col);
-          // so encode using Base64
-          atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
-              "base64binary");
-          handler.startElement("", columnName, columnName, atts);
-          encode(lob, outWriter);
+          try (InputStream lob = resultSet.getBinaryStream(col);
+              Writer writer =
+                  new BufferedWriter(new ContentHandlerWriter(handler))) {
+            if (lob != null) {
+              // so encode using Base64
+              atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
+                  "base64binary");
+              handler.startElement("", columnName, columnName, atts);
+              encode(lob, writer);
+            }
+          }
+          break;
+        case Types.LONGVARCHAR:
+          try (Reader reader = resultSet.getCharacterStream(col);
+              Writer writer =
+                  new BufferedWriter(new ContentHandlerWriter(handler))) {
+            if (reader != null) {
+              handler.startElement("", columnName, columnName, atts);
+              copyValidXMLCharacters(reader, writer);
+            }
+          }
           break;
         case Types.SMALLINT:
         case Types.TINYINT:
@@ -205,45 +289,53 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.CHAR:
         case Types.VARCHAR:
           String string = resultSet.getString(col);
-          handler.startElement("", columnName, columnName, atts);
-          outWriter.write(string);
-          break;
-        case Types.CLOB:
-        case Types.LONGVARCHAR:
-          Reader reader = resultSet.getCharacterStream(col);
-          handler.startElement("", columnName, columnName, atts);
-          copyValidXMLCharacters(reader, outWriter);
-          reader.close();
+          if (string != null) {
+            try (Writer writer =
+                new BufferedWriter(new ContentHandlerWriter(handler))) {
+              handler.startElement("", columnName, columnName, atts);
+              writer.write(string);
+            }
+          }
           break;
         case Types.NCHAR:
-        case Types.NCLOB:
         case Types.NVARCHAR:
         case Types.LONGNVARCHAR:
-          Reader nReader = resultSet.getNCharacterStream(col);
-          handler.startElement("", columnName, columnName, atts);
-          copyValidXMLCharacters(nReader, outWriter);
-          nReader.close();
+          try (Reader reader = resultSet.getNCharacterStream(col);
+              Writer writer =
+                  new BufferedWriter(new ContentHandlerWriter(handler))) {
+            if (reader != null) {
+              handler.startElement("", columnName, columnName, atts);
+              copyValidXMLCharacters(reader, writer);
+            }
+          }
           break;
         case Types.BIT:
         case Types.BOOLEAN:
           Boolean value = resultSet.getBoolean(col);
-          handler.startElement("", columnName, columnName, atts);
-          outWriter.write(String.valueOf(value));
+          if (value != null) {
+            try (Writer writer =
+                new BufferedWriter(new ContentHandlerWriter(handler))) {
+              handler.startElement("", columnName, columnName, atts);
+              writer.write(String.valueOf(value));
+            }
+          }
           break;
         case Types.OTHER:
         default:
           string = resultSet.getString(col);
           if (null == string) {
             string = "" + resultSet.getObject(col);
+          } else {
+            try (Writer writer =
+                new BufferedWriter(new ContentHandlerWriter(handler))) {
+              handler.startElement("", columnName, columnName, atts);
+              writer.write(string);
+            }
           }
-          handler.startElement("", columnName, columnName, atts);
-          outWriter.write(string);
           break;
       }
-      outWriter.flush();
       handler.endElement("", columnName, columnName);
     }
-    outWriter.close();
     if (recordElement != null) {
       handler.endElement(ns, recordElement, recordElement);
     }
