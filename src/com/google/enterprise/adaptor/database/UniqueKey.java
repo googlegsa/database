@@ -22,6 +22,7 @@ import com.google.enterprise.adaptor.InvalidConfigurationException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,7 +44,8 @@ class UniqueKey {
     TIMESTAMP,
     DATE,
     TIME,
-    LONG
+    LONG,
+    UNKNOWN
   }
 
   private final List<String> names;  // columns used for DocId
@@ -75,22 +77,22 @@ class UniqueKey {
       log.fine("element: `" + e + "'");
       e = e.trim();
       String def[] = e.split(":", 2);
-      if (2 != def.length) {
-        String errmsg = "Invalid UniqueKey definition for '" + e + "'. Valid"
-            + " definition is 'column_name:type' where types can be int, string,"
-            + " timestamp, date, time and long.";
-        throw new InvalidConfigurationException(errmsg);
-      }
-      def[0] = def[0].trim();
-      def[1] = def[1].trim();
-      String name = def[0];
+      String name = def[0].trim();
       ColumnType type;
-      try {
-        type = ColumnType.valueOf(def[1].toUpperCase(US));
-      } catch (IllegalArgumentException iae) {
-        String errmsg = "Invalid UniqueKey type '" + def[1] + "'. Valid"
-            + " types are: " + ColumnType.values();
-        throw new InvalidConfigurationException(errmsg);
+
+      if (def.length == 1) {
+        // No type given. Try to get type from ResultSetMetaData later.
+        type = ColumnType.UNKNOWN;
+      } else {
+        String typeStr = def[1].trim();
+        try {
+          type = ColumnType.valueOf(typeStr.toUpperCase(US));
+        } catch (IllegalArgumentException iae) {
+          String errmsg = "Invalid UniqueKey type '" + typeStr + "' for "
+              + "name. Valid types are: int, string, timestamp, date, time, "
+              + "and long.";
+          throw new InvalidConfigurationException(errmsg);
+        }
       }
       if (tmpNames.contains(name)) {
         String errmsg = "Invalid db.uniqueKey configuration: key name '"
@@ -100,6 +102,7 @@ class UniqueKey {
         // The ukDecls contain two keys that differ only in case but are of
         // different types. Force a case-sensitive type lookup by replacing
         // the partial case-insensitive type map with a case-sensitive copy.
+        // TODO(bmj): What to do if they are both UNKNOWN?
         Map<String, ColumnType> caseSensitiveTypes = new TreeMap<>();
         for (String nombre : tmpNames) {
           caseSensitiveTypes.put(nombre, tmpTypes.get(nombre));
@@ -158,6 +161,51 @@ class UniqueKey {
 
   List<String> getAclSqlColumns() {
     return aclSqlCols;
+  }
+
+  /**
+   * Attempt to extract ColumnTypes from the supplied Map
+   * of column names to java.sql.Type
+   *
+   * @param typeMap Map of column names to Integer java.sql.Types
+   */
+  void addColumnTypes(Map<String, Integer> typeMap) {
+    for (Map.Entry<String, Integer> entry : typeMap.entrySet()) {
+      if (types.get(entry.getKey()) != ColumnType.UNKNOWN) {
+        continue;
+      }
+      ColumnType type;
+      switch (entry.getValue()) {
+        case Types.INTEGER:
+        case Types.SMALLINT:
+        case Types.TINYINT:
+          type = ColumnType.INT;
+          break;
+        case Types.BIGINT:
+          type = ColumnType.LONG;
+          break;
+        case Types.CHAR:
+        case Types.VARCHAR:
+        case Types.LONGVARCHAR:
+          type = ColumnType.STRING;
+          break;
+        case Types.DATE:
+          type = ColumnType.DATE;
+          break;
+        case Types.TIME:
+          type = ColumnType.TIME;
+          break;
+        case Types.TIMESTAMP:
+          type = ColumnType.TIMESTAMP;
+          break;
+        default:
+          String errmsg = "Invalid UniqueKey type '" + entry.getValue() + "'"
+              + " for " + entry.getKey() + ". Valid types are: int, string,"
+              + " timestamp, date, time and long.";
+          throw new InvalidConfigurationException(errmsg);
+      }
+      types.put(entry.getKey(), type);
+    }
   }
 
   String makeUniqueId(ResultSet rs, boolean encode) throws SQLException {
