@@ -54,10 +54,6 @@ class ValidatedUri {
       throw new URISyntaxException(uriString, reason);
     }
 
-    if (!uri.isAbsolute()) {
-      throw new URISyntaxException(uriString, "relative URIs are not allowed");
-    }
-
     if (Strings.isNullOrEmpty(uri.getHost())) {
       throw new URISyntaxException(uriString, "no host");
     }

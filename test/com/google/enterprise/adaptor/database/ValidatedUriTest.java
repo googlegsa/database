@@ -43,7 +43,15 @@ public class ValidatedUriTest {
   @Test
   public void testNoProtocol() throws Exception {
     thrown.expect(URISyntaxException.class);
+    thrown.expectMessage("no protocol");
     new ValidatedUri("//foo/bar");
+  }
+
+  @Test
+  public void testRelativeUri() throws Exception {
+    thrown.expect(URISyntaxException.class);
+    thrown.expectMessage("no protocol");
+    new ValidatedUri("foo/bar");
   }
 
   @Test
@@ -59,15 +67,17 @@ public class ValidatedUriTest {
   }
 
   @Test
-  public void testNoHost() throws Exception {
+  public void testNoHostOrPath() throws Exception {
     thrown.expect(URISyntaxException.class);
+    thrown.expectMessage("Expected authority");
     new ValidatedUri("http://");
   }
 
   @Test
-  public void testRelativeUri() throws Exception {
+  public void testNoHost() throws Exception {
     thrown.expect(URISyntaxException.class);
-    new ValidatedUri("foo/bar");
+    thrown.expectMessage("no host");
+    new ValidatedUri("http:/foo/bar");
   }
 
   @Test
