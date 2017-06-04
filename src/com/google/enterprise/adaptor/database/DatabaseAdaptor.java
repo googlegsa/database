@@ -565,10 +565,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       addMetadataToResponse(resp, rs);
       // Generate Acl if aclSql is provided.
       if (aclSql != null) {
-        Acl acl = getAcl(conn, id.getUniqueId());
-        if (acl != null) {
-          resp.setAcl(acl);
-        }
+        resp.setAcl(getAcl(conn, id.getUniqueId()));
       }
       // Generate response body.
       // In database adaptor's case, we almost never want to follow the URLs.

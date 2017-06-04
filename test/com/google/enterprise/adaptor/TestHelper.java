@@ -41,28 +41,52 @@ public class TestHelper {
     }
   };
 
-  public static AdaptorContext createConfigAdaptorContext(final Config config) {
-    return new WrapperAdaptor.WrapperAdaptorContext(null) {
-      @Override
-      public Config getConfig() {
-        return config;
-      }
+  public static RecordingContext createConfigAdaptorContext(Config config) {
+    return new RecordingContext(config);
+  }
 
-      @Override
-      public void setPollingIncrementalLister(PollingIncrementalLister lister) {
-        // do nothing
-      }
+  /**
+   * A fake implementation of AdaptorContext that simply returns the
+   * values its given, and records the values it receives.
+   */
+  public static class RecordingContext
+      extends WrapperAdaptor.WrapperAdaptorContext {
+    private final Config config;
+    private PollingIncrementalLister lister;
+    private AuthzAuthority authzAuthority;
 
-      @Override
-      public SensitiveValueDecoder getSensitiveValueDecoder() {
-        return SENSITIVE_VALUE_DECODER;
-      }
+    private RecordingContext(Config config) {
+      super(null);
+      this.config = config;
+    }
 
-      @Override
-      public void setAuthzAuthority(AuthzAuthority authzAuthority) {
-        // do nothing
-      }
-    };
+    @Override
+    public Config getConfig() {
+      return config;
+    }
+
+    @Override
+    public void setPollingIncrementalLister(PollingIncrementalLister lister) {
+      this.lister = lister;
+    }
+
+    @Override
+    public SensitiveValueDecoder getSensitiveValueDecoder() {
+      return SENSITIVE_VALUE_DECODER;
+    }
+
+    @Override
+    public void setAuthzAuthority(AuthzAuthority authzAuthority) {
+      this.authzAuthority = authzAuthority;
+    }
+
+    public PollingIncrementalLister getPollingIncrementalLister() {
+      return lister;
+    }
+
+    public AuthzAuthority getAuthzAuthority() {
+      return authzAuthority;
+    }
   }
 
   @SuppressWarnings("unchecked")
