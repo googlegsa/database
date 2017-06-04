@@ -119,7 +119,7 @@ class UniqueKey {
           + " The key must be a single string column when docId.isUrl=true.");
     }
     names = Collections.unmodifiableList(tmpNames);
-    types = Collections.unmodifiableMap(tmpTypes);
+    types = tmpTypes;
 
     if ("".equals(contentSqlColumns.trim())) {
       contentSqlCols = names;
