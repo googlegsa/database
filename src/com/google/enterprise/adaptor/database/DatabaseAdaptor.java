@@ -150,6 +150,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
   @Override
   public void init(AdaptorContext context) throws Exception {
+    TreeSet<String> ignored = new TreeSet<>(); // Log ignored properties.
+
     Config cfg = context.getConfig();
     maxIdsPerFeedFile = Integer.parseInt(cfg.getValue("feed.maxUrls"));
     if (maxIdsPerFeedFile <= 0) {
@@ -203,6 +205,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     } else {
       metadataColumns = new MetadataColumns(metadataColumnsConfig);
       log.config("metadata columns: " + metadataColumns);
+      if (includeAllColumnsAsMetadata) {
+        ignored.add("db.includeAllColumnsAsMetadata");
+      }
     }
 
     modeOfOperation = cfg.getValue("db.modeOfOperation");
@@ -215,8 +220,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     if (leaveIdAlone) {
       log.config("adaptor runs in lister-only mode");
 
-      // Warn about ignored properties.
-      TreeSet<String> ignored = new TreeSet<>();
       if (!singleDocContentSql.isEmpty()) {
         ignored.add("db.singleDocContentSql");
       }
@@ -227,13 +230,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           ignored.add("db.metadataColumns");
         }
       }
-      if (!ignored.isEmpty()) {
-        String modeStr = (modeOfOperation.equals("urlAndMetadataLister"))
-            ? modeOfOperation : "lister-only";
-        log.log(Level.INFO, "The following properties are set but will"
-            + " be ignored in {0} mode: {1}",
-            new Object[] { modeStr, ignored });
-      }
     } else if (singleDocContentSql.isEmpty()) {
       throw new InvalidConfigurationException(
           "db.singleDocContentSql cannot be an empty string");
@@ -242,6 +238,13 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     if (everyDocIdSql.isEmpty()) {
       throw new InvalidConfigurationException(
           "db.everyDocIdSql cannot be an empty string");
+    }
+
+    // Warn about ignored properties.
+    if (!ignored.isEmpty()) {
+      // Avoid MessageFormat-style for testability.
+      log.log(Level.INFO,
+          "The following properties are set but will be ignored: " + ignored);
     }
 
     respGenerator = loadResponseGenerator(cfg);
@@ -752,7 +755,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         forcePush();
       }
     }
-    
+
+    // TODO(jlacey): Should we return the failed record, and exit getDocIds?
     void forcePush() throws InterruptedException {
       wrapped.pushRecords(saved);
       log.log(Level.FINE, "sent {0} doc ids to pusher", saved.size());
