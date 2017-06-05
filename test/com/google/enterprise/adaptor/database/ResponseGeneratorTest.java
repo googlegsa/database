@@ -408,6 +408,33 @@ public class ResponseGeneratorTest {
     assertEquals("text/rtf", bar.contentType);
   }
 
+  // TODO(bmj): capture log messages.
+  @Test
+  public void testBlobColumnModeContentTypeCol_nullValue() throws Exception {
+    String content = "hello world";
+    executeUpdate(
+        "create table data(id int, content blob, contentType varchar)");
+    String sql =
+        "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setBytes(1, content.getBytes(UTF_8));
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    cfg.put("contentTypeOverride", ""); // Empty should be ignored.
+    cfg.put("contentTypeCol", "contentType");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
+    assertEquals(null, bar.contentType);
+  }
+
   @Test
   public void testBlobColumnModeDisplayUrlCol() throws Exception {
     String content = "hello world";
@@ -432,6 +459,81 @@ public class ResponseGeneratorTest {
     resgen.generateResponse(rs, response);
     assertEquals(content, bar.baos.toString(UTF_8.name()));
     assertEquals(new URI(url), bar.displayUrl);
+  }
+
+  // TODO(bmj): capture log messages
+  @Test
+  public void testDisplayUrlCol_nullUrl() throws Exception {
+    String content = "hello world";
+    executeUpdate(
+        "create table data(id int, content blob, url varchar)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setBytes(1, content.getBytes(UTF_8));
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    cfg.put("displayUrlCol", "url");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
+    assertEquals(null, bar.displayUrl);
+  }
+
+  // TODO(bmj): capture log messages
+  @Test
+  public void testDisplayUrlCol_invalidUrl() throws Exception {
+    String content = "hello world";
+    String url = "invalid-display-url";
+    executeUpdate(
+        "create table data(id int, content blob, url varchar)");
+    String sql = "insert into data(id, content, url) values (1, ?, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setBytes(1, content.getBytes(UTF_8));
+      ps.setString(2, url);
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    cfg.put("displayUrlCol", "url");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
+    assertEquals(null, bar.displayUrl);
+  }
+
+  @Test
+  public void testUrlColumn_invalidUrl() throws Exception {
+    String url = "invalid-url";
+    executeUpdate(
+        "create table data(id int, url varchar)");
+    String sql = "insert into data(id, url) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, url);
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "url");
+    ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    thrown.expect(IllegalStateException.class);
+    thrown.expectMessage("is not a valid URI");
+    resgen.generateResponse(rs, response);
   }
 
   @Test
