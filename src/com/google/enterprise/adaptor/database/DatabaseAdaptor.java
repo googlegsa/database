@@ -273,16 +273,15 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     // Verify all column names.
     try (Connection conn = makeNewConnection()) {
-      uniqueKey.addColumnTypes(
+      Map<String, Integer> columnTypes =
           verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
-              "db.uniqueKey", uniqueKey.getDocIdSqlColumns()));
-      uniqueKey.addColumnTypes(
-          verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
-              "db.singleDocContentSqlParameters",
-              uniqueKey.getContentSqlColumns()));
-      uniqueKey.addColumnTypes(
-          verifyColumnNames(conn, "db.aclSql", aclSql,
-              "db.aclSqlParameters", uniqueKey.getAclSqlColumns()));
+              "db.uniqueKey", uniqueKey.getDocIdSqlColumns());
+      uniqueKey.addColumnTypes(columnTypes);
+      verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
+          "db.singleDocContentSqlParameters",
+          uniqueKey.getContentSqlColumns());
+      verifyColumnNames(conn, "db.aclSql", aclSql,
+          "db.aclSqlParameters", uniqueKey.getAclSqlColumns());
       if (!actionColumn.isEmpty()) {
         verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
             "db.actionColumn", Arrays.asList(actionColumn));
