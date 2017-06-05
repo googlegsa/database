@@ -20,12 +20,18 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
+import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.isA;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.Config;
@@ -34,6 +40,7 @@ import com.google.enterprise.adaptor.GroupPrincipal;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Metadata;
 import com.google.enterprise.adaptor.Response;
+import com.google.enterprise.adaptor.StartupException;
 import com.google.enterprise.adaptor.TestHelper;
 import com.google.enterprise.adaptor.UserPrincipal;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
@@ -131,6 +138,15 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testLoadResponseGenerator_empty() {
+    Config config = new Config();
+    config.addKey("db.modeOfOperation", "");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("modeOfOperation cannot be an empty string");
+    DatabaseAdaptor.loadResponseGenerator(config);
+  }
+
+  @Test
   public void testLoadResponseGeneratorWithFactoryMethod() {
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.modeOfOperation", "rowToText");
@@ -145,8 +161,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testLoadResponseGeneratorWithBuiltinFullyQualifiedMethod() {
     Map<String, String> configEntries = new HashMap<String, String>();
-    String modeOfOperation = "com.google.enterprise.adaptor.database"
-        + ".ResponseGenerator.rowToText";
+    String modeOfOperation = ResponseGenerator.class.getName() + ".rowToText";
     configEntries.put("db.modeOfOperation", modeOfOperation);
     final Config config = new Config();
     for (Map.Entry<String, String> entry : configEntries.entrySet()) {
@@ -156,11 +171,23 @@ public class DatabaseAdaptorTest {
         DatabaseAdaptor.loadResponseGenerator(config));
   }
 
+  private static class DummyResponseGenerator extends ResponseGenerator {
+    public DummyResponseGenerator(Map<String, String> config) {
+      super(config);
+    }
+    @Override
+    public void generateResponse(ResultSet rs, Response resp) {
+    }
+  }
+
+  static ResponseGenerator createDummy(Map<String, String> config) {
+    return new DummyResponseGenerator(config);
+  }
+
   @Test
   public void testLoadResponseGeneratorWithCustomFullyQualifiedMethod() {
     Map<String, String> configEntries = new HashMap<String, String>();
-    String modeOfOperation = "com.google.enterprise.adaptor.database"
-        + ".DatabaseAdaptorTest.createDummy";
+    String modeOfOperation = getClass().getName() + ".createDummy";
     configEntries.put("db.modeOfOperation", modeOfOperation);
     final Config config = new Config();
     for (Map.Entry<String, String> entry : configEntries.entrySet()) {
@@ -187,16 +214,14 @@ public class DatabaseAdaptorTest {
   @Test
   public void testLoadResponseGeneratorModeOfOpNoSuchClassMethod() {
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.modeOfOperation",
-        "com.google.enterprise.adaptor.database"
-            + ".DatabaseAdaptorTest.noThisMode");
+    String modeOfOperation = getClass().getName() + ".noThisMode";
+    configEntries.put("db.modeOfOperation", modeOfOperation);
     final Config config = new Config();
     for (Map.Entry<String, String> entry : configEntries.entrySet()) {
       TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
     }
     thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("No method noThisMode found for class "
-        + "com.google.enterprise.adaptor.database.DatabaseAdaptorTest");
+    thrown.expectMessage("No method noThisMode found for class");
     DatabaseAdaptor.loadResponseGenerator(config);
   }
 
@@ -210,6 +235,91 @@ public class DatabaseAdaptorTest {
     }
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("No class noThisClass found");
+    DatabaseAdaptor.loadResponseGenerator(config);
+  }
+
+  ResponseGenerator instanceDummy(Map<String, String> config) {
+    return new DummyResponseGenerator(config);
+  }
+
+  @Test
+  public void testLoadResponseGenerator_instanceMethod() {
+    String modeOfOperation = getClass().getName() + ".instanceDummy";
+    Config config = new Config();
+    config.addKey("db.modeOfOperation", modeOfOperation);
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectCause(isA(NullPointerException.class));
+    DatabaseAdaptor.loadResponseGenerator(config);
+  }
+
+  private ResponseGenerator privateDummy(Map<String, String> config) {
+    return new DummyResponseGenerator(config);
+  }
+
+  @Test
+  public void testLoadResponseGenerator_inaccessibleMethod() {
+    String modeOfOperation = getClass().getName() + ".privateDummy";
+    Config config = new Config();
+    config.addKey("db.modeOfOperation", modeOfOperation);
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectCause(isA(IllegalAccessException.class));
+    DatabaseAdaptor.loadResponseGenerator(config);
+  }
+
+  static void voidDummy(Map<String, String> config) {
+  }
+
+  @Test
+  public void testLoadResponseGenerator_voidMethod() {
+    String modeOfOperation = getClass().getName() + ".voidDummy";
+    Config config = new Config();
+    config.addKey("db.modeOfOperation", modeOfOperation);
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("needs to return a");
+    DatabaseAdaptor.loadResponseGenerator(config);
+  }
+
+  static ResponseGenerator nullDummy(Map<String, String> config) {
+    return null;
+  }
+
+  @Test
+  public void testLoadResponseGenerator_nullMethod() {
+    String modeOfOperation = getClass().getName() + ".nullDummy";
+    Config config = new Config();
+    config.addKey("db.modeOfOperation", modeOfOperation);
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("needs to return a");
+    DatabaseAdaptor.loadResponseGenerator(config);
+  }
+
+  static ResponseGenerator startupExceptionDummy(Map<String, String> config) {
+    throw new StartupException("Come on, you're not even trying");
+  }
+
+  @Test
+  public void testLoadResponseGenerator_startupException() {
+    String modeOfOperation = getClass().getName() + ".startupExceptionDummy";
+    Config config = new Config();
+    config.addKey("db.modeOfOperation", modeOfOperation);
+    thrown.expect(StartupException.class);
+    thrown.expectMessage("Come on, you're not even trying");
+    thrown.expectCause(nullValue(Throwable.class));
+    DatabaseAdaptor.loadResponseGenerator(config);
+  }
+
+  static ResponseGenerator runtimeExceptionDummy(Map<String, String> config) {
+    throw new RuntimeException("Come on, you're not even trying");
+  }
+
+  @Test
+  public void testLoadResponseGenerator_runtimeException() {
+    String modeOfOperation = getClass().getName() + ".runtimeExceptionDummy";
+    Config config = new Config();
+    config.addKey("db.modeOfOperation", modeOfOperation);
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectCause(isA(RuntimeException.class));
+    thrown.expectMessage("Come on, you're not even trying");
     DatabaseAdaptor.loadResponseGenerator(config);
   }
 
@@ -231,21 +341,6 @@ public class DatabaseAdaptorTest {
         GsaSpecialColumns.GSA_DENY_USERS));
     assertTrue(DatabaseAdaptor.hasColumn(rsMetaData,
         GsaSpecialColumns.GSA_TIMESTAMP));
-  }
-
-  static ResponseGenerator createDummy(Map<String, String> config) {
-    return new DummyResponseGenerator(config);
-  }
-
-  private static class DummyResponseGenerator extends ResponseGenerator {
-    public DummyResponseGenerator(Map<String, String> config) {
-      super(config);
-    }
-    @Override
-    public void generateResponse(ResultSet rs, Response resp)
-        throws IOException, SQLException {
-      // do nothing
-    }
   }
 
   @Test
@@ -487,6 +582,34 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitFeedMaxUrls_zero() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("feed.maxUrls", "0");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.uniqueKey", "");
+    moreEntries.put("db.modeOfOperation", "");
+    moreEntries.put("db.everyDocIdSql", "");
+
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("feed.maxUrls needs to be positive");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitFeedMaxUrls_negative() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("feed.maxUrls", "-100");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.uniqueKey", "");
+    moreEntries.put("db.modeOfOperation", "");
+    moreEntries.put("db.everyDocIdSql", "");
+
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("feed.maxUrls needs to be positive");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
   public void testInitUniqueKeyMissingType() throws Exception {
     // Value of unique id cannot be "productid", because that is missing type.
     // The value has to be something like "productid:int"
@@ -672,7 +795,13 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
 
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class, "will be ignored", messages);
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    assertEquals(messages.toString(), 1, messages.size());
+    assertThat(messages.get(0),
+        containsString("ignored: [db.includeAllColumnsAsMetadata]"));
+
     ResultSet resultSet = executeQueryAndNext("select * from data");
     Record.Builder builder = new Record.Builder(new DocId("1"));
     adaptor.addMetadataToRecordBuilder(builder, resultSet);
@@ -795,6 +924,51 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select url from data");
     getObjectUnderTest(moreEntries);
   }
+
+  @Test
+  public void testInitLister_ignoredProperties_metadataColumns()
+      throws Exception {
+    executeUpdate("create table data(url varchar, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select url from data");
+    // Ignored properties in this mode.
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where url = ?");
+    moreEntries.put("db.metadataColumns", "other");
+
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class, "will be ignored", messages);
+    getObjectUnderTest(moreEntries);
+    assertEquals(messages.toString(), 1, messages.size());
+    assertThat(messages.get(0),
+        containsString("[db.metadataColumns, db.singleDocContentSql]"));
+   }
+
+  @Test
+  public void testInitLister_ignoredProperties_allColumns() throws Exception {
+    executeUpdate("create table data(url varchar, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select url from data");
+    // Ignored properties in this mode.
+    moreEntries.put("db.includeAllColumnsAsMetadata", "true");
+
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class, "will be ignored", messages);
+    getObjectUnderTest(moreEntries);
+    assertEquals(messages.toString(), 1, messages.size());
+    assertThat(messages.get(0),
+        containsString("[db.includeAllColumnsAsMetadata]"));
+   }
 
   @Test
   public void testInitEmptyQuery_singleDocContentSql() throws Exception {
@@ -969,7 +1143,53 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitVerifyColumnNames_sqlException() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.user", "not_sa");
+    // Required for validation, but not specific to this test.
+    executeUpdate("create table data(id int)");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select id from data where id = ?");
+
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class, "Unable to validate", messages);
+    getObjectUnderTest(moreEntries);
+    assertEquals(messages.toString(), 1, messages.size());
+  }
+
+  @Test
   public void testGetDocIds() throws Exception {
+    executeUpdate("create table data(id integer, other varchar)");
+    executeUpdate("insert into data(id, other) values(1, 'hello world'),"
+        + "(2, 'hello world'), (3, 'hello world'), (4, 'hello world')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select id from data order by id");
+    moreEntries.put("db.metadataColumns", "other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    adaptor.getDocIds(pusher);
+
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("1")).setMetadata(null).build(),
+            new Record.Builder(new DocId("2")).setMetadata(null).build(),
+            new Record.Builder(new DocId("3")).setMetadata(null).build(),
+            new Record.Builder(new DocId("4")).setMetadata(null).build()),
+        pusher.getRecords());
+   }
+
+  @Test
+  public void testGetDocIds_urlAndMetadataLister() throws Exception {
     executeUpdate("create table data(url varchar, name varchar)");
     executeUpdate("insert into data(url, name) values('http://', 'John')");
 
@@ -1000,7 +1220,8 @@ public class DatabaseAdaptorTest {
         + "('1001', 'http://localhost/?q=1001', 'add'),"
         + "('1002', 'http://localhost/?q=1002', 'delete'),"
         + "('1003', 'http://localhost/?q=1003', 'DELETE'),"
-        + "('1004', 'http://localhost/?q=1004', 'foo')");
+        + "('1004', 'http://localhost/?q=1004', 'foo'),"
+        + "('1005', 'http://localhost/?q=1005', null)");
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "url:string");
@@ -1018,6 +1239,8 @@ public class DatabaseAdaptorTest {
     metadata1.add("id", "1001");
     Metadata metadata4 = new Metadata();
     metadata4.add("id", "1004");
+    Metadata metadata5 = new Metadata();
+    metadata5.add("id", "1005");
     assertEquals(Arrays.asList(new Record[] {
         new Record.Builder(new DocId("http://localhost/?q=1001"))
             .setMetadata(metadata1).build(),
@@ -1026,7 +1249,9 @@ public class DatabaseAdaptorTest {
         new Record.Builder(new DocId("http://localhost/?q=1003"))
             .setDeleteFromIndex(true).build(),
         new Record.Builder(new DocId("http://localhost/?q=1004"))
-            .setMetadata(metadata4).build()}),
+            .setMetadata(metadata4).build(),
+        new Record.Builder(new DocId("http://localhost/?q=1005"))
+            .setMetadata(metadata5).build()}),
         pusher.getRecords());
   }
 
@@ -1058,6 +1283,63 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testGetDocIds_disableStreaming() throws Exception {
+    executeUpdate("create table data(id integer)");
+    executeUpdate("insert into data(id) values(1), (2), (3), (4)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select id from data order by id");
+    moreEntries.put("db.disableStreaming", "true");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.singleDocContentSql",
+        "select id from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    adaptor.getDocIds(pusher);
+
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("1")).setMetadata(null).build(),
+            new Record.Builder(new DocId("2")).setMetadata(null).build(),
+            new Record.Builder(new DocId("3")).setMetadata(null).build(),
+            new Record.Builder(new DocId("4")).setMetadata(null).build()),
+        pusher.getRecords());
+  }
+
+  @Test
+  public void testGetDocIds_feedMaxUrls() throws Exception {
+    executeUpdate("create table data(id varchar)");
+    executeUpdate("insert into data(id) values(1), (2), (3), ('hello')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select id from data order by id");
+    moreEntries.put("feed.maxUrls", "2");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    try {
+      adaptor.getDocIds(pusher);
+      fail("Expected an IOException");
+    } catch (IOException e) {
+      assertThat(e.getCause(), instanceOf(SQLException.class));
+    }
+
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("1")).setMetadata(null).build(),
+            new Record.Builder(new DocId("2")).setMetadata(null).build()),
+        pusher.getRecords());
+  }
+
+  @Test
   public void testGetDocContent() throws Exception {
     executeUpdate("create table data(ID  integer, NAME  varchar)");
     executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
@@ -1079,6 +1361,68 @@ public class DatabaseAdaptorTest {
     metadata.add("col1",  "1001");
     metadata.add("col2",  "John");
     assertEquals(metadata, response.getMetadata());
+  }
+
+  @Test
+  public void testGetDocContent_lister() throws Exception {
+    executeUpdate("create table data(url varchar, name varchar)");
+    executeUpdate("insert into data(url, name) values('http://', 'John')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    MockRequest request = new MockRequest(new DocId("http://"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+    assertEquals(RecordingResponse.State.NOT_FOUND, response.getState());
+   }
+
+  @Test
+  public void testGetDocContent_noResults() throws Exception {
+    executeUpdate("create table data(id integer, name varchar)");
+    executeUpdate("insert into data(id, name) values(1001, 'John')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select id from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1002"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+    assertEquals(RecordingResponse.State.NOT_FOUND, response.getState());
+  }
+
+  @Test
+  public void testGetDocContent_sqlException() throws Exception {
+    // Simulate a SQLException by creating a table for init
+    // but removing it for getDocContent.
+    executeUpdate("create table data(id integer, name varchar)");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select id from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+
+    executeUpdate("drop table data");
+
+    MockRequest request = new MockRequest(new DocId("1002"));
+    RecordingResponse response = new RecordingResponse();
+    thrown.expect(IOException.class);
+    thrown.expectMessage("retrieval error");
+    thrown.expectCause(isA(SQLException.class));
+    adaptor.getDocContent(request, response);
   }
 
   @Test
