@@ -88,24 +88,14 @@ class UniqueKey {
         } catch (IllegalArgumentException iae) {
           String errmsg = "Invalid UniqueKey type '" + typeStr
               + "' for '" + name + "'. Valid types are: "
-              + ColumnType.values().toString().toLowerCase(US);
+              + Arrays.toString(ColumnType.values()).toLowerCase(US);
           throw new InvalidConfigurationException(errmsg);
         }
       }
-      if (tmpNames.contains(name)) {
+      if (tmpTypes.containsKey(name)) {
         String errmsg = "Invalid db.uniqueKey configuration: key name '"
             + name + "' was repeated.";
         throw new InvalidConfigurationException(errmsg);
-      } else if (tmpTypes.containsKey(name)
-                 && (tmpTypes.get(name) != type || type == null)) {
-        // The ukDecls contain two keys that differ only in case but are of
-        // different types. Force a case-sensitive type lookup by replacing
-        // the partial case-insensitive type map with a case-sensitive copy.
-        Map<String, ColumnType> caseSensitiveTypes = new TreeMap<>();
-        for (String nombre : tmpNames) {
-          caseSensitiveTypes.put(nombre, tmpTypes.get(nombre));
-        }
-        tmpTypes = caseSensitiveTypes;
       }
       tmpNames.add(name);
       tmpTypes.put(name, type);
@@ -209,6 +199,16 @@ class UniqueKey {
           throw new InvalidConfigurationException(errmsg);
       }
       types.put(entry.getKey(), type);
+    }
+    ArrayList<String> badColumns = new ArrayList<>();
+    for (Map.Entry<String, ColumnType> entry : types.entrySet()) {
+      if (entry.getValue() == null) {
+        badColumns.add(entry.getKey());
+      }
+    }
+    if (!badColumns.isEmpty()) {
+      throw new InvalidConfigurationException("Unknown column type for the"
+          + " following columns: " + badColumns);
     }
   }
 

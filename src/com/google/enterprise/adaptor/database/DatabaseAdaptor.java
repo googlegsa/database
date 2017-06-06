@@ -278,8 +278,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
               "db.uniqueKey", uniqueKey.getDocIdSqlColumns());
       uniqueKey.addColumnTypes(columnTypes);
       verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
-          "db.singleDocContentSqlParameters",
-          uniqueKey.getContentSqlColumns());
+          "db.singleDocContentSqlParameters", uniqueKey.getContentSqlColumns());
       verifyColumnNames(conn, "db.aclSql", aclSql,
           "db.aclSqlParameters", uniqueKey.getAclSqlColumns());
       if (!actionColumn.isEmpty()) {
@@ -363,7 +362,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
               "Matched column \"{0}\" as \"{1}\" in query {2}",
               new Object[] { match, actual, sqlConfig });
           targets.remove(match);
-          // TODO(bmj): What happens with MySQL here.
           typeMap.put(match, rsmd.getColumnType(i));
         }
       }
