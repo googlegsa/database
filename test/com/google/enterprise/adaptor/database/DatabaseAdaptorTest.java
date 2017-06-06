@@ -154,25 +154,17 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testLoadResponseGeneratorWithFactoryMethod() {
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.modeOfOperation", "rowToText");
-    final Config config = new Config();
-    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
-      TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
-    }
+    Config config = new Config();
+    config.addKey("db.modeOfOperation", "rowToText");
     assertNotNull("loaded response generator is null",
         DatabaseAdaptor.loadResponseGenerator(config));
   }
 
   @Test
   public void testLoadResponseGeneratorWithBuiltinFullyQualifiedMethod() {
-    Map<String, String> configEntries = new HashMap<String, String>();
+    Config config = new Config();
     String modeOfOperation = ResponseGenerator.class.getName() + ".rowToText";
-    configEntries.put("db.modeOfOperation", modeOfOperation);
-    final Config config = new Config();
-    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
-      TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
-    }
+    config.addKey("db.modeOfOperation", modeOfOperation);
     assertNotNull("loaded response generator is null",
         DatabaseAdaptor.loadResponseGenerator(config));
   }
@@ -192,25 +184,17 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testLoadResponseGeneratorWithCustomFullyQualifiedMethod() {
-    Map<String, String> configEntries = new HashMap<String, String>();
+    Config config = new Config();
     String modeOfOperation = getClass().getName() + ".createDummy";
-    configEntries.put("db.modeOfOperation", modeOfOperation);
-    final Config config = new Config();
-    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
-      TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
-    }
+    config.addKey("db.modeOfOperation", modeOfOperation);
     assertNotNull("loaded response generator is null",
         DatabaseAdaptor.loadResponseGenerator(config));
   }
 
   @Test
   public void testLoadResponseGeneratorModeOfOpNoSuchFactoryMethod() {
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.modeOfOperation", "noThisMethod");
-    final Config config = new Config();
-    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
-      TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
-    }
+    Config config = new Config();
+    config.addKey("db.modeOfOperation", "noThisMethod");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage(
         "noThisMethod is not a valid built-in modeOfOperation");
@@ -219,13 +203,9 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testLoadResponseGeneratorModeOfOpNoSuchClassMethod() {
-    Map<String, String> configEntries = new HashMap<String, String>();
+    Config config = new Config();
     String modeOfOperation = getClass().getName() + ".noThisMode";
-    configEntries.put("db.modeOfOperation", modeOfOperation);
-    final Config config = new Config();
-    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
-      TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
-    }
+    config.addKey("db.modeOfOperation", modeOfOperation);
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("No method noThisMode found for class");
     DatabaseAdaptor.loadResponseGenerator(config);
@@ -233,12 +213,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testLoadResponseGeneratorModeOfOpNoSuchClass() {
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.modeOfOperation", "noThisClass.noThisMethod");
-    final Config config = new Config();
-    for (Map.Entry<String, String> entry : configEntries.entrySet()) {
-      TestHelper.setConfigValue(config, entry.getKey(), entry.getValue());
-    }
+    Config config = new Config();
+    config.addKey("db.modeOfOperation", "noThisClass.noThisMethod");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("No class noThisClass found");
     DatabaseAdaptor.loadResponseGenerator(config);
