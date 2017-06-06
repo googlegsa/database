@@ -1412,11 +1412,46 @@ public class DatabaseAdaptorTest {
       assertThat(e.getCause(), instanceOf(SQLException.class));
     }
 
+    // BufferedPusher will push buffered records after the SQLException,
+    // so DocId("3") is included here.
     assertEquals(
         Arrays.asList(
             new Record.Builder(new DocId("1")).setMetadata(null).build(),
-            new Record.Builder(new DocId("2")).setMetadata(null).build()),
+            new Record.Builder(new DocId("2")).setMetadata(null).build(),
+            new Record.Builder(new DocId("3")).setMetadata(null).build()),
         pusher.getRecords());
+  }
+
+  /** Tests that the BufferedPusher doesn't try to push 0 items on close. */
+  @Test
+  public void testGetDocIds_feedMaxUrls_emptyOnClose() throws Exception {
+    executeUpdate("create table data(id integer)");
+    executeUpdate("insert into data(id) values(1), (2), (3), (4)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select id from data order by id");
+    moreEntries.put("feed.maxUrls", "2");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class, "doc ids to pusher", messages);
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    adaptor.getDocIds(pusher);
+
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("1")).setMetadata(null).build(),
+            new Record.Builder(new DocId("2")).setMetadata(null).build(),
+            new Record.Builder(new DocId("3")).setMetadata(null).build(),
+            new Record.Builder(new DocId("4")).setMetadata(null).build()),
+        pusher.getRecords());
+    assertEquals(messages.toString(), 2, messages.size());
   }
 
   @Test

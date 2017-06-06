@@ -398,10 +398,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   @Override
   public void getDocIds(DocIdPusher pusher) throws IOException,
       InterruptedException {
-    BufferedPusher outstream = new BufferedPusher(pusher);
     try (Connection conn = makeNewConnection();
         PreparedStatement stmt = getStreamFromDb(conn, everyDocIdSql);
-        ResultSet rs = stmt.executeQuery()) {
+        ResultSet rs = stmt.executeQuery();
+        BufferedPusher outstream = new BufferedPusher(pusher)) {
       log.finer("queried for stream");
       while (rs.next()) {
         DocId id = new DocId(uniqueKey.makeUniqueId(rs, encodeDocId));
@@ -418,7 +418,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     } catch (SQLException ex) {
       throw new IOException(ex);
     }
-    outstream.forcePush();
   }
 
   private boolean isDeleteAction(ResultSet rs) throws SQLException {
@@ -748,10 +747,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
    * them, and sends them when it has accumulated maximum allowed amount per
    * feed file.
    */
-  private class BufferedPusher {
-    DocIdPusher wrapped;
-    ArrayList<DocIdPusher.Record> saved;
-    
+  private class BufferedPusher implements AutoCloseable {
+    final DocIdPusher wrapped;
+    final ArrayList<DocIdPusher.Record> saved;
+
     BufferedPusher(DocIdPusher underlying) {
       if (null == underlying) {
         throw new NullPointerException();
@@ -767,16 +766,22 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       }
     }
 
-    // TODO(jlacey): Should we return the failed record, and exit getDocIds?
-    void forcePush() throws InterruptedException {
-      wrapped.pushRecords(saved);
-      log.log(Level.FINE, "sent {0} doc ids to pusher", saved.size());
-      saved.clear();
+    /** This method should not be called from outside BufferedPusher. */
+    private void forcePush() throws InterruptedException {
+      try {
+        wrapped.pushRecords(saved);
+        log.log(Level.FINE, "sent {0} doc ids to pusher", saved.size());
+      } finally {
+        // Always clear the buffer so that if we throw an exception,
+        // we don't try the same records again when close is called.
+        saved.clear();
+      }
     }
-    
-    protected void finalize() throws Throwable {
+
+    @Override
+    public void close() throws InterruptedException {
       if (0 != saved.size()) {
-        log.warning("still have saved ids that weren't sent");
+        forcePush();
       }
     }
   }
@@ -897,7 +902,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     @Override
     public void getModifiedDocIds(DocIdPusher pusher)
         throws IOException, InterruptedException {
-      BufferedPusher outstream = new BufferedPusher(pusher);
       // latestTimestamp will be used to update lastUpdateTimestamp
       // if GSA_TIMESTAMP column is present in the ResultSet and there is at 
       // least one non-null value of that column in the ResultSet.
@@ -905,7 +909,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       boolean hasTimestamp = false;
       try (Connection conn = makeNewConnection();
           PreparedStatement stmt = getUpdateStreamFromDb(conn);
-          ResultSet rs = stmt.executeQuery()) {
+          ResultSet rs = stmt.executeQuery();
+          BufferedPusher outstream = new BufferedPusher(pusher)) {
         hasTimestamp =
             hasColumn(rs.getMetaData(), GsaSpecialColumns.GSA_TIMESTAMP);
         log.log(Level.FINEST, "hasTimestamp: {0}", hasTimestamp);
@@ -937,7 +942,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       } catch (SQLException ex) {
         throw new IOException(ex);
       }
-      outstream.forcePush();
       if (!hasTimestamp) {
         lastUpdateTimestamp = new Timestamp(System.currentTimeMillis());
       } else if (latestTimestamp != null) {
