@@ -118,6 +118,24 @@ public class TupleReaderTest {
     assertEquals(golden, result);
   }
 
+  @Test
+  public void testNullVARCHAR() throws Exception {
+    executeUpdate("create table data(id integer, colname varchar)");
+    executeUpdate("insert into data(id) values(1)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<ID SQLType=\"INTEGER\">1</ID>"
+        + "<COLNAME SQLType=\"VARCHAR\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
   /**
    * Test Char column.
    */
