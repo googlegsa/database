@@ -717,4 +717,28 @@ public class ResponseGeneratorTest {
     assertThat(content, containsString(">xyggy col<"));
     assertThat(content, containsString(">xyggy value<"));
   }
+
+  @Test
+  public void testRowToHtmlModeLoadsStyleSheet() throws Exception {
+    executeUpdate("create table data(id int, xyggy_col varchar)");
+    executeUpdate(
+        "insert into data(id, xyggy_col) values (1, 'xyggy value')");
+
+    MockResponse har = new MockResponse();
+    Response response = newProxyInstance(Response.class, har);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("stylesheet",
+        ResponseGenerator.class
+        .getResource("resources/dbdefault.xsl")
+        .getPath());
+    ResponseGenerator resgen = ResponseGenerator.rowToHtml(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    // Assert that the column of interest appears as the content of some
+    // element in the HTML.
+    String content = har.baos.toString(UTF_8.name());
+    assertThat(content, containsString(">XYGGY_COL<"));
+    assertThat(content, containsString(">xyggy value<"));
+  }
 }
