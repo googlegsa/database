@@ -68,6 +68,12 @@ public class ResponseGeneratorTest {
   }
 
   @Test
+  public void testNullConfig() {
+    thrown.expect(NullPointerException.class);
+    ResponseGenerator.rowToText(null);
+  }
+
+  @Test
   public void testMissingColumnNameForUrlMode() {
     thrown.expect(InvalidConfigurationException.class);
     ResponseGenerator.urlColumn(Collections.<String, String>emptyMap());
@@ -134,6 +140,29 @@ public class ResponseGeneratorTest {
   private <T> T newProxyInstance(Class<T> clazz, InvocationHandler handler) {
     return clazz.cast(Proxy.newProxyInstance(clazz.getClassLoader(),
         new Class<?>[] { clazz }, handler));
+  }
+
+  @Test
+  public void testRowToText_specialCharacters() throws Exception {
+    executeUpdate(
+        "create table data (id integer, name varchar, quote varchar)");
+    String sql = "insert into data (id, name, quote) values (1, ?, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+        ps.setString(1, "Rhett Butler");
+        ps.setString(2, "\"Frankly Scarlett, I don't give a damn!\"");
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    String golden = "DATA,DATA,DATA\nID,NAME,QUOTE\n"
+        + "1,Rhett Butler,\"\"\"Frankly Scarlett, I don't give a damn!\"\"\"\n";
+    assertEquals(golden, bar.baos.toString(UTF_8.name()));
   }
 
   @Test
