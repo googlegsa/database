@@ -17,6 +17,7 @@ package com.google.enterprise.adaptor.database;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
+import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
@@ -45,7 +46,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -264,7 +267,6 @@ public class ResponseGeneratorTest {
     assertEquals("", bar.baos.toString(UTF_8.name()));
   }
 
-  // TODO(bmj): collect log messages
   @Test
   public void testContentColumnModeInvalidColumnType() throws Exception {
     String content = "hello world";
@@ -282,8 +284,12 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(ResponseGenerator.class, "Column type not handled",
+        messages);
     resgen.generateResponse(rs, response);
     assertEquals("", bar.baos.toString(UTF_8.name()));
+    assertEquals(1, messages.size());
   }
 
   @Test
@@ -592,7 +598,6 @@ public class ResponseGeneratorTest {
     assertEquals("text/rtf", bar.contentType);
   }
 
-  // TODO(bmj): capture log messages.
   @Test
   public void testBlobColumnModeContentTypeCol_nullValue() throws Exception {
     String content = "hello world";
@@ -614,9 +619,13 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(ResponseGenerator.class,
+        "content type at col {0} is null", messages);
     resgen.generateResponse(rs, response);
     assertEquals(content, bar.baos.toString(UTF_8.name()));
     assertEquals(null, bar.contentType);
+    assertEquals(1, messages.size());
   }
 
   @Test
@@ -645,7 +654,6 @@ public class ResponseGeneratorTest {
     assertEquals(new URI(url), bar.displayUrl);
   }
 
-  // TODO(bmj): capture log messages
   @Test
   public void testDisplayUrlCol_nullUrl() throws Exception {
     String content = "hello world";
@@ -665,12 +673,15 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(ResponseGenerator.class,
+        "display url at col {0} is null", messages);
     resgen.generateResponse(rs, response);
     assertEquals(content, bar.baos.toString(UTF_8.name()));
     assertEquals(null, bar.displayUrl);
+    assertEquals(1, messages.size());
   }
 
-  // TODO(bmj): capture log messages
   @Test
   public void testDisplayUrlCol_invalidUrl() throws Exception {
     String content = "hello world";
@@ -692,9 +703,13 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(ResponseGenerator.class,
+         "override display url invalid:", messages);
     resgen.generateResponse(rs, response);
     assertEquals(content, bar.baos.toString(UTF_8.name()));
     assertEquals(null, bar.displayUrl);
+    assertEquals(1, messages.size());
   }
 
   @Test
