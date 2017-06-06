@@ -42,7 +42,7 @@ class ValidatedUri {
     }
     try {
       // Basic syntax checking, with more understandable error messages.
-      // Also ensures the URI is a URL, not a URN.
+      // Also ensures the URI is a URL, not a URN, and is absolute.
       new URL(uriString);
       // Advanced syntax checking, with more cryptic error messages.
       uri = new URI(uriString);

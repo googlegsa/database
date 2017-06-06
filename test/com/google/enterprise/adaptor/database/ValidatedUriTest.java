@@ -77,7 +77,14 @@ public class ValidatedUriTest {
   public void testNoHost() throws Exception {
     thrown.expect(URISyntaxException.class);
     thrown.expectMessage("no host");
-    new ValidatedUri("http:/foo/bar");
+    new ValidatedUri("http:///foo/bar");
+  }
+
+  @Test
+  public void testNoAuthority() throws Exception {
+    thrown.expect(URISyntaxException.class);
+    thrown.expectMessage("no host");
+    new ValidatedUri("file:/foo/bar");
   }
 
   @Test
