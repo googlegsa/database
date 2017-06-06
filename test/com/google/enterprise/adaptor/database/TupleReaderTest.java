@@ -138,6 +138,24 @@ public class TupleReaderTest {
     assertEquals(golden, result);
   }
 
+  @Test
+  public void testNullChar() throws Exception {
+    executeUpdate("create table data(id integer, colname char)");
+    executeUpdate("insert into data(id) values(1)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<ID SQLType=\"INTEGER\">1</ID>"
+        + "<COLNAME SQLType=\"CHAR\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
   /**
    * Test integer column.
    */
@@ -157,7 +175,25 @@ public class TupleReaderTest {
     String result = generateXml(rs);
     assertEquals(golden, result);
   }
-  
+
+  @Test
+  public void testNullINTEGER() throws Exception {
+    executeUpdate("create table data(id integer, colname integer)");
+    executeUpdate("insert into data(id) values(1)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<ID SQLType=\"INTEGER\">1</ID>"
+        + "<COLNAME SQLType=\"INTEGER\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
   /**
    * Test date column.
    */
@@ -177,7 +213,25 @@ public class TupleReaderTest {
     String result = generateXml(rs);
     assertEquals(golden, result);
   }
-  
+
+  @Test
+  public void testNullDATE() throws Exception {
+    executeUpdate("create table data(id integer, colname date)");
+    executeUpdate("insert into data(id) values(1)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<ID SQLType=\"INTEGER\">1</ID>"
+        + "<COLNAME SQLType=\"DATE\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
   /**
    * Test TIMESTAMP column.
    */
@@ -202,6 +256,31 @@ public class TupleReaderTest {
         + "<COLNAME SQLType=\"TIMESTAMP\">2004-10-06T09:15:30"
         + timeZoneFmt.format(date) + ":00"
         + "</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testNullTIMESTAMP() throws Exception {
+    executeUpdate("create table data(id integer, colname timestamp)");
+    executeUpdate("insert into data(id) values(1)");
+    Calendar cal = Calendar.getInstance(TimeZone.getDefault());
+    cal.set(Calendar.YEAR, 2004);
+    cal.set(Calendar.MONTH, Calendar.OCTOBER);
+    cal.set(Calendar.DATE, 6);
+    cal.set(Calendar.HOUR, 9);
+    cal.set(Calendar.MINUTE, 15);
+    cal.set(Calendar.SECOND, 30);
+    String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<ID SQLType=\"INTEGER\">1</ID>"
+        + "<COLNAME SQLType=\"TIMESTAMP\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -241,7 +320,33 @@ public class TupleReaderTest {
     String result = generateXml(rs);
     assertEquals(golden, result);
   }
-  
+
+  @Test
+  public void testNullTIME() throws Exception {
+    executeUpdate("create table data(id integer, colname time)");
+    executeUpdate("insert into data(id) values(1)");
+    // H2 returns a java.sql.Date with the date set to 1970-01-01.
+    Calendar cal = Calendar.getInstance(TimeZone.getDefault());
+    cal.set(Calendar.YEAR, 1970);
+    cal.set(Calendar.MONTH, Calendar.JANUARY);
+    cal.set(Calendar.DATE, 1);
+    cal.set(Calendar.HOUR, 9);
+    cal.set(Calendar.MINUTE, 15);
+    cal.set(Calendar.SECOND, 30);
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<ID SQLType=\"INTEGER\">1</ID>"
+        + "<COLNAME SQLType=\"TIME\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
   /**
    * Test BLOB column.
    */
@@ -280,6 +385,24 @@ public class TupleReaderTest {
         + "<COLNAME SQLType=\"BLOB\" encoding=\"base64binary\">"
         + base64BlobData
         + "</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testNullBLOB() throws Exception {
+    executeUpdate("create table data(id integer, colname blob)");
+    executeUpdate("insert into data(id) values(1)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<ID SQLType=\"INTEGER\">1</ID>"
+        + "<COLNAME SQLType=\"BLOB\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";

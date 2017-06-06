@@ -25,6 +25,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
+import java.io.StringReader;
 import java.io.Writer;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -151,20 +152,14 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         atts.addAttribute("", "SQLType", "SQLType", "NMTOKEN", sqlTypeName);
       }
       log.fine("sqlTypeName: " + sqlTypeName);
-      if (resultSet.getObject(col) == null) {
-        atts.addAttribute("", "ISNULL", "ISNULL", "NMTOKEN", "true");
-        handler.startElement("", columnName, columnName, atts);
-        handler.endElement("", columnName, columnName);
-        continue;
-      }
       switch (sqlType) {
         case Types.DATE:
           Date dateValue = resultSet.getDate(col);
           if (dateValue != null) {
-            try (Writer writer =
+            try (Writer outWriter =
                 new BufferedWriter(new ContentHandlerWriter(handler))) {
               handler.startElement("", columnName, columnName, atts);
-              writer.write(DATEFMT.format(dateValue));
+              outWriter.write(DATEFMT.format(dateValue));
             }
           }
           break;
@@ -173,7 +168,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           // parameter.
           Timestamp tsValue = resultSet.getTimestamp(col);
           if (tsValue != null) {
-            try (Writer writer =
+            try (Writer outWriter =
                 new BufferedWriter(new ContentHandlerWriter(handler))) {
               handler.startElement("", columnName, columnName, atts);
               String timezone = TIMEZONEFMT.format(tsValue);
@@ -181,7 +176,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
               timezone =
                   timezone.substring(0, timezone.length() - 2) + ":"
                       + timezone.substring(timezone.length() - 2);
-              writer.write(DATEFMT.format(tsValue) + "T"
+              outWriter.write(DATEFMT.format(tsValue) + "T"
                   + TIMEFMT.format(tsValue) + timezone);
             }
           }
@@ -189,7 +184,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.TIME:
           Time timeValue = resultSet.getTime(col);
           if (timeValue != null) {
-            try (Writer writer =
+            try (Writer outWriter =
                 new BufferedWriter(new ContentHandlerWriter(handler))) {
               handler.startElement("", columnName, columnName, atts);
               String timezone = TIMEZONEFMT.format(timeValue);
@@ -197,7 +192,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
               timezone =
                   timezone.substring(0, timezone.length() - 2) + ":"
                       + timezone.substring(timezone.length() - 2);
-              writer.write(TIMEFMT.format(timeValue) + timezone);
+              outWriter.write(TIMEFMT.format(timeValue) + timezone);
             }
           }
           break;
@@ -258,14 +253,14 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.VARBINARY:
         case Types.LONGVARBINARY:
           try (InputStream lob = resultSet.getBinaryStream(col);
-              Writer writer =
+              Writer outWriter =
                   new BufferedWriter(new ContentHandlerWriter(handler))) {
             if (lob != null) {
               // so encode using Base64
               atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
                   "base64binary");
               handler.startElement("", columnName, columnName, atts);
-              encode(lob, writer);
+              encode(lob, outWriter);
             }
           }
           break;
@@ -286,53 +281,65 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.NUMERIC:
         case Types.DOUBLE:
         case Types.INTEGER:
-        case Types.CHAR:
-        case Types.VARCHAR:
           String string = resultSet.getString(col);
           if (string != null) {
-            try (Writer writer =
+            try (Writer outWriter =
                 new BufferedWriter(new ContentHandlerWriter(handler))) {
               handler.startElement("", columnName, columnName, atts);
-              writer.write(string);
+              outWriter.write(string);
             }
           }
           break;
+        case Types.CHAR:
+        case Types.VARCHAR:
         case Types.NCHAR:
+          String str = resultSet.getString(col);
+          if (str != null) {
+            try (Writer outWriter =
+                new BufferedWriter(new ContentHandlerWriter(handler))) {
+              handler.startElement("", columnName, columnName, atts);
+              copyValidXMLCharacters(new StringReader(str), outWriter);
+            }
+          }
+          break;
         case Types.NVARCHAR:
         case Types.LONGNVARCHAR:
           try (Reader reader = resultSet.getNCharacterStream(col);
-              Writer writer =
+              Writer outWriter =
                   new BufferedWriter(new ContentHandlerWriter(handler))) {
             if (reader != null) {
               handler.startElement("", columnName, columnName, atts);
-              copyValidXMLCharacters(reader, writer);
+              copyValidXMLCharacters(reader, outWriter);
             }
           }
           break;
         case Types.BIT:
         case Types.BOOLEAN:
-          Boolean value = resultSet.getBoolean(col);
+          Object value = resultSet.getObject(col);
           if (value != null) {
-            try (Writer writer =
+            try (Writer outWriter =
                 new BufferedWriter(new ContentHandlerWriter(handler))) {
               handler.startElement("", columnName, columnName, atts);
-              writer.write(String.valueOf(value));
+              outWriter.write(String.valueOf(value));
             }
           }
           break;
         case Types.OTHER:
         default:
-          string = resultSet.getString(col);
-          if (null == string) {
-            string = "" + resultSet.getObject(col);
-          } else {
-            try (Writer writer =
-                new BufferedWriter(new ContentHandlerWriter(handler))) {
-              handler.startElement("", columnName, columnName, atts);
-              writer.write(string);
-            }
+          str = resultSet.getString(col);
+          if (null == str) {
+            str = "" + resultSet.getObject(col);
+          }
+          try (Writer writer =
+              new BufferedWriter(new ContentHandlerWriter(handler))) {
+            handler.startElement("", columnName, columnName, atts);
+            writer.write(str);
           }
           break;
+      }
+      if (resultSet.wasNull()) {
+        atts.addAttribute("", "ISNULL", "ISNULL", "NMTOKEN", "true");
+        handler.startElement("", columnName, columnName, atts);
       }
       handler.endElement("", columnName, columnName);
     }
