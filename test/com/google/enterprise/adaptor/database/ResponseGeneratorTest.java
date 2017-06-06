@@ -33,6 +33,7 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -43,6 +44,7 @@ import java.nio.file.Files;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
@@ -166,6 +168,125 @@ public class ResponseGeneratorTest {
   }
 
   @Test
+  public void testContentColumnModeServesResultVarchar() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content varchar)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, content);
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testContentColumnModeNullContent() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content varchar)");
+    executeUpdate("insert into data(id) values (1)");
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals("", bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testContentColumnModeIncorrectColumnName() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content varchar)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, content);
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "wrongcolumn");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    thrown.expect(java.sql.SQLException.class);
+    resgen.generateResponse(rs, response);
+  }
+
+  @Test
+  public void testContentColumnModeServesResultVarbinary() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content varbinary)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setBytes(1, content.getBytes(UTF_8));
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testContentColumnModeNullBinaryContent() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content varbinary)");
+    executeUpdate("insert into data(id) values (1)");
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals("", bar.baos.toString(UTF_8.name()));
+  }
+
+  // TODO(bmj): collect log messages
+  @Test
+  public void testContentColumnModeInvalidColumnType() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content timestamp)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setTimestamp(1, new Timestamp(0L));
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals("", bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
   public void testBlobColumnModeServesResultBlob() throws Exception {
     String content = "hello world";
     executeUpdate("create table data(id int, content blob)");
@@ -184,6 +305,23 @@ public class ResponseGeneratorTest {
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
     assertEquals(content, bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testBlobColumnModeNullBlob() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content blob)");
+    executeUpdate("insert into data(id) values (1)");
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals("", bar.baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -238,6 +376,23 @@ public class ResponseGeneratorTest {
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
     assertEquals(content, bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testClobColumnModeNullClob() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content clob)");
+    executeUpdate("insert into data(id) values (1)");
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals("", bar.baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -678,6 +833,31 @@ public class ResponseGeneratorTest {
   }
 
   @Test
+  public void testUrlColumnModeContentTypeCol() throws Exception {
+    MockResponse uar = new MockResponse();
+    Response response = newProxyInstance(Response.class, uar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "url");
+    cfg.put("contentTypeCol", "contentType");
+
+    String content = "from a yellow url connection comes monty python";
+    File testFile = writeTempFile(content);
+    URI testUri = testFile.toURI();
+    testUri = new URI(testUri.getScheme(), "localhost", testUri.getPath(),
+        null);
+
+    executeUpdate("create table data(url varchar, contentType varchar)");
+    executeUpdate("insert into data(url, contentType) values ('" + testUri
+        + "', 'text/rtf')");
+
+    ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(content, uar.baos.toString(UTF_8.name()));
+    assertEquals("text/rtf", uar.contentType);
+  }
+
+  @Test
   public void testRowToHtmlModeServesResult() throws Exception {
     executeUpdate("create table data(id int, xyggy_col varchar)");
     executeUpdate(
@@ -752,14 +932,7 @@ public class ResponseGeneratorTest {
     Response response = newProxyInstance(Response.class, har);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("stylesheet", "not/a/valid/path.xsl");
+    thrown.expect(FileNotFoundException.class);
     ResponseGenerator resgen = ResponseGenerator.rowToHtml(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    // Assert that the column of interest appears as the content of some
-    // element in the HTML.
-    String content = har.baos.toString(UTF_8.name());
-    assertThat(content, containsString(">XYGGY_COL<"));
-    assertThat(content, containsString(">xyggy value<"));
   }
 }
