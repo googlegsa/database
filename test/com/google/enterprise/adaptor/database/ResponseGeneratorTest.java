@@ -939,10 +939,6 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToHtmlModeFailsToLoadStyleSheet() throws Exception {
-    executeUpdate("create table data(id int, xyggy_col varchar)");
-    executeUpdate(
-        "insert into data(id, xyggy_col) values (1, 'xyggy value')");
-
     MockResponse har = new MockResponse();
     Response response = newProxyInstance(Response.class, har);
     Map<String, String> cfg = new TreeMap<String, String>();
