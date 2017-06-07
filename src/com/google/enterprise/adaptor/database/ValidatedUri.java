@@ -42,7 +42,7 @@ class ValidatedUri {
     }
     try {
       // Basic syntax checking, with more understandable error messages.
-      // Also ensures the URI is a URL, not a URN.
+      // Also ensures the URI is a URL, not a URN, and is absolute.
       new URL(uriString);
       // Advanced syntax checking, with more cryptic error messages.
       uri = new URI(uriString);
@@ -52,10 +52,6 @@ class ValidatedUri {
       String reason = (index < 0)
           ? e.getMessage() : e.getMessage().substring(0, index);
       throw new URISyntaxException(uriString, reason);
-    }
-
-    if (!uri.isAbsolute()) {
-      throw new URISyntaxException(uriString, "relative URIs are not allowed");
     }
 
     if (Strings.isNullOrEmpty(uri.getHost())) {
