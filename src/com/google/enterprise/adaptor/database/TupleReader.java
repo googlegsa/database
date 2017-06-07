@@ -250,6 +250,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
             }
           }
           break;
+        case Types.BINARY:
         case Types.VARBINARY:
         case Types.LONGVARBINARY:
           try (InputStream lob = resultSet.getBinaryStream(col);
@@ -261,16 +262,6 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
                   "base64binary");
               handler.startElement("", columnName, columnName, atts);
               encode(lob, outWriter);
-            }
-          }
-          break;
-        case Types.LONGVARCHAR:
-          try (Reader reader = resultSet.getCharacterStream(col);
-              Writer writer =
-                  new BufferedWriter(new ContentHandlerWriter(handler))) {
-            if (reader != null) {
-              handler.startElement("", columnName, columnName, atts);
-              copyValidXMLCharacters(reader, writer);
             }
           }
           break;
@@ -293,23 +284,33 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.CHAR:
         case Types.VARCHAR:
         case Types.NCHAR:
-          String str = resultSet.getString(col);
-          if (str != null) {
+        case Types.NVARCHAR:
+          string = resultSet.getString(col);
+          if (string != null) {
             try (Writer outWriter =
                 new BufferedWriter(new ContentHandlerWriter(handler))) {
               handler.startElement("", columnName, columnName, atts);
-              copyValidXMLCharacters(new StringReader(str), outWriter);
+              copyValidXMLCharacters(new StringReader(string), outWriter);
             }
           }
           break;
-        case Types.NVARCHAR:
-        case Types.LONGNVARCHAR:
-          try (Reader reader = resultSet.getNCharacterStream(col);
-              Writer outWriter =
+        case Types.LONGVARCHAR:
+          try (Reader reader = resultSet.getCharacterStream(col);
+              Writer writer =
                   new BufferedWriter(new ContentHandlerWriter(handler))) {
             if (reader != null) {
               handler.startElement("", columnName, columnName, atts);
-              copyValidXMLCharacters(reader, outWriter);
+              copyValidXMLCharacters(reader, writer);
+            }
+          }
+          break;
+        case Types.LONGNVARCHAR:
+          try (Reader nReader = resultSet.getNCharacterStream(col);
+              Writer outWriter =
+                  new BufferedWriter(new ContentHandlerWriter(handler))) {
+            if (nReader != null) {
+              handler.startElement("", columnName, columnName, atts);
+              copyValidXMLCharacters(nReader, outWriter);
             }
           }
           break;
@@ -326,14 +327,14 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           break;
         case Types.OTHER:
         default:
-          str = resultSet.getString(col);
-          if (null == str) {
-            str = "" + resultSet.getObject(col);
+          string = resultSet.getString(col);
+          if (null == string) {
+            string = "" + resultSet.getObject(col);
           }
           try (Writer writer =
               new BufferedWriter(new ContentHandlerWriter(handler))) {
             handler.startElement("", columnName, columnName, atts);
-            writer.write(str);
+            writer.write(string);
           }
           break;
       }

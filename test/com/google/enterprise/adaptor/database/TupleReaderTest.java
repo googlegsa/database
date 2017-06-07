@@ -77,26 +77,6 @@ public class TupleReaderTest {
     trans.transform(source, des);
     return writer.toString();
   }
-  
-  /**
-   * Test null value uses "ISNULL" attribute.
-   */
-  @Test
-  public void testNULL() throws Exception {
-    executeUpdate("create table data(colname varchar)");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"VARCHAR\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
-  }
 
   /**
    * Test varchar column.
@@ -119,14 +99,13 @@ public class TupleReaderTest {
   }
 
   @Test
-  public void testNullVARCHAR() throws Exception {
-    executeUpdate("create table data(id integer, colname varchar)");
-    executeUpdate("insert into data(id) values(1)");
+  public void testVarchar_null() throws Exception {
+    executeUpdate("create table data(colname varchar)");
+    executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<ID SQLType=\"INTEGER\">1</ID>"
         + "<COLNAME SQLType=\"VARCHAR\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
@@ -158,13 +137,12 @@ public class TupleReaderTest {
 
   @Test
   public void testNullChar() throws Exception {
-    executeUpdate("create table data(id integer, colname char)");
-    executeUpdate("insert into data(id) values(1)");
+    executeUpdate("create table data(colname char)");
+    executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<ID SQLType=\"INTEGER\">1</ID>"
         + "<COLNAME SQLType=\"CHAR\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
@@ -196,14 +174,50 @@ public class TupleReaderTest {
 
   @Test
   public void testNullINTEGER() throws Exception {
-    executeUpdate("create table data(id integer, colname integer)");
-    executeUpdate("insert into data(id) values(1)");
+    executeUpdate("create table data(colname integer)");
+    executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<ID SQLType=\"INTEGER\">1</ID>"
         + "<COLNAME SQLType=\"INTEGER\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  /**
+   * Test boolean column.
+   */
+  @Test
+  public void testBOOLEAN() throws Exception {
+    executeUpdate("create table data(colname boolean)");
+    executeUpdate("insert into data(colname) values(true)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"BOOLEAN\">true</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testNullBOOLEAN() throws Exception {
+    executeUpdate("create table data(colname boolean)");
+    executeUpdate("insert into data(colname) values(null)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"BOOLEAN\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -234,13 +248,12 @@ public class TupleReaderTest {
 
   @Test
   public void testNullDATE() throws Exception {
-    executeUpdate("create table data(id integer, colname date)");
-    executeUpdate("insert into data(id) values(1)");
+    executeUpdate("create table data(colname date)");
+    executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<ID SQLType=\"INTEGER\">1</ID>"
         + "<COLNAME SQLType=\"DATE\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
@@ -284,8 +297,8 @@ public class TupleReaderTest {
 
   @Test
   public void testNullTIMESTAMP() throws Exception {
-    executeUpdate("create table data(id integer, colname timestamp)");
-    executeUpdate("insert into data(id) values(1)");
+    executeUpdate("create table data(colname timestamp)");
+    executeUpdate("insert into data(colname) values(null)");
     Calendar cal = Calendar.getInstance(TimeZone.getDefault());
     cal.set(Calendar.YEAR, 2004);
     cal.set(Calendar.MONTH, Calendar.OCTOBER);
@@ -297,7 +310,6 @@ public class TupleReaderTest {
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<ID SQLType=\"INTEGER\">1</ID>"
         + "<COLNAME SQLType=\"TIMESTAMP\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
@@ -341,8 +353,8 @@ public class TupleReaderTest {
 
   @Test
   public void testNullTIME() throws Exception {
-    executeUpdate("create table data(id integer, colname time)");
-    executeUpdate("insert into data(id) values(1)");
+    executeUpdate("create table data(colname time)");
+    executeUpdate("insert into data(colname) values(null)");
     // H2 returns a java.sql.Date with the date set to 1970-01-01.
     Calendar cal = Calendar.getInstance(TimeZone.getDefault());
     cal.set(Calendar.YEAR, 1970);
@@ -355,7 +367,6 @@ public class TupleReaderTest {
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<ID SQLType=\"INTEGER\">1</ID>"
         + "<COLNAME SQLType=\"TIME\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
@@ -413,14 +424,95 @@ public class TupleReaderTest {
 
   @Test
   public void testNullBLOB() throws Exception {
-    executeUpdate("create table data(id integer, colname blob)");
-    executeUpdate("insert into data(id) values(1)");
+    executeUpdate("create table data(colname blob)");
+    executeUpdate("insert into data(colname) values(null)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"BLOB\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  /**
+   * Test CLOB column.
+   */
+  @Test
+  public void testCLOB() throws Exception {
+    String clobData =
+        " Google's indices consist of information that has been"
+            + " identified, indexed and compiled through an automated"
+            + " process with no advance review by human beings. Given"
+            + " the enormous volume of web site information added,"
+            + " deleted, and changed on a frequent basis, Google cannot"
+            + " and does not screen anything made available through its"
+            + " indices. For each web site reflected in Google's"
+            + " indices, if either (i) a site owner restricts access to"
+            + " his or her web site or (ii) a site is taken down from"
+            + " the web, then, upon receipt of a request by the site"
+            + " owner or a third party in the second instance, Google"
+            + " would consider on a case-by-case basis requests to"
+            + " remove the link to that site from its indices. However,"
+            + " if the operator of the site does not take steps to"
+            + " prevent it, the automatic facilities used to create"
+            + " the indices are likely to find that site and index it"
+            + " again in a relatively short amount of time.";
+    executeUpdate("create table data(colname clob)");
+    String sql = "insert into data(colname) values (?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setBinaryStream(1, new ByteArrayInputStream(clobData.getBytes(UTF_8)));
+      assertEquals(1, ps.executeUpdate());
+    }
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"CLOB\">"
+        + clobData
+        + "</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testNullCLOB() throws Exception {
+    executeUpdate("create table data(colname clob)");
+    executeUpdate("insert into data(colname) values(null)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"CLOB\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testmultipleTypes() throws Exception {
+    executeUpdate("create table data(id integer, name varchar, "
+        + "modified date)");
+    executeUpdate("insert into data(id, name, modified) "
+        + "values(1, 'file.txt', null)");
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
         + "<ID SQLType=\"INTEGER\">1</ID>"
-        + "<COLNAME SQLType=\"BLOB\" ISNULL=\"true\"/>"
+        + "<NAME SQLType=\"VARCHAR\">file.txt</NAME>"
+        + "<MODIFIED SQLType=\"DATE\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
