@@ -240,13 +240,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           "db.everyDocIdSql cannot be an empty string");
     }
 
-    // Warn about ignored properties.
-    if (!ignored.isEmpty()) {
-      // Avoid MessageFormat-style for testability.
-      log.log(Level.INFO,
-          "The following properties are set but will be ignored: " + ignored);
-    }
-
     respGenerator = loadResponseGenerator(cfg);
     
     if (!isNullOrEmptyString(cfg.getValue("db.aclSql"))) {
@@ -259,10 +252,13 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     disableStreaming = new Boolean(cfg.getValue("db.disableStreaming"));
     log.config("disableStreaming: " + disableStreaming);
 
-    DbAdaptorIncrementalLister incrementalLister
-        = initDbAdaptorIncrementalLister(cfg);
-    if (incrementalLister != null) {
-      context.setPollingIncrementalLister(incrementalLister);
+    String updateSql = cfg.getValue("db.updateSql");
+    String tzString = cfg.getValue("db.updateTimestampTimezone");
+    if (!updateSql.isEmpty()) {
+      context.setPollingIncrementalLister(
+          new DbAdaptorIncrementalLister(updateSql, tzString));
+    } else if (!tzString.isEmpty()) {
+      ignored.add("db.updateTimestampTimezone");
     }
 
     if (aclSql == null) {
@@ -274,12 +270,21 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     aclNamespace = cfg.getValue("adaptor.namespace");
     log.config("namespace: " + aclNamespace);
 
+    // Warn about ignored properties.
+    if (!ignored.isEmpty()) {
+      // Avoid MessageFormat-style for testability.
+      log.log(Level.INFO,
+          "The following properties are set but will be ignored: " + ignored);
+    }
+
     // Verify all column names.
     try (Connection conn = makeNewConnection()) {
       Map<String, Integer> columnTypes =
           verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
               "db.uniqueKey", uniqueKey.getDocIdSqlColumns());
       uniqueKey.addColumnTypes(columnTypes);
+      verifyColumnNames(conn, "db.updateSql", updateSql,
+          "db.uniqueKey", uniqueKey.getDocIdSqlColumns());
       verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
           "db.singleDocContentSqlParameters", uniqueKey.getContentSqlColumns());
       verifyColumnNames(conn, "db.aclSql", aclSql,
@@ -291,6 +296,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       if (metadataColumns != null) {
         if ("urlAndMetadataLister".equals(modeOfOperation)) {
           verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
+              "db.metadataColumns", metadataColumns.keySet());
+          verifyColumnNames(conn, "db.updateSql", updateSql,
               "db.metadataColumns", metadataColumns.keySet());
         } else {
           verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
@@ -867,14 +874,21 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   // next full push to be sent to GSA.
   private class DbAdaptorIncrementalLister implements PollingIncrementalLister {
     private final String updateSql;
-    private Calendar updateTimestampTimezone;
+    private final Calendar updateTimestampTimezone;
     private Timestamp lastUpdateTimestamp;
     private final DateFormat formatter;
 
-    public DbAdaptorIncrementalLister(String updateSql, Calendar updateTsTz) {
+    public DbAdaptorIncrementalLister(String updateSql, String tzString) {
       this.updateSql = updateSql;
-      this.updateTimestampTimezone = updateTsTz;
+      if (isNullOrEmptyString(tzString)) {
+        updateTimestampTimezone = Calendar.getInstance();
+      } else {
+        updateTimestampTimezone =
+            Calendar.getInstance(TimeZone.getTimeZone(tzString));
+      }
       log.config("update sql: " + this.updateSql);
+      log.config("updateTimestampTimezone: "
+          + updateTimestampTimezone.getTimeZone().getDisplayName());
       this.lastUpdateTimestamp = new Timestamp(System.currentTimeMillis());
       formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z");
       formatter.setTimeZone(updateTimestampTimezone.getTimeZone());
@@ -884,7 +898,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     public void getModifiedDocIds(DocIdPusher pusher)
         throws IOException, InterruptedException {
       BufferedPusher outstream = new BufferedPusher(pusher);
-      // latestTimestamp will be used to update lastUpdateTimestampInMillis
+      // latestTimestamp will be used to update lastUpdateTimestamp
       // if GSA_TIMESTAMP column is present in the ResultSet and there is at 
       // least one non-null value of that column in the ResultSet.
       Timestamp latestTimestamp = null;
@@ -949,26 +963,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
   }
 
-  private DbAdaptorIncrementalLister initDbAdaptorIncrementalLister(
-      Config config) {
-    String tzString = config.getValue("db.updateTimestampTimezone");
-    final Calendar updateTimestampTimezone;
-    if (isNullOrEmptyString(tzString)) {
-      updateTimestampTimezone = Calendar.getInstance();
-    } else {
-      updateTimestampTimezone =
-          Calendar.getInstance(TimeZone.getTimeZone(tzString));
-    }
-    log.config("updateTimestampTimezone: "
-        + updateTimestampTimezone.getTimeZone().getDisplayName());
-    String updateSql = config.getValue("db.updateSql");
-    if (!isNullOrEmptyString(updateSql)) {
-      return new DbAdaptorIncrementalLister(updateSql, updateTimestampTimezone);
-    } else {
-      return null;
-    }
-  }
-  
   @VisibleForTesting
   enum GsaSpecialColumns {
     GSA_PERMIT_USERS,

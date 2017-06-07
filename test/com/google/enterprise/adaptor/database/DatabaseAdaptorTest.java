@@ -42,6 +42,7 @@ import com.google.enterprise.adaptor.DocId;
 import com.google.enterprise.adaptor.GroupPrincipal;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Metadata;
+import com.google.enterprise.adaptor.PollingIncrementalLister;
 import com.google.enterprise.adaptor.Response;
 import com.google.enterprise.adaptor.StartupException;
 import com.google.enterprise.adaptor.TestHelper;
@@ -58,12 +59,15 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -79,7 +83,9 @@ public class DatabaseAdaptorTest {
   //     Tests that use getObjectUnderTest
   //         init
   //         getDocIds
+  //         getModifiedDocIds
   //         getDocContent
+  //         isUserAuthorized
   //
   // Test names: test<Method><Feature>_<testCase>
 
@@ -1038,6 +1044,26 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitUpdateSql_ignoredProperties() throws Exception {
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.updateTimestampTimezone", "GMT-8");
+    // Required for validation, but not specific to this test.
+    executeUpdate("create table data(id int)");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class, "will be ignored", messages);
+    getObjectUnderTest(moreEntries);
+    assertEquals(messages.toString(), 1, messages.size());
+    assertThat(messages.get(0),
+        containsString("[db.updateTimestampTimezone]"));
+  }
+
+  @Test
   public void testInitVerifyColumnNames_uniqueKey() throws Exception {
     executeUpdate("create table data(id int, other varchar)");
 
@@ -1046,6 +1072,24 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "select other from data");
     // Required for validation, but not specific to this test.
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[id] not found in query");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitVerifyColumnNames_uniqueKey_updateSql() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.updateSql", "select other from data");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
 
@@ -1099,6 +1143,25 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.uniqueKey", "url:string");
     moreEntries.put("db.everyDocIdSql", "select url from data");
     moreEntries.put("db.metadataColumns", "other:other");
+
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[other] not found in query");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitVerifyColumnNames_urlAndMetadata_updateSql()
+      throws Exception {
+    executeUpdate("create table data(url varchar, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    moreEntries.put("db.updateSql", "select url from data");
+    moreEntries.put("db.metadataColumns", "other:other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select url, other from data");
 
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[other] not found in query");
@@ -1354,6 +1417,283 @@ public class DatabaseAdaptorTest {
             new Record.Builder(new DocId("1")).setMetadata(null).build(),
             new Record.Builder(new DocId("2")).setMetadata(null).build()),
         pusher.getRecords());
+  }
+
+  @Test
+  public void testGetDocIds_nullPusher() throws Exception {
+    // Required for validation, but not specific to this test.
+    executeUpdate("create table data(id integer)");
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+
+    // Of course this throws a NullPointerException, but the point is that
+    // it throws without ever pushing a record, for more predicatability.
+    thrown.expect(NullPointerException.class);
+    adaptor.getDocIds(null);
+  }
+
+  private PollingIncrementalLister getPollingIncrementalLister(
+      Map<String, String> moreEntries) throws Exception {
+    Holder<RecordingContext> contextHolder = new Holder<>();
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries, contextHolder);
+    return contextHolder.get().getPollingIncrementalLister();
+  }
+
+  @Test
+  public void testGetModifiedDocIds() throws Exception {
+    // Subtract time to show the records as unchanged.
+    // Add time to show the records as modified.
+    executeUpdate("create table data(id integer, "
+        + "other varchar default 'hello, world', ts timestamp)");
+    executeUpdate("insert into data(id, ts) values "
+        + "(1, dateadd('minute', 1, current_timestamp())),"
+        + "(2, dateadd('minute', 2, current_timestamp())),"
+        + "(3, dateadd('minute', 1, current_timestamp())),"
+        + "(4, dateadd('minute', -1, current_timestamp()))");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.updateSql",
+        "select id from data where ts >= ? order by id");
+    moreEntries.put("db.metadataColumns", "other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    List<Record> golden =
+        Arrays.asList(
+            new Record.Builder(new DocId("1"))
+                .setMetadata(null).setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("2"))
+                .setMetadata(null).setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("3"))
+                .setMetadata(null).setCrawlImmediately(true).build());
+
+    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    lister.getModifiedDocIds(pusher);
+    assertEquals(golden, pusher.getRecords());
+
+    // Without a GSA_TIMESTAMP column, we continue using the current time.
+    pusher.reset();
+    lister.getModifiedDocIds(pusher);
+    assertEquals(golden, pusher.getRecords());
+  }
+
+  @Test
+  public void testGetModifiedDocIds_gsaTimestamp() throws Exception {
+    // Subtract time to show the records as unchanged.
+    // Add time to show the records as modified.
+    executeUpdate("create table data(id integer, ts timestamp)");
+    executeUpdate("insert into data(id, ts) values "
+        + "(1, dateadd('minute', 1, current_timestamp())),"
+        + "(2, dateadd('minute', 2, current_timestamp())),"
+        + "(3, dateadd('minute', 1, current_timestamp())),"
+        + "(4, dateadd('minute', -1, current_timestamp()))");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.updateSql",
+        "select id, ts as gsa_timestamp from data where ts >= ? order by id");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    lister.getModifiedDocIds(pusher);
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("1"))
+                .setMetadata(null).setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("2"))
+                .setMetadata(null).setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("3"))
+                .setMetadata(null).setCrawlImmediately(true).build()),
+        pusher.getRecords());
+
+    // With a GSA_TIMESTAMP column, we use the latest timestamp value.
+    pusher.reset();
+    lister.getModifiedDocIds(pusher);
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("2"))
+                .setMetadata(null).setCrawlImmediately(true).build()),
+        pusher.getRecords());
+  }
+
+  @Test
+  public void testGetModifiedDocIds_nullGsaTimestamp() throws Exception {
+    // Subtract time to show the records as unchanged.
+    // Add time to show the records as modified.
+    executeUpdate("create table data(id integer, ts timestamp)");
+    executeUpdate("insert into data(id, ts) values "
+        + "(1, dateadd('minute', 1, current_timestamp())),"
+        + "(2, dateadd('minute', 2, current_timestamp())),"
+        + "(3, dateadd('minute', 1, current_timestamp())),"
+        + "(4, dateadd('minute', -1, current_timestamp()))");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.updateSql",
+        "select id, null as gsa_timestamp from data where ts >= ? order by id");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    List<Record> golden =
+        Arrays.asList(
+            new Record.Builder(new DocId("1"))
+                .setMetadata(null).setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("2"))
+                .setMetadata(null).setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("3"))
+                .setMetadata(null).setCrawlImmediately(true).build());
+
+    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    lister.getModifiedDocIds(pusher);
+    assertEquals(golden, pusher.getRecords());
+
+    // With a null GSA_TIMESTAMP column, we continue using the current time.
+    pusher.reset();
+    lister.getModifiedDocIds(pusher);
+    assertEquals(golden, pusher.getRecords());
+  }
+
+  @Test
+  public void testGetModifiedDocIds_timezone() throws Exception {
+    // Add time to show the records as modified.
+    executeUpdate("create table data(id integer, ts timestamp)");
+    executeUpdate("insert into data(id, ts) values "
+        + "(1, dateadd('minute', 1, current_timestamp()))");
+
+    // Get the (possibly fictional or impossible) time zone to the east of us.
+    long offset = TimeZone.getDefault().getOffset(new Date().getTime());
+    long hours = TimeUnit.HOURS.convert(offset, TimeUnit.MILLISECONDS);
+    String aheadOneHour = String.format("GMT%+d", hours + 1);
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.updateSql",
+        "select id, ts as gsa_timestamp from data where ts >= ? order by id");
+    moreEntries.put("db.updateTimestampTimezone", aheadOneHour);
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    lister.getModifiedDocIds(pusher);
+    assertEquals(Arrays.asList(), pusher.getRecords());
+  }
+
+  @Test
+  public void testGetModifiedDocIds_urlAndMetadataLister() throws Exception {
+    // Add time to show the records as modified.
+    executeUpdate("create table data(url varchar,"
+        + " other varchar, ts timestamp)");
+    executeUpdate("insert into data(url, other, ts) values ('http://',"
+        + " 'hello world', dateadd('minute', 1, current_timestamp()))");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    moreEntries.put("db.updateSql",
+        "select url, other from data where ts >= ?");
+    moreEntries.put("db.metadataColumns", "other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select url, other from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where url = ?");
+
+    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    lister.getModifiedDocIds(pusher);
+
+    Metadata metadata = new Metadata();
+    metadata.add("other",  "hello world");
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("http://"))
+            .setMetadata(metadata).setCrawlImmediately(true).build()),
+        pusher.getRecords());
+  }
+
+  @Test
+  public void testGetModifiedDocIds_disableStreaming() throws Exception {
+    // Subtract time to show the records as unchanged.
+    // Add time to show the records as modified.
+    executeUpdate("create table data(id integer, ts timestamp)");
+    executeUpdate("insert into data(id, ts) values "
+        + "(1, dateadd('minute', 1, current_timestamp())),"
+        + "(2, dateadd('minute', 2, current_timestamp())),"
+        + "(3, dateadd('minute', 1, current_timestamp())),"
+        + "(4, dateadd('minute', -1, current_timestamp()))");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.updateSql",
+        "select id, ts as gsa_timestamp from data where ts >= ? order by id");
+    moreEntries.put("db.disableStreaming", "true");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    lister.getModifiedDocIds(pusher);
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("1"))
+                .setMetadata(null).setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("2"))
+                .setMetadata(null).setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("3"))
+                .setMetadata(null).setCrawlImmediately(true).build()),
+        pusher.getRecords());
+  }
+
+  @Test
+  public void testGetModifiedDocIds_sqlException() throws Exception {
+    // Create a SQLException by selecting an integer column as GSA_TIMESTAMP.
+    // Add time to show the records as modified.
+    executeUpdate("create table data(id integer, ts timestamp)");
+    executeUpdate("insert into data(id, ts) values "
+        + "(1, dateadd('minute', 1, current_timestamp()))");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.updateSql",
+        "select id, id as gsa_timestamp from data where ts >= ? order by id");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    thrown.expect(IOException.class);
+    thrown.expectCause(isA(SQLException.class));
+    lister.getModifiedDocIds(pusher);
   }
 
   @Test
