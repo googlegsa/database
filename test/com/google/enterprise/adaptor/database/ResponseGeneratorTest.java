@@ -21,6 +21,7 @@ import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
@@ -79,40 +80,46 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testMissingColumnNameForUrlMode() {
+  public void testUrlColumn_missingColumnName() {
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("property columnName is required");
     ResponseGenerator.urlColumn(Collections.<String, String>emptyMap());
   }
 
   @Test
-  public void testMissingColumnNameForFilepathMode() {
+  public void testFilepathColumn_missingColumnName() {
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("property columnName is required");
     ResponseGenerator.filepathColumn(Collections.<String, String>emptyMap());
   }
 
   @Test
-  public void testMissingColumnNameForBlobMode() {
+  public void testContentColumn_missingColumnName() {
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("property columnName is required");
     ResponseGenerator.contentColumn(Collections.<String, String>emptyMap());
   }
 
   @Test
-  public void testEmptyColumnNameForUrlMode() {
+  public void testUrlColumn_emptyColumnName() {
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("property columnName is required");
     ResponseGenerator.urlColumn(
         Collections.<String, String>singletonMap("columnName", ""));
   }
 
   @Test
-  public void testEmptyColumnNameForFilepathMode() {
+  public void tesFilepathColumn_emptyColumnName() {
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("property columnName is required");
     ResponseGenerator.filepathColumn(
         Collections.<String, String>singletonMap("columnName", ""));
   }
 
   @Test
-  public void testEmptyColumnNameForBlobMode() {
+  public void testContentColumn_emptyColumnName() {
     thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("property columnName is required");
     ResponseGenerator.contentColumn(
         Collections.<String, String>singletonMap("columnName", ""));
   }
@@ -171,7 +178,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testContentColumnModeServesResultVarchar() throws Exception {
+  public void testContentColumn_varchar() throws Exception {
     String content = "hello world";
     executeUpdate("create table data(id int, content varchar)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -192,8 +199,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testContentColumnModeNullContent() throws Exception {
-    String content = "hello world";
+  public void testContentColumn_nullVarchar() throws Exception {
     executeUpdate("create table data(id int, content varchar)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -209,7 +215,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testContentColumnModeIncorrectColumnName() throws Exception {
+  public void testContentColumn_incorrectColumnName() throws Exception {
     String content = "hello world";
     executeUpdate("create table data(id int, content varchar)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -230,7 +236,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testContentColumnModeServesResultVarbinary() throws Exception {
+  public void testContentColumn_varbinary() throws Exception {
     String content = "hello world";
     executeUpdate("create table data(id int, content varbinary)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -251,8 +257,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testContentColumnModeNullBinaryContent() throws Exception {
-    String content = "hello world";
+  public void testContentColumn_nullVarbinary() throws Exception {
     executeUpdate("create table data(id int, content varbinary)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -268,8 +273,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testContentColumnModeInvalidColumnType() throws Exception {
-    String content = "hello world";
+  public void testContentColumn_invalidType() throws Exception {
     executeUpdate("create table data(id int, content timestamp)");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
@@ -289,11 +293,11 @@ public class ResponseGeneratorTest {
         messages);
     resgen.generateResponse(rs, response);
     assertEquals("", bar.baos.toString(UTF_8.name()));
-    assertEquals(1, messages.size());
+    assertEquals(messages.toString(), 1, messages.size());
   }
 
   @Test
-  public void testBlobColumnModeServesResultBlob() throws Exception {
+  public void testContentColumn_blob() throws Exception {
     String content = "hello world";
     executeUpdate("create table data(id int, content blob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -314,8 +318,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testBlobColumnModeNullBlob() throws Exception {
-    String content = "hello world";
+  public void testContentColumn_nullBlob() throws Exception {
     executeUpdate("create table data(id int, content blob)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -328,27 +331,6 @@ public class ResponseGeneratorTest {
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
     assertEquals("", bar.baos.toString(UTF_8.name()));
-  }
-
-  @Test
-  public void testBlobColumnModeIncorrectColumnName() throws Exception {
-    String content = "hello world";
-    executeUpdate("create table data(id int, content blob)");
-    String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBytes(1, content.getBytes(UTF_8));
-      assertEquals(1, ps.executeUpdate());
-    }
-
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "wrongcolumn");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    thrown.expect(java.sql.SQLException.class);
-    resgen.generateResponse(rs, response);
   }
 
   @Test
@@ -364,7 +346,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testClobColumnModeServesResultClob() throws Exception {
+  public void testContentColumn_clob() throws Exception {
     String content = "hello world";
     executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -385,8 +367,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testClobColumnModeNullClob() throws Exception {
-    String content = "hello world";
+  public void testContentColumn_nullClob() throws Exception {
     executeUpdate("create table data(id int, content clob)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -402,28 +383,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testClobColumnModeIncorrectColumnName() throws Exception {
-    String content = "hello world";
-    executeUpdate("create table data(id int, content clob)");
-    String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
-
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "wrongcolumn");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    thrown.expect(java.sql.SQLException.class);
-    resgen.generateResponse(rs, response);
-  }
-
-  @Test
-  public void testFilepathColumnModeServesResult() throws Exception {
+  public void testFilepathColumn() throws Exception {
     MockResponse far = new MockResponse();
     Response response = newProxyInstance(Response.class, far);
     Map<String, String> cfg = new TreeMap<String, String>();
@@ -442,26 +402,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testFilepathColumnModeIncorrectColumnName() throws Exception {
-    MockResponse far = new MockResponse();
-    Response response = newProxyInstance(Response.class, far);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "wrongcolumn");
-    String content = "we live inside a file\nwe do\nyes";
-    File testFile = writeTempFile(content);
-
-    executeUpdate("create table data(filepath varchar)");
-    executeUpdate("insert into data(filepath) values ('"
-        + testFile.getAbsolutePath() + "')");
-
-    ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
-    ResultSet rs = executeQueryAndNext("select * from data");
-    thrown.expect(java.sql.SQLException.class);
-    resgen.generateResponse(rs, response);
-  }
- 
-  @Test
-  public void testUrlColumnModeServesResult() throws Exception {
+  public void testUrlColumn() throws Exception {
     MockResponse uar = new MockResponse();
     Response response = newProxyInstance(Response.class, uar);
     Map<String, String> cfg = new TreeMap<String, String>();
@@ -485,59 +426,66 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testUrlColumnModeIncorrectColumnName() throws Exception {
-    MockResponse far = new MockResponse();
-    Response response = newProxyInstance(Response.class, far);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "wrongcolumn");
+  public void testUrlAndMetadataLister_servesNoContent() throws Exception {
+    String content = "from a yellow url connection comes monty python";
+    File testFile = writeTempFile(content);
+    // File.toURI() produces file:/path/to/temp/file, which is invalid.
+    URI testUri = testFile.toURI();
+    testUri = new URI(testUri.getScheme(), "localhost", testUri.getPath(),
+                      null);
 
-    executeUpdate("create table data(url varchar)");
-    executeUpdate("insert into data(url) values ('some URL')");
-
-    ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
-    ResultSet rs = executeQueryAndNext("select * from data");
-    thrown.expect(java.sql.SQLException.class);
-    resgen.generateResponse(rs, response);
-  }
-
-  @Test
-  public void testUrlAndMetadataListerModeServesResult() throws Exception {
-    executeUpdate("create table data(url varchar)");
-    executeUpdate("insert into data() values ()");
+    executeUpdate("create table data(url varchar, col1 varchar)");
+    String sql = "insert into data(url, col1) values (?, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, testUri.toString());
+      ps.setString(2, "some metadata");
+      assertEquals(1, ps.executeUpdate());
+    }
 
     MockResponse uar = new MockResponse();
     Response response = newProxyInstance(Response.class, uar);
     Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("db.metadataColumns", "col1");
     ResponseGenerator resgen = ResponseGenerator.urlAndMetadataLister(cfg);
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
     assertEquals(true, uar.notFound);
     assertEquals("", uar.baos.toString(UTF_8.name()));
-    assertEquals(null, uar.contentType);
-    assertEquals(null, uar.displayUrl);
+    assertNull(uar.contentType);
+    assertNull(uar.displayUrl);
   }
 
   @Test
-  public void testUrlAndMetadataListerModeColumnName() throws Exception {
+  public void testUrlAndMetadataLister_ignoresColumnName() throws Exception {
     executeUpdate("create table data(url varchar)");
-    executeUpdate("insert into data() values ()");
-
-    MockResponse uar = new MockResponse();
-    Response response = newProxyInstance(Response.class, uar);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "anycolumn");
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(ResponseGenerator.class,
+        "urlAndMetadataLister mode ignores columnName", messages);
+    ResponseGenerator resgen = ResponseGenerator.urlAndMetadataLister(cfg);
+    assertEquals(messages.toString(), 1, messages.size());
+  }
+
+  @Test
+  public void testUrlAndMetadataLister_nullUrl() throws Exception {
+    executeUpdate("create table data(url varchar)");
+    executeUpdate("insert into data() values ()");
+
+    MockResponse uar = new MockResponse();
+    Response response = newProxyInstance(Response.class, uar);
+    Map<String, String> cfg = new TreeMap<String, String>();
     ResponseGenerator resgen = ResponseGenerator.urlAndMetadataLister(cfg);
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
     assertEquals(true, uar.notFound);
     assertEquals("", uar.baos.toString(UTF_8.name()));
-    assertEquals(null, uar.contentType);
-    assertEquals(null, uar.displayUrl);
+    assertNull(uar.contentType);
+    assertNull(uar.displayUrl);
   }
 
   @Test
-  public void testBlobColumnModeContentTypeOverrideAndContentTypeCol()
-      throws Exception {
+  public void testContentTypeColumn_contentTypeOverride() throws Exception {
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
@@ -549,7 +497,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testBlobColumnModeContentTypeOverride() throws Exception {
+  public void testContentColumn_contentTypeOverride() throws Exception {
     String content = "hello world";
     executeUpdate("create table data(id int, content blob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -573,7 +521,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testBlobColumnModeContentTypeCol() throws Exception {
+  public void testContentTypeColumn() throws Exception {
     String content = "hello world";
     executeUpdate(
         "create table data(id int, content blob, contentType varchar)");
@@ -599,12 +547,11 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testBlobColumnModeContentTypeCol_nullValue() throws Exception {
+  public void testContentTypeColumn_null() throws Exception {
     String content = "hello world";
     executeUpdate(
         "create table data(id int, content blob, contentType varchar)");
-    String sql =
-        "insert into data(id, content) values (1, ?)";
+    String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setBytes(1, content.getBytes(UTF_8));
       assertEquals(1, ps.executeUpdate());
@@ -624,16 +571,15 @@ public class ResponseGeneratorTest {
         "content type at col {0} is null", messages);
     resgen.generateResponse(rs, response);
     assertEquals(content, bar.baos.toString(UTF_8.name()));
-    assertEquals(null, bar.contentType);
-    assertEquals(1, messages.size());
+    assertNull(bar.contentType);
+    assertEquals(messages.toString(), 1, messages.size());
   }
 
   @Test
-  public void testBlobColumnModeDisplayUrlCol() throws Exception {
+  public void testDisplayUrlColumn() throws Exception {
     String content = "hello world";
     String url = "http://host/hard-coded-blob-display-url";
-    executeUpdate(
-        "create table data(id int, content blob, url varchar)");
+    executeUpdate("create table data(id int, content blob, url varchar)");
     String sql = "insert into data(id, content, url) values (1, ?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setBytes(1, content.getBytes(UTF_8));
@@ -655,10 +601,9 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testDisplayUrlCol_nullUrl() throws Exception {
+  public void testDisplayUrlColumn_nullUrl() throws Exception {
     String content = "hello world";
-    executeUpdate(
-        "create table data(id int, content blob, url varchar)");
+    executeUpdate("create table data(id int, content blob, url varchar)");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setBytes(1, content.getBytes(UTF_8));
@@ -678,16 +623,15 @@ public class ResponseGeneratorTest {
         "display url at col {0} is null", messages);
     resgen.generateResponse(rs, response);
     assertEquals(content, bar.baos.toString(UTF_8.name()));
-    assertEquals(null, bar.displayUrl);
-    assertEquals(1, messages.size());
+    assertNull(bar.displayUrl);
+    assertEquals(messages.toString(), 1, messages.size());
   }
 
   @Test
-  public void testDisplayUrlCol_invalidUrl() throws Exception {
+  public void testDisplayUrlColumn_invalidUrl() throws Exception {
     String content = "hello world";
     String url = "invalid-display-url";
-    executeUpdate(
-        "create table data(id int, content blob, url varchar)");
+    executeUpdate("create table data(id int, content blob, url varchar)");
     String sql = "insert into data(id, content, url) values (1, ?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setBytes(1, content.getBytes(UTF_8));
@@ -708,15 +652,14 @@ public class ResponseGeneratorTest {
          "override display url invalid:", messages);
     resgen.generateResponse(rs, response);
     assertEquals(content, bar.baos.toString(UTF_8.name()));
-    assertEquals(null, bar.displayUrl);
-    assertEquals(1, messages.size());
+    assertNull(bar.displayUrl);
+    assertEquals(messages.toString(), 1, messages.size());
   }
 
   @Test
   public void testUrlColumn_invalidUrl() throws Exception {
     String url = "invalid-url";
-    executeUpdate(
-        "create table data(id int, url varchar)");
+    executeUpdate("create table data(id int, url varchar)");
     String sql = "insert into data(id, url) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setString(1, url);
@@ -736,95 +679,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testClobColumnModeContentTypeOverrideAndContentTypeCol()
-      throws Exception {
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "my-clob-col");
-    cfg.put("contentTypeOverride", "dev/rubish");
-    cfg.put("contentTypeCol", "get-ct-here");
-    thrown.expect(InvalidConfigurationException.class);
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-  }
-
-  @Test
-  public void testClobColumnModeContentTypeOverride() throws Exception {
-    String content = "hello world";
-    executeUpdate("create table data(id int, content clob)");
-    String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
-
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    cfg.put("contentTypeOverride", "dev/rubish");
-    cfg.put("contentTypeCol", null); // Null should be ignored.
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
-    assertEquals("dev/rubish", bar.contentType);
-  }
-
-  @Test
-  public void testClobColumnModeContentTypeCol() throws Exception {
-    String content = "hello world";
-    executeUpdate(
-        "create table data(id int, content clob, contentType varchar)");
-    String sql =
-        "insert into data(id, content, contentType) values (1, ?, 'text/rtf')";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
-
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    cfg.put("contentTypeOverride", null); // Null should be ignored.
-    cfg.put("contentTypeCol", "contentType");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
-    assertEquals("text/rtf", bar.contentType);
-  }
-
-  @Test
-  public void testClobColumnModeDisplayUrlCol() throws Exception {
-    String content = "hello world";
-    String url = "http://host/hard-coded-clob-display-url";
-    executeUpdate("create table data(id int, content clob, url varchar)");
-    String sql = "insert into data(id, content, url) values (1, ?, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      ps.setString(2, url);
-      assertEquals(1, ps.executeUpdate());
-    }
-
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    cfg.put("displayUrlCol", "url");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
-    assertEquals(new URI(url), bar.displayUrl);
-  }
-
-  @Test
-  public void testUrlColumnModeDisplayUrlCol() throws Exception {
+  public void testUrlColumn_displayUrlCol() throws Exception {
     MockResponse uar = new MockResponse();
     Response response = newProxyInstance(Response.class, uar);
     Map<String, String> cfg = new TreeMap<String, String>();
@@ -848,7 +703,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testUrlColumnModeContentTypeCol() throws Exception {
+  public void testUrlColumn_contentTypeCol() throws Exception {
     MockResponse uar = new MockResponse();
     Response response = newProxyInstance(Response.class, uar);
     Map<String, String> cfg = new TreeMap<String, String>();
@@ -873,7 +728,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testRowToHtmlModeServesResult() throws Exception {
+  public void testRowToHtml() throws Exception {
     executeUpdate("create table data(id int, xyggy_col varchar)");
     executeUpdate(
         "insert into data(id, xyggy_col) values (1, 'xyggy value')");
@@ -894,7 +749,7 @@ public class ResponseGeneratorTest {
 
   /** Tests column names with spaces. */
   @Test
-  public void testRowToHtmlModeServesResultWithSpaces() throws Exception {
+  public void testRowToHtml_spacesInColumnNames() throws Exception {
     executeUpdate("create table data(id int, \"xyggy col\" varchar)");
     executeUpdate(
         "insert into data(id, \"xyggy col\") values (1, 'xyggy value')");
@@ -914,7 +769,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testRowToHtmlModeLoadsStyleSheet() throws Exception {
+  public void testRowToHtml_stylesheet() throws Exception {
     executeUpdate("create table data(id int, xyggy_col varchar)");
     executeUpdate(
         "insert into data(id, xyggy_col) values (1, 'xyggy value')");
@@ -938,7 +793,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testRowToHtmlModeFailsToLoadStyleSheet() throws Exception {
+  public void testRowToHtml_stylesheetNotFound() throws Exception {
     MockResponse har = new MockResponse();
     Response response = newProxyInstance(Response.class, har);
     Map<String, String> cfg = new TreeMap<String, String>();
