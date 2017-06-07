@@ -519,4 +519,92 @@ public class TupleReaderTest {
     String result = generateXml(rs);
     assertEquals(golden, result);
   }
+
+  @Test
+  public void testInvalidXmlChars() throws Exception {
+    StringBuilder input = new StringBuilder();
+    StringBuilder output = new StringBuilder();
+    for (char i = '\0'; i <= '\u001F'; i++) {
+      input.append(i);
+      output.append('\uFFFD');
+    }
+    input.append("\uFFFE\uFFFF");
+    output.append("\uFFFD\uFFFD");
+    output.setCharAt('\t', '\t');
+    output.setCharAt('\n', '\n');
+    output.replace('\r', '\r' + 1, "&#13;");
+
+    executeUpdate("create table data(colname varchar)");
+    String sql = "insert into data(colname) values (?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, input.toString());
+      assertEquals(1, ps.executeUpdate());
+    }
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"VARCHAR\">"
+        + output.toString()
+        + "</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  /** Test all Unicode BMP characters, plus some surrogate pairs. */
+  @Test
+  public void testValidXmlChars() throws Exception {
+    StringBuilder buf = new StringBuilder(10000000);
+    for (int i = 0x20; i <= 0xD7FF; i++) {
+      buf.append(Character.toChars(i));
+    }
+    for (int i = 0xE000; i <= 0xFFFD; i++) {
+      buf.append(Character.toChars(i));
+    }
+    // Include some surrogate pairs from musical symbols.
+    StringBuilder surrogates = new StringBuilder();
+    for (int i = 0x1D100; i < 0x1D108; i++) {
+      surrogates.append(Character.toChars(i));
+    }
+    assertEquals(16, surrogates.length());
+    buf.append(surrogates);
+    String content = buf.toString();
+
+    executeUpdate("create table data(colname varchar)");
+    String sql = "insert into data(colname) values (?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, content);
+      assertEquals(1, ps.executeUpdate());
+    }
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"VARCHAR\">"
+        + content
+        .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        .replace("\u007F", "&#127;")
+        .replace("\u0080\u0081\u0082\u0083\u0084\u0085\u0086\u0087",
+          "&#128;&#129;&#130;&#131;&#132;&#133;&#134;&#135;")
+        .replace("\u0088\u0089\u008A\u008B\u008C\u008D\u008E\u008F",
+          "&#136;&#137;&#138;&#139;&#140;&#141;&#142;&#143;")
+        .replace("\u0090\u0091\u0092\u0093\u0094\u0095\u0096\u0097",
+          "&#144;&#145;&#146;&#147;&#148;&#149;&#150;&#151;")
+        .replace("\u0098\u0099\u009A\u009B\u009C\u009D\u009E\u009F",
+            "&#152;&#153;&#154;&#155;&#156;&#157;&#158;&#159;")
+        .replace(surrogates.toString(),
+            "&#119040;&#119041;&#119042;&#119043;"
+            + "&#119044;&#119045;&#119046;&#119047;")
+        + "</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
 }

@@ -21,7 +21,6 @@ import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.AttributesImpl;
 import org.xml.sax.helpers.XMLFilterImpl;
 
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -156,8 +155,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.DATE:
           Date dateValue = resultSet.getDate(col);
           if (dateValue != null) {
-            try (Writer outWriter =
-                new BufferedWriter(new ContentHandlerWriter(handler))) {
+            try (Writer outWriter = new ContentHandlerWriter(handler)) {
               handler.startElement("", columnName, columnName, atts);
               outWriter.write(DATEFMT.format(dateValue));
             }
@@ -168,8 +166,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           // parameter.
           Timestamp tsValue = resultSet.getTimestamp(col);
           if (tsValue != null) {
-            try (Writer outWriter =
-                new BufferedWriter(new ContentHandlerWriter(handler))) {
+            try (Writer outWriter = new ContentHandlerWriter(handler)) {
               handler.startElement("", columnName, columnName, atts);
               String timezone = TIMEZONEFMT.format(tsValue);
               // java timezone not ISO compliant
@@ -184,8 +181,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.TIME:
           Time timeValue = resultSet.getTime(col);
           if (timeValue != null) {
-            try (Writer outWriter =
-                new BufferedWriter(new ContentHandlerWriter(handler))) {
+            try (Writer outWriter = new ContentHandlerWriter(handler)) {
               handler.startElement("", columnName, columnName, atts);
               String timezone = TIMEZONEFMT.format(timeValue);
               // java timezone not ISO compliant
@@ -200,8 +196,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           Blob blob = resultSet.getBlob(col);
           if (blob != null) {
             try (InputStream lob = resultSet.getBinaryStream(col);
-                Writer writer =
-                    new BufferedWriter(new ContentHandlerWriter(handler))) {
+                Writer writer = new ContentHandlerWriter(handler)) {
               // so encode using Base64
               atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
                   "base64binary");
@@ -219,11 +214,9 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.CLOB:
           Clob clob = resultSet.getClob(col);
           if (clob != null) {
-            try (Reader reader = clob.getCharacterStream();
-                Writer writer =
-                    new BufferedWriter(new ContentHandlerWriter(handler))) {
+            try (Reader reader = clob.getCharacterStream()) {
               handler.startElement("", columnName, columnName, atts);
-              copyValidXMLCharacters(reader, writer);
+              copyValidXmlCharacters(reader, handler);
             } finally {
               try {
                 clob.free();
@@ -236,11 +229,9 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.NCLOB:
           NClob nclob = resultSet.getNClob(col);
           if (nclob != null) {
-            try (Reader reader = resultSet.getNCharacterStream(col);
-                Writer writer =
-                    new BufferedWriter(new ContentHandlerWriter(handler))) {
+            try (Reader reader = resultSet.getNCharacterStream(col)) {
               handler.startElement("", columnName, columnName, atts);
-              copyValidXMLCharacters(reader, writer);
+              copyValidXmlCharacters(reader, handler);
             } finally {
               try {
                 nclob.free();
@@ -254,8 +245,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.VARBINARY:
         case Types.LONGVARBINARY:
           try (InputStream lob = resultSet.getBinaryStream(col);
-              Writer outWriter =
-                  new BufferedWriter(new ContentHandlerWriter(handler))) {
+              Writer outWriter = new ContentHandlerWriter(handler)) {
             if (lob != null) {
               // so encode using Base64
               atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
@@ -274,8 +264,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.INTEGER:
           String string = resultSet.getString(col);
           if (string != null) {
-            try (Writer outWriter =
-                new BufferedWriter(new ContentHandlerWriter(handler))) {
+            try (Writer outWriter = new ContentHandlerWriter(handler)) {
               handler.startElement("", columnName, columnName, atts);
               outWriter.write(string);
             }
@@ -287,30 +276,23 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.NVARCHAR:
           string = resultSet.getString(col);
           if (string != null) {
-            try (Writer outWriter =
-                new BufferedWriter(new ContentHandlerWriter(handler))) {
-              handler.startElement("", columnName, columnName, atts);
-              copyValidXMLCharacters(new StringReader(string), outWriter);
-            }
+            handler.startElement("", columnName, columnName, atts);
+            copyValidXmlCharacters(new StringReader(string), handler);
           }
           break;
         case Types.LONGVARCHAR:
-          try (Reader reader = resultSet.getCharacterStream(col);
-              Writer outWriter =
-                  new BufferedWriter(new ContentHandlerWriter(handler))) {
+          try (Reader reader = resultSet.getCharacterStream(col)) {
             if (reader != null) {
               handler.startElement("", columnName, columnName, atts);
-              copyValidXMLCharacters(reader, outWriter);
+              copyValidXmlCharacters(reader, handler);
             }
           }
           break;
         case Types.LONGNVARCHAR:
-          try (Reader nReader = resultSet.getNCharacterStream(col);
-              Writer outWriter =
-                  new BufferedWriter(new ContentHandlerWriter(handler))) {
+          try (Reader nReader = resultSet.getNCharacterStream(col)) {
             if (nReader != null) {
               handler.startElement("", columnName, columnName, atts);
-              copyValidXMLCharacters(nReader, outWriter);
+              copyValidXmlCharacters(nReader, handler);
             }
           }
           break;
@@ -318,8 +300,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.BOOLEAN:
           Object value = resultSet.getObject(col);
           if (value != null) {
-            try (Writer outWriter =
-                new BufferedWriter(new ContentHandlerWriter(handler))) {
+            try (Writer outWriter = new ContentHandlerWriter(handler)) {
               handler.startElement("", columnName, columnName, atts);
               outWriter.write(String.valueOf(value));
             }
@@ -331,8 +312,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           if (null == string) {
             string = "" + resultSet.getObject(col);
           }
-          try (Writer writer =
-              new BufferedWriter(new ContentHandlerWriter(handler))) {
+          try (Writer writer = new ContentHandlerWriter(handler)) {
             handler.startElement("", columnName, columnName, atts);
             writer.write(string);
           }
@@ -435,32 +415,27 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
 
   /**
    * Copies valid XML unicode characters as defined in the XML 1.0 standard -
-   * http://www.w3.org/TR/2000/REC-xml-20001006#NT-Char.
-   * Note: Writer should be a BufferedWriter since we write one byte at a time.
-   * 
-   * @return number of characters copied.
+   * http://www.w3.org/TR/2000/REC-xml-20001006#NT-Char
+   * Invalid characters are replaced by U+FFFD REPLACEMENT CHARACTER.
+   *
+   * Note: The XML standard refers to Unicode characters, but Java
+   * uses UTF-16 characters, including surrogates to represent
+   * characters U+10000 and beyond.
    */
-  private static int copyValidXMLCharacters(Reader in, Writer out)
-      throws IOException {
-    char[] buffer = new char[1024];
-    int len = in.read(buffer);
-    int total = 0;
-    int i = 0;
-    char current = 0;
-    while (len != -1) {
-      for (i = 0; i < len; i++) {
-        current = buffer[i];
-        if ((current == 0x9) || (current == 0xA) || (current == 0xD)
-            || ((current >= 0x20) && (current <= 0xD7FF))
-            || ((current >= 0xE000) && (current <= 0xFFFD))
-            || ((current >= 0x10000) && (current <= 0x10FFFF))) {
-          out.write(current);
-          total += 1;
+  private static void copyValidXmlCharacters(Reader in, ContentHandler handler)
+      throws IOException, SAXException {
+    char[] buffer = new char[8192];
+    int len;
+    while ((len = in.read(buffer)) != -1) {
+      for (int i = 0; i < len; i++) {
+        char current = buffer[i];
+        if (current != '\t' && current != '\n' && current != '\r'
+            && (current < '\u0020' || current > '\uFFFD')) {
+          buffer[i] = '\uFFFD'; // Unicode REPLACEMENT CHARACTER
         }
       }
-      len = in.read(buffer);
+      handler.characters(buffer, 0, len);
     }
-    return total;
   }
   
   private static int encode(InputStream inStream, Writer out, int bufferSize)
