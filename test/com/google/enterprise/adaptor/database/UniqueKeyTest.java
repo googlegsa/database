@@ -33,6 +33,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.util.Collections;
 import java.util.Random;
 
 /** Test cases for {@link UniqueKey}. */
@@ -127,56 +128,22 @@ public class UniqueKeyTest {
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage(
         "Invalid db.uniqueKey configuration: key name 'num' was repeated.");
-    UniqueKey uk = newUniqueKey("num:int,num:string");
-  }
-
-  @Test
-  public void testCaseSensitiveNameRepeatsAllowed() {
-    // If we have multiple column names that differ in both case and type,
-    // assume we have a database that supports case-sensitive column names
-    // and force the parameter column names to exactly match one of them.
-    UniqueKey uk = newUniqueKey("num:int,nuM:int,Num:string");
-    assertEquals(3, uk.numElementsForTest());
-    assertEquals("num", uk.nameForTest(0));
-    assertEquals("nuM", uk.nameForTest(1));
-    assertEquals("Num", uk.nameForTest(2));
-    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
-    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(1));
-    assertEquals(UniqueKey.ColumnType.STRING, uk.typeForTest(2));
-    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest("num"));
-    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest("nuM"));
-    assertEquals(UniqueKey.ColumnType.STRING, uk.typeForTest("Num"));
-    assertEquals(null, uk.typeForTest("NUM"));
-  }
-
-  @Test
-  public void testCaseInsensitiveNameNotAllowedIfCaseSensitiveKeys() {
-    // If we have multiple column names that differ in both case and type,
-    // assume we have a database that supports case-sensitive column names
-    // and force the parameter column names to exactly match one of them.
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("Unknown column 'ID'");
-    UniqueKey uk = newUniqueKey("id:int,Id:string", "ID", "ID");
-  }
-
-  @Test
-  public void testCaseInsensitiveNameAllowedIfNotCaseSensitiveKeys() {
-    // If there are no case variants in the unique key columns, we can be
-    // more lenient in looking up the associated types case-insensitively.
-    UniqueKey uk = newUniqueKey("id:int", "Id", "ID");
-    assertEquals(1, uk.numElementsForTest());
-    assertEquals("id", uk.nameForTest(0));
-    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
-    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest("id"));
-    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest("Id"));
-    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest("ID"));
+    UniqueKey uk = newUniqueKey("NUM:int,num:string");
   }
 
   @Test
   public void testBadDef() {
     thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("Invalid UniqueKey definition for 'strstr/string'.");
-    UniqueKey uk = newUniqueKey("numnum:int,strstr/string");
+    thrown.expectMessage("Invalid UniqueKey type 'invalid' for 'strstr'.");
+    UniqueKey uk = newUniqueKey("numnum:int,strstr:invalid");
+  }
+
+  @Test
+  public void testUnknownType() {
+    UniqueKey uk = newUniqueKey("id");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Unknown column type for the following columns: [id]");
+    uk.addColumnTypes(Collections.<String, Integer>emptyMap());
   }
 
   @Test

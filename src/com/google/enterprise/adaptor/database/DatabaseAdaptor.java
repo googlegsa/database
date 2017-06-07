@@ -279,8 +279,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     // Verify all column names.
     try (Connection conn = makeNewConnection()) {
-      verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
-          "db.uniqueKey", uniqueKey.getDocIdSqlColumns());
+      Map<String, Integer> columnTypes =
+          verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
+              "db.uniqueKey", uniqueKey.getDocIdSqlColumns());
+      uniqueKey.addColumnTypes(columnTypes);
       verifyColumnNames(conn, "db.updateSql", updateSql,
           "db.uniqueKey", uniqueKey.getDocIdSqlColumns());
       verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
@@ -327,18 +329,21 @@ public class DatabaseAdaptor extends AbstractAdaptor {
    * @param sql the SQL query; the query is prepared, but not executed
    * @param columnConfig the configuration property for the column names
    * @param columnNames the column names to verify
+   * @return a Map of columnName to Integer java.sql.Types
    * @throws InvalidConfigurationException if any of the columns are not found
    */
   @VisibleForTesting
-  static void verifyColumnNames(Connection conn, String sqlConfig, String sql,
-      String columnConfig, Collection<String> columnNames) {
+  static Map<String, Integer> verifyColumnNames(Connection conn,
+       String sqlConfig, String sql, String columnConfig,
+       Collection<String> columnNames) {
+    Map<String, Integer> typeMap = new HashMap<>();
     if (isNullOrEmptyString(sql)) {
       log.log(Level.FINEST,
           "Skipping validation of empty query {0}", sqlConfig);
-      return;
+      return typeMap;
     }
     if (columnNames.isEmpty()) {
-      return;
+      return typeMap;
     }
     log.log(Level.FINEST, "Looking for columns {0} in {1}",
         new Object[] { columnNames, sqlConfig });
@@ -367,6 +372,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
               "Matched column \"{0}\" as \"{1}\" in query {2}",
               new Object[] { match, actual, sqlConfig });
           targets.remove(match);
+          typeMap.put(match, rsmd.getColumnType(i));
         }
       }
       if (!targets.isEmpty()) {
@@ -385,6 +391,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           "Unable to validate configured column names for query {0}: {1}",
           new Object[] { sqlConfig, e });
     }
+    return typeMap;
   }
 
   /** Get all doc ids from database. */
