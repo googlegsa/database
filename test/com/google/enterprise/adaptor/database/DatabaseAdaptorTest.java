@@ -642,20 +642,6 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testInitUniqueKeyMissingType() throws Exception {
-    // Value of unique id cannot be "productid", because that is missing type.
-    // The value has to be something like "productid:int"
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.uniqueKey", "productid");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.everyDocIdSql", "");
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("Invalid UniqueKey definition");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
   public void testInitUniqueKeyInvalidType() throws Exception {
     // Type of unique key id value cannot be "notvalid", since it's invalid.
     // That cat be int, string, timestamp, date, time, and long.

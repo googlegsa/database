@@ -22,6 +22,7 @@ import com.google.enterprise.adaptor.InvalidConfigurationException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -75,36 +76,26 @@ class UniqueKey {
       log.fine("element: `" + e + "'");
       e = e.trim();
       String def[] = e.split(":", 2);
-      if (2 != def.length) {
-        String errmsg = "Invalid UniqueKey definition for '" + e + "'. Valid"
-            + " definition is 'column_name:type' where types can be int, string,"
-            + " timestamp, date, time and long.";
-        throw new InvalidConfigurationException(errmsg);
-      }
-      def[0] = def[0].trim();
-      def[1] = def[1].trim();
-      String name = def[0];
+      String name = def[0].trim();
       ColumnType type;
-      try {
-        type = ColumnType.valueOf(def[1].toUpperCase(US));
-      } catch (IllegalArgumentException iae) {
-        String errmsg = "Invalid UniqueKey type '" + def[1] + "'. Valid"
-            + " types are: " + ColumnType.values();
-        throw new InvalidConfigurationException(errmsg);
+      if (def.length == 1) {
+        // No type given. Try to get type from ResultSetMetaData later.
+        type = null;
+      } else {
+        String typeStr = def[1].trim();
+        try {
+          type = ColumnType.valueOf(typeStr.toUpperCase(US));
+        } catch (IllegalArgumentException iae) {
+          String errmsg = "Invalid UniqueKey type '" + typeStr
+              + "' for '" + name + "'. Valid types are: "
+              + Arrays.toString(ColumnType.values()).toLowerCase(US);
+          throw new InvalidConfigurationException(errmsg);
+        }
       }
-      if (tmpNames.contains(name)) {
+      if (tmpTypes.containsKey(name)) {
         String errmsg = "Invalid db.uniqueKey configuration: key name '"
             + name + "' was repeated.";
         throw new InvalidConfigurationException(errmsg);
-      } else if (tmpTypes.containsKey(name) && tmpTypes.get(name) != type) {
-        // The ukDecls contain two keys that differ only in case but are of
-        // different types. Force a case-sensitive type lookup by replacing
-        // the partial case-insensitive type map with a case-sensitive copy.
-        Map<String, ColumnType> caseSensitiveTypes = new TreeMap<>();
-        for (String nombre : tmpNames) {
-          caseSensitiveTypes.put(nombre, tmpTypes.get(nombre));
-        }
-        tmpTypes = caseSensitiveTypes;
       }
       tmpNames.add(name);
       tmpTypes.put(name, type);
@@ -116,7 +107,7 @@ class UniqueKey {
           + " The key must be a single string column when docId.isUrl=true.");
     }
     names = Collections.unmodifiableList(tmpNames);
-    types = Collections.unmodifiableMap(tmpTypes);
+    types = tmpTypes;
 
     if ("".equals(contentSqlColumns.trim())) {
       contentSqlCols = names;
@@ -139,7 +130,7 @@ class UniqueKey {
     for (String name : cols.split(",", 0)) {
       name = name.trim();
       if (!validNames.contains(name)) {
-        String errmsg = "Unknown column '" + name + "' from "+ paramConfig
+        String errmsg = "Unknown column '" + name + "' from " + paramConfig
             + " not found in db.uniqueKey: " + validNames;
         throw new InvalidConfigurationException(errmsg);
       }
@@ -158,6 +149,68 @@ class UniqueKey {
 
   List<String> getAclSqlColumns() {
     return aclSqlCols;
+  }
+
+  /**
+   * Attempt to extract ColumnTypes from the supplied Map
+   * of column names to java.sql.Type
+   *
+   * @param sqlTypes Map of column names to Integer java.sql.Types
+   */
+  void addColumnTypes(Map<String, Integer> sqlTypes) {
+    for (Map.Entry<String, Integer> entry : sqlTypes.entrySet()) {
+      if (types.get(entry.getKey()) != null) {
+        continue;
+      }
+      ColumnType type;
+      switch (entry.getValue()) {
+        case Types.BIT:
+        case Types.BOOLEAN:
+        case Types.TINYINT:
+        case Types.SMALLINT:
+        case Types.INTEGER:
+          type = ColumnType.INT;
+          break;
+        case Types.BIGINT:
+          type = ColumnType.LONG;
+          break;
+        case Types.CHAR:
+        case Types.VARCHAR:
+        case Types.LONGVARCHAR:
+        case Types.NCHAR:
+        case Types.NVARCHAR:
+        case Types.LONGNVARCHAR:
+        case Types.DATALINK:
+          type = ColumnType.STRING;
+          break;
+        case Types.DATE:
+          type = ColumnType.DATE;
+          break;
+        case Types.TIME:
+          type = ColumnType.TIME;
+          break;
+        case Types.TIMESTAMP:
+          type = ColumnType.TIMESTAMP;
+          break;
+        default:
+          String errmsg = "Invalid UniqueKey SQLtype '" + entry.getValue() + "'"
+              + " for " + entry.getKey() + ". Please set an explicit key type"
+              + " in db.uniqueKey.";
+          throw new InvalidConfigurationException(errmsg);
+      }
+      types.put(entry.getKey(), type);
+    }
+    ArrayList<String> badColumns = new ArrayList<>();
+    for (Map.Entry<String, ColumnType> entry : types.entrySet()) {
+      if (entry.getValue() == null) {
+        badColumns.add(entry.getKey());
+      }
+    }
+    if (!badColumns.isEmpty()) {
+      throw new InvalidConfigurationException("Unknown column type for the"
+          + " following columns: " + badColumns
+          + ". Please set explicit types in db.uniqueKey.");
+    }
   }
 
   String makeUniqueId(ResultSet rs, boolean encode) throws SQLException {
@@ -191,15 +244,10 @@ class UniqueKey {
           part = "" + rs.getLong(name);
           break;
         default:
-          String errmsg = "Invalid type '" + types.get(name) + "' for '"
-              + name + "'. Valid types are: int, string, timestamp, date"
-              + ", time and long.";
-          throw new AssertionError(errmsg);
+          throw new AssertionError("Invalid type for column " + name
+              + ": " + types.get(name));
       }
-      if (encode) {
-        part = encodeSlashInData(part);
-      }
-      sb.append("/").append(part);
+      sb.append("/").append(encodeSlashInData(part));
     }
     return sb.toString().substring(1);
   }
@@ -244,10 +292,8 @@ class UniqueKey {
           st.setLong(i + 1, Long.parseLong(valueOfCol));
           break;
         default:
-          String errmsg = "Invalid column type: `" + typeOfCol + "' for '"
-              + colName + "'. Valid column types are int, string, timestamp,"
-              + "date, time and long.";
-          throw new AssertionError(errmsg);
+          throw new AssertionError("Invalid type for column " + colName
+              + ": " + typeOfCol);
       }
     }
   }
