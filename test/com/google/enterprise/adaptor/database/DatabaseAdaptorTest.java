@@ -1547,24 +1547,27 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
 
-    List<Record> golden =
+    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    lister.getModifiedDocIds(pusher);
+    assertEquals(
         Arrays.asList(
             new Record.Builder(new DocId("1"))
                 .setMetadata(null).setCrawlImmediately(true).build(),
             new Record.Builder(new DocId("2"))
                 .setMetadata(null).setCrawlImmediately(true).build(),
             new Record.Builder(new DocId("3"))
-                .setMetadata(null).setCrawlImmediately(true).build());
-
-    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
-    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
-    lister.getModifiedDocIds(pusher);
-    assertEquals(golden, pusher.getRecords());
+                .setMetadata(null).setCrawlImmediately(true).build()),
+        pusher.getRecords());
 
     // With a GSA_TIMESTAMP column, we use the latest timestamp value.
     pusher.reset();
     lister.getModifiedDocIds(pusher);
-    assertEquals(Arrays.asList(golden.get(1)), pusher.getRecords());
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("2"))
+                .setMetadata(null).setCrawlImmediately(true).build()),
+        pusher.getRecords());
   }
 
   @Test
@@ -1657,7 +1660,6 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.singleDocContentSql",
         "select * from data where url = ?");
 
-
     PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
     RecordingDocIdPusher pusher = new RecordingDocIdPusher();
     lister.getModifiedDocIds(pusher);
@@ -1699,11 +1701,11 @@ public class DatabaseAdaptorTest {
     assertEquals(
         Arrays.asList(
             new Record.Builder(new DocId("1"))
-            .setMetadata(null).setCrawlImmediately(true).build(),
+                .setMetadata(null).setCrawlImmediately(true).build(),
             new Record.Builder(new DocId("2"))
-            .setMetadata(null).setCrawlImmediately(true).build(),
+                .setMetadata(null).setCrawlImmediately(true).build(),
             new Record.Builder(new DocId("3"))
-            .setMetadata(null).setCrawlImmediately(true).build()),
+                .setMetadata(null).setCrawlImmediately(true).build()),
         pusher.getRecords());
   }
 
