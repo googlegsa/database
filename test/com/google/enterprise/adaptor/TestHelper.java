@@ -21,17 +21,13 @@ import java.util.Map;
  * Utility methods for tests.
  *
  * <p>This code lives in adaptor package instead of adaptor.database package
- * to work around visibility of <code>Config</code> class.
+ * to work around visibility of <code>WrapperAdaptor</code> class.
  *
  * Copied from activedirectory repo at the same position.
  */
 public class TestHelper {
   // Prevent instantiation
   private TestHelper() {}
-
-  public static void setConfigValue(Config config, String key, String value) {
-    config.setValue(key, value);
-  }
 
   private static final SensitiveValueDecoder SENSITIVE_VALUE_DECODER
       = new SensitiveValueDecoder() {
@@ -41,28 +37,52 @@ public class TestHelper {
     }
   };
 
-  public static AdaptorContext createConfigAdaptorContext(final Config config) {
-    return new WrapperAdaptor.WrapperAdaptorContext(null) {
-      @Override
-      public Config getConfig() {
-        return config;
-      }
+  public static RecordingContext createConfigAdaptorContext(Config config) {
+    return new RecordingContext(config);
+  }
 
-      @Override
-      public void setPollingIncrementalLister(PollingIncrementalLister lister) {
-        // do nothing
-      }
+  /**
+   * A fake implementation of AdaptorContext that simply returns the
+   * values its given, and records the values it receives.
+   */
+  public static class RecordingContext
+      extends WrapperAdaptor.WrapperAdaptorContext {
+    private final Config config;
+    private PollingIncrementalLister lister;
+    private AuthzAuthority authzAuthority;
 
-      @Override
-      public SensitiveValueDecoder getSensitiveValueDecoder() {
-        return SENSITIVE_VALUE_DECODER;
-      }
+    private RecordingContext(Config config) {
+      super(null);
+      this.config = config;
+    }
 
-      @Override
-      public void setAuthzAuthority(AuthzAuthority authzAuthority) {
-        // do nothing
-      }
-    };
+    @Override
+    public Config getConfig() {
+      return config;
+    }
+
+    @Override
+    public void setPollingIncrementalLister(PollingIncrementalLister lister) {
+      this.lister = lister;
+    }
+
+    @Override
+    public SensitiveValueDecoder getSensitiveValueDecoder() {
+      return SENSITIVE_VALUE_DECODER;
+    }
+
+    @Override
+    public void setAuthzAuthority(AuthzAuthority authzAuthority) {
+      this.authzAuthority = authzAuthority;
+    }
+
+    public PollingIncrementalLister getPollingIncrementalLister() {
+      return lister;
+    }
+
+    public AuthzAuthority getAuthzAuthority() {
+      return authzAuthority;
+    }
   }
 
   @SuppressWarnings("unchecked")
