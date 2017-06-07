@@ -208,7 +208,8 @@ class UniqueKey {
     }
     if (!badColumns.isEmpty()) {
       throw new InvalidConfigurationException("Unknown column type for the"
-          + " following columns: " + badColumns);
+          + " following columns: " + badColumns
+          + ". Please set explicit types in db.uniqueKey.");
     }
   }
 
@@ -243,13 +244,10 @@ class UniqueKey {
           part = "" + rs.getLong(name);
           break;
         default:
-          String errmsg = "Unknown column type for '" + name + "'. "
-              + "Please set an explicit column type in db.uniqueKey.";
-          throw new AssertionError(errmsg);
+          throw new AssertionError("Invalid type for column " + name
+              + ": " + types.get(name));
       }
-      if (encode) {
-        part = encodeSlashInData(part);
-      }
+      part = encodeSlashInData(part);
       sb.append("/").append(part);
     }
     return sb.toString().substring(1);
@@ -295,9 +293,8 @@ class UniqueKey {
           st.setLong(i + 1, Long.parseLong(valueOfCol));
           break;
         default:
-          String errmsg = "Unknown column type for '" + colName + "'. "
-              + "Please set an explicit column type in db.uniqueKey.";
-          throw new AssertionError(errmsg);
+          throw new AssertionError("Invalid type for column " + colName
+              + ": " + typeOfCol);
       }
     }
   }
