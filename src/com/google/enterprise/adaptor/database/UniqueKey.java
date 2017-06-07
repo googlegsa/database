@@ -247,8 +247,7 @@ class UniqueKey {
           throw new AssertionError("Invalid type for column " + name
               + ": " + types.get(name));
       }
-      part = encodeSlashInData(part);
-      sb.append("/").append(part);
+      sb.append("/").append(encodeSlashInData(part));
     }
     return sb.toString().substring(1);
   }
