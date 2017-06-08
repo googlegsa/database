@@ -82,7 +82,7 @@ public class TupleReaderTest {
    * Test varchar column.
    */
   @Test
-  public void testVARCHAR() throws Exception {
+  public void testVarchar() throws Exception {
     executeUpdate("create table data(colname varchar)");
     executeUpdate("insert into data(colname) values('onevalue')");
     final String golden = ""
@@ -136,7 +136,7 @@ public class TupleReaderTest {
   }
 
   @Test
-  public void testNullChar() throws Exception {
+  public void testChar_null() throws Exception {
     executeUpdate("create table data(colname char)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
@@ -156,7 +156,7 @@ public class TupleReaderTest {
    * Test integer column.
    */
   @Test
-  public void testINTEGER() throws Exception {
+  public void testInteger() throws Exception {
     executeUpdate("create table data(colname integer)");
     executeUpdate("insert into data(colname) values(17)");
     final String golden = ""
@@ -173,7 +173,7 @@ public class TupleReaderTest {
   }
 
   @Test
-  public void testNullINTEGER() throws Exception {
+  public void testInteger_null() throws Exception {
     executeUpdate("create table data(colname integer)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
@@ -193,7 +193,7 @@ public class TupleReaderTest {
    * Test boolean column.
    */
   @Test
-  public void testBOOLEAN() throws Exception {
+  public void testBoolean() throws Exception {
     executeUpdate("create table data(colname boolean)");
     executeUpdate("insert into data(colname) values(true)");
     final String golden = ""
@@ -210,7 +210,7 @@ public class TupleReaderTest {
   }
 
   @Test
-  public void testNullBOOLEAN() throws Exception {
+  public void testBoolean_null() throws Exception {
     executeUpdate("create table data(colname boolean)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
@@ -230,7 +230,7 @@ public class TupleReaderTest {
    * Test date column.
    */
   @Test
-  public void testDATE() throws Exception {
+  public void testDate() throws Exception {
     executeUpdate("create table data(colname date)");
     executeUpdate("insert into data(colname) values({d '2004-10-06'})");
     final String golden = ""
@@ -247,7 +247,7 @@ public class TupleReaderTest {
   }
 
   @Test
-  public void testNullDATE() throws Exception {
+  public void testDate_null() throws Exception {
     executeUpdate("create table data(colname date)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
@@ -267,7 +267,7 @@ public class TupleReaderTest {
    * Test TIMESTAMP column.
    */
   @Test
-  public void testTIMESTAMP() throws Exception {
+  public void testTimestamp() throws Exception {
     executeUpdate("create table data(colname timestamp)");
     executeUpdate(
         "insert into data(colname) values ({ts '2004-10-06T09:15:30'})");
@@ -296,7 +296,7 @@ public class TupleReaderTest {
   }
 
   @Test
-  public void testNullTIMESTAMP() throws Exception {
+  public void testTimestamp_null() throws Exception {
     executeUpdate("create table data(colname timestamp)");
     executeUpdate("insert into data(colname) values(null)");
     Calendar cal = Calendar.getInstance(TimeZone.getDefault());
@@ -323,7 +323,7 @@ public class TupleReaderTest {
    * Test TIME column.
    */
   @Test
-  public void testTIME() throws Exception {
+  public void testTime() throws Exception {
     executeUpdate("create table data(colname time)");
     executeUpdate("insert into data(colname) values({t '09:15:30'})");
     // H2 returns a java.sql.Date with the date set to 1970-01-01.
@@ -352,7 +352,7 @@ public class TupleReaderTest {
   }
 
   @Test
-  public void testNullTIME() throws Exception {
+  public void testTime_null() throws Exception {
     executeUpdate("create table data(colname time)");
     executeUpdate("insert into data(colname) values(null)");
     // H2 returns a java.sql.Date with the date set to 1970-01-01.
@@ -380,7 +380,7 @@ public class TupleReaderTest {
    * Test BLOB column.
    */
   @Test
-  public void testBLOB() throws Exception {
+  public void testBlob() throws Exception {
     String blobData =
         " Google's indices consist of information that has been"
             + " identified, indexed and compiled through an automated"
@@ -423,7 +423,7 @@ public class TupleReaderTest {
   }
 
   @Test
-  public void testNullBLOB() throws Exception {
+  public void testBlob_null() throws Exception {
     executeUpdate("create table data(colname blob)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
@@ -443,7 +443,7 @@ public class TupleReaderTest {
    * Test CLOB column.
    */
   @Test
-  public void testCLOB() throws Exception {
+  public void testClob() throws Exception {
     String clobData =
         " Google's indices consist of information that has been"
             + " identified, indexed and compiled through an automated"
@@ -465,7 +465,7 @@ public class TupleReaderTest {
     executeUpdate("create table data(colname clob)");
     String sql = "insert into data(colname) values (?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBinaryStream(1, new ByteArrayInputStream(clobData.getBytes(UTF_8)));
+      ps.setString(1, clobData);
       assertEquals(1, ps.executeUpdate());
     }
     final String golden = ""
@@ -484,7 +484,7 @@ public class TupleReaderTest {
   }
 
   @Test
-  public void testNullCLOB() throws Exception {
+  public void testClob_null() throws Exception {
     executeUpdate("create table data(colname clob)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
@@ -501,7 +501,7 @@ public class TupleReaderTest {
   }
 
   @Test
-  public void testmultipleTypes() throws Exception {
+  public void testMultipleTypes() throws Exception {
     executeUpdate("create table data(id integer, name varchar, "
         + "modified date)");
     executeUpdate("insert into data(id, name, modified) "
