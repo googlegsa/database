@@ -296,11 +296,11 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           break;
         case Types.LONGVARCHAR:
           try (Reader reader = resultSet.getCharacterStream(col);
-              Writer writer =
+              Writer outWriter =
                   new BufferedWriter(new ContentHandlerWriter(handler))) {
             if (reader != null) {
               handler.startElement("", columnName, columnName, atts);
-              copyValidXMLCharacters(reader, writer);
+              copyValidXMLCharacters(reader, outWriter);
             }
           }
           break;

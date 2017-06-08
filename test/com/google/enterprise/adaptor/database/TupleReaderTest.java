@@ -502,10 +502,9 @@ public class TupleReaderTest {
 
   @Test
   public void testMultipleTypes() throws Exception {
-    executeUpdate("create table data(id integer, name varchar, "
-        + "modified date)");
-    executeUpdate("insert into data(id, name, modified) "
-        + "values(1, 'file.txt', null)");
+    executeUpdate("create table data(id integer, name varchar, modified date)");
+    executeUpdate(
+        "insert into data(id, name, modified) values(1, 'file.txt', null)");
     final String golden = ""
         + "<database>"
         + "<table>"
