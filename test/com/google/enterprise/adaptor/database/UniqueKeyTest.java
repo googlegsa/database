@@ -14,13 +14,12 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.UniqueKey.ColumnType;
 import static java.util.Arrays.asList;
-import static java.util.Locale.US;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
@@ -38,11 +37,10 @@ import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
-import java.util.Calendar;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.TimeZone;
 import java.util.TreeMap;
 
 /** Test cases for {@link UniqueKey}. */
@@ -87,9 +85,9 @@ public class UniqueKeyTest {
 
   @Test
   public void testSingleInt() {
-    UniqueKey.Builder ukb = new UniqueKey.Builder("numnum:int");
-    assertEquals(asList("numnum"), ukb.getDocIdSqlColumns());
-    assertEquals(ColumnType.INT, ukb.getColumnTypes().get("numnum"));
+    UniqueKey.Builder builder = new UniqueKey.Builder("numnum:int");
+    assertEquals(asList("numnum"), builder.getDocIdSqlColumns());
+    assertEquals(ColumnType.INT, builder.getColumnTypes().get("numnum"));
   }
 
   @Test
@@ -102,18 +100,18 @@ public class UniqueKeyTest {
 
   @Test
   public void testTwoInt() {
-    UniqueKey.Builder ukb = new UniqueKey.Builder("numnum:int,other:int");
-    assertEquals(asList("numnum", "other"), ukb.getDocIdSqlColumns());
-    assertEquals(ColumnType.INT, ukb.getColumnTypes().get("numnum"));
-    assertEquals(ColumnType.INT, ukb.getColumnTypes().get("other"));
+    UniqueKey.Builder builder = new UniqueKey.Builder("numnum:int,other:int");
+    assertEquals(asList("numnum", "other"), builder.getDocIdSqlColumns());
+    assertEquals(ColumnType.INT, builder.getColumnTypes().get("numnum"));
+    assertEquals(ColumnType.INT, builder.getColumnTypes().get("other"));
   }
 
   @Test
   public void testIntString() {
-    UniqueKey.Builder ukb = new UniqueKey.Builder("numnum:int,strstr:string");
-    assertEquals(asList("numnum", "strstr"), ukb.getDocIdSqlColumns());
-    assertEquals(ColumnType.INT, ukb.getColumnTypes().get("numnum"));
-    assertEquals(ColumnType.STRING, ukb.getColumnTypes().get("strstr"));
+    UniqueKey.Builder builder = new UniqueKey.Builder("numnum:int,strstr:string");
+    assertEquals(asList("numnum", "strstr"), builder.getDocIdSqlColumns());
+    assertEquals(ColumnType.INT, builder.getColumnTypes().get("numnum"));
+    assertEquals(ColumnType.STRING, builder.getColumnTypes().get("strstr"));
   }
 
   @Test
@@ -216,11 +214,11 @@ public class UniqueKeyTest {
     golden.put("TIME", ColumnType.TIME);
     golden.put("TIMESTAMP", ColumnType.TIMESTAMP);
 
-    UniqueKey.Builder ukb = new UniqueKey.Builder("BIT, BOOLEAN, TINYINT, "
+    UniqueKey.Builder builder = new UniqueKey.Builder("BIT, BOOLEAN, TINYINT, "
         + "SMALLINT, INTEGER, BIGINT, CHAR, VARCHAR, LONGVARCHAR, NCHAR, "
         + "NVARCHAR, LONGNVARCHAR, DATALINK, DATE, TIME, TIMESTAMP");
-    ukb.addColumnTypes(sqlTypes);
-    assertEquals(golden, ukb.getColumnTypes());
+    builder.addColumnTypes(sqlTypes);
+    assertEquals(golden, builder.getColumnTypes());
   }
 
   @Test
@@ -228,42 +226,10 @@ public class UniqueKeyTest {
     Map<String, Integer> sqlTypes = new HashMap<>();
     sqlTypes.put("blob", Types.BLOB);
 
-    UniqueKey.Builder ukb = new UniqueKey.Builder("blob");
+    UniqueKey.Builder builder = new UniqueKey.Builder("blob");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("Invalid UniqueKey SQLtype");
-    ukb.addColumnTypes(sqlTypes);
-  }
-
-  @Test
-  public void testEquals() throws Exception {
-    UniqueKey uk1 = new UniqueKey.Builder("id:int").build();
-    assertTrue(uk1.equals(new UniqueKey.Builder("id:int").build()));
-    assertFalse(uk1.equals(new UniqueKey.Builder("foo:int").build()));
-    assertFalse(uk1.equals(new UniqueKey.Builder("id:string").build()));
-    UniqueKey uk2 = new UniqueKey.Builder("id:int, other:string").build();
-    assertFalse(uk2.equals(uk1));
-    assertFalse(uk2.equals(new UniqueKey.Builder("id:int, other:string")
-        .setContentSqlColumns("other").build()));
-    assertFalse(uk2.equals(new UniqueKey.Builder("id:int, other:string")
-        .setAclSqlColumns("other").build()));
-    assertFalse(uk1.equals("Foo"));
-  }
-
-  @Test
-  public void testEqualsHashCode() throws Exception {
-    int hashCode1 =  new UniqueKey.Builder("id:int").build().hashCode();
-    assertEquals(hashCode1, new UniqueKey.Builder("id:int").build().hashCode());
-    assertFalse(
-        hashCode1 == new UniqueKey.Builder("foo:int").build().hashCode());
-    assertFalse(
-        hashCode1 == new UniqueKey.Builder("id:string").build().hashCode());
-    int hashCode2
-        = new UniqueKey.Builder("id:int, other:string").build().hashCode();
-    assertFalse(hashCode2 == hashCode1);
-    assertFalse(hashCode2 == new UniqueKey.Builder("id:int, other:string")
-        .setContentSqlColumns("other").build().hashCode());
-    assertFalse(hashCode2 == new UniqueKey.Builder("id:int, other:string")
-        .setAclSqlColumns("other").build().hashCode());
+    builder.addColumnTypes(sqlTypes);
   }
 
   @Test
@@ -275,23 +241,7 @@ public class UniqueKeyTest {
         ResultSet rs = stmt.executeQuery("select * from data")) {
       UniqueKey uk = newUniqueKey("numnum:int,strstr:string");
       assertTrue("ResultSet is empty", rs.next());
-      assertEquals("345/abc", uk.makeUniqueId(rs, /*encode=*/ true));
-    }
-  }
-
-  @Test
-  public void testProcessingDocId_encodingError() throws SQLException {
-    executeUpdate("create table data(numnum int, strstr varchar)");
-    executeUpdate("insert into data(numnum, strstr) values(345, 'abc')");
-
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      UniqueKey uk = newUniqueKey("numnum:int,strstr:string");
-      assertTrue("ResultSet is empty", rs.next());
-      thrown.handleAssertionErrors();
-      thrown.expect(AssertionError.class);
-      thrown.expectMessage("not encoding implies exactly one parameter");
-      uk.makeUniqueId(rs, /*encode=*/ false);
+      assertEquals("345/abc", uk.makeUniqueId(rs));
     }
   }
 
@@ -299,29 +249,15 @@ public class UniqueKeyTest {
   public void testProcessingDocId_allTypes() throws SQLException {
     executeUpdate("create table data(c1 integer, c2 bigint, c3 varchar, "
         + "c4 date, c5 time, c6 timestamp)");
-    String sql = "insert into data(c1, c2, c3, c4, c5, c6) "
-        + "values (?, ?, ?, ?, ?, ?)";
-    Calendar gmt = Calendar.getInstance(TimeZone.getTimeZone("GMT"), US);
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setInt(1, 123);
-      ps.setLong(2, 4567890L);
-      ps.setString(3, "foo");
-      ps.setDate(4, new Date(0L), gmt);
-      ps.setTime(5, new Time(0L), gmt);
-      // TODO(bmj): setTimestamp with Calendar broken in H2?
-      ps.setTimestamp(6, new Timestamp(0L)/*, gmt*/);
-      assertEquals(1, ps.executeUpdate());
-    }
+    executeUpdate("insert into data(c1, c2, c3, c4, c5, c6) "
+        + "values (123, 4567890, 'foo', "
+        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09T12:34:56'})");
 
     UniqueKey uk = new UniqueKey.Builder(
         "c1:int, c2:long, c3:string, c4:date, c5:time, c6:timestamp").build();
-
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      assertEquals("123/4567890/foo/1970-01-01/00:00:00/0",
-          uk.makeUniqueId(rs, /*encode=*/ true));
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    assertEquals("123/4567890/foo/2007-08-09/12:34:56/1186688096000",
+                 uk.makeUniqueId(rs));
   }
 
   @Test
@@ -333,7 +269,7 @@ public class UniqueKeyTest {
         ResultSet rs = stmt.executeQuery("select * from data")) {
       UniqueKey uk = newUniqueKey("a:string,b:string");
       assertTrue("ResultSet is empty", rs.next());
-      assertEquals("5_/5/6_/6", uk.makeUniqueId(rs, /*encode=*/ true));
+      assertEquals("5_/5/6_/6", uk.makeUniqueId(rs));
     }
   }
 
@@ -346,8 +282,7 @@ public class UniqueKeyTest {
         ResultSet rs = stmt.executeQuery("select * from data")) {
       UniqueKey uk = newUniqueKey("a:string,b:string");
       assertTrue("ResultSet is empty", rs.next());
-      assertEquals("5_/5_/_/_//_/_/6_/6",
-          uk.makeUniqueId(rs, /*encode=*/ true));
+      assertEquals("5_/5_/_/_//_/_/6_/6", uk.makeUniqueId(rs));
     }
   }
 
@@ -472,7 +407,7 @@ public class UniqueKeyTest {
       try (Statement stmt = getConnection().createStatement();
           ResultSet rs = stmt.executeQuery("select * from data")) {
         assertTrue("ResultSet is empty", rs.next());
-        id = uk.makeUniqueId(rs, /*encode=*/ true);
+        id = uk.makeUniqueId(rs);
       }
 
       String sql = "select * from data where a = ? and b = ?";
@@ -564,53 +499,60 @@ public class UniqueKeyTest {
   }
 
   @Test
-  public void testSpacesBetweenUniqueKeyDeclerations() {
-    UniqueKey uk = newUniqueKey("numnum:int,other:int");
-    assertEquals(uk, newUniqueKey(" numnum:int,other:int"));
-    assertEquals(uk, newUniqueKey("numnum:int ,other:int"));
-    assertEquals(uk, newUniqueKey("numnum:int, other:int"));
-    assertEquals(uk, newUniqueKey("numnum:int , other:int"));
-    assertEquals(uk, newUniqueKey("   numnum:int  ,  other:int   "));
-  }
+  public void testSpacesInUniqueKeyDeclerations() {
+    UniqueKey.Builder builder = new UniqueKey.Builder("numnum:int,other:int");
+    List<String> goldenNames = builder.getDocIdSqlColumns();
+    Map<String, ColumnType> goldenTypes = builder.getColumnTypes();
 
-  @Test
-  public void testSpacesWithinUniqueKeyDeclerations() {
-    UniqueKey uk = newUniqueKey("numnum:int,other:int");
-    assertEquals(uk, newUniqueKey("numnum :int,other:int"));
-    assertEquals(uk, newUniqueKey("numnum: int,other:int"));
-    assertEquals(uk, newUniqueKey("numnum : int,other:int"));
-    assertEquals(uk, newUniqueKey("numnum : int,other   :    int"));
+    List<String> testDecls = asList(" numnum:int,other:int",
+        "numnum:int ,other:int", "numnum:int, other:int",
+        "numnum:int , other:int", "   numnum:int  ,  other:int   ",
+        "numnum:int,other:int", "numnum: int,other:int",
+        "numnum : int,other:int", "numnum : int,other   :    int");
+    for (String ukDecl : testDecls) {
+      UniqueKey.Builder testBuilder = new UniqueKey.Builder(ukDecl);
+      assertEquals(goldenNames, testBuilder.getDocIdSqlColumns());
+      assertEquals(goldenTypes, testBuilder.getColumnTypes());
+    }
   }
 
   @Test
   public void testSpacesBetweenContentSqlCols() {
-    UniqueKey uk = newUniqueKey("numnum:int,strstr:string",
-        "numnum,numnum,strstr,numnum,strstr,strstr,numnum", "");
-    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
-        "numnum ,numnum,strstr,numnum,strstr,strstr,numnum", ""));
-    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
-        "numnum, numnum,strstr,numnum,strstr,strstr,numnum", ""));
-    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
-        "numnum , numnum,strstr,numnum,strstr,strstr,numnum", ""));
-    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
-        "numnum  ,   numnum,strstr,numnum,strstr,strstr,numnum", ""));
-    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
-        "numnum  ,   numnum , strstr   ,  numnum,strstr,strstr, numnum ", ""));
+    String ukDecl = "numnum:int,strstr:string";
+    UniqueKey.Builder builder = new UniqueKey.Builder(ukDecl)
+        .setContentSqlColumns("numnum,numnum,strstr,numnum,strstr");
+    List<String> goldenNames = builder.getContentSqlColumns();
+
+    List<String> testDecls = asList(
+        "numnum ,numnum,strstr,numnum,strstr",
+        "numnum, numnum,strstr,numnum,strstr",
+        "numnum , numnum,strstr,numnum,strstr",
+        "numnum  ,   numnum,strstr,numnum,strstr",
+        "numnum  ,   numnum , strstr   ,  numnum,strstr");
+    for (String colDecl : testDecls) {
+      UniqueKey.Builder testBuilder = new UniqueKey.Builder(ukDecl)
+          .setContentSqlColumns(colDecl);
+      assertEquals(goldenNames, testBuilder.getContentSqlColumns());
+    }
   }
 
   @Test
   public void testSpacesBetweenAclSqlCols() {
-    UniqueKey uk = newUniqueKey("numnum:int,strstr:string",
-        "", "numnum,numnum,strstr,numnum,strstr,strstr,numnum");
-    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
-        "", "numnum ,numnum,strstr,numnum,strstr,strstr,numnum"));
-    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
-        "", "numnum, numnum,strstr,numnum,strstr,strstr,numnum"));
-    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
-        "", "numnum , numnum,strstr,numnum,strstr,strstr,numnum"));
-    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
-        "", "numnum  ,   numnum,strstr,numnum,strstr,strstr,numnum"));
-    assertEquals(uk, newUniqueKey("numnum:int,strstr:string",
-        "", "numnum  ,   numnum , strstr   ,  numnum,strstr,strstr, numnum "));
+    String ukDecl = "numnum:int,strstr:string";
+    UniqueKey.Builder builder = new UniqueKey.Builder(ukDecl)
+        .setAclSqlColumns("numnum,numnum,strstr,numnum,strstr");
+    List<String> goldenNames = builder.getAclSqlColumns();
+
+    List<String> testDecls = asList(
+        "numnum ,numnum,strstr,numnum,strstr",
+        "numnum, numnum,strstr,numnum,strstr",
+        "numnum , numnum,strstr,numnum,strstr",
+        "numnum  ,   numnum,strstr,numnum,strstr",
+        "numnum  ,   numnum , strstr   ,  numnum,strstr");
+    for (String colDecl : testDecls) {
+      UniqueKey.Builder testBuilder = new UniqueKey.Builder(ukDecl)
+          .setAclSqlColumns(colDecl);
+      assertEquals(goldenNames, testBuilder.getAclSqlColumns());
+    }
   }
 }

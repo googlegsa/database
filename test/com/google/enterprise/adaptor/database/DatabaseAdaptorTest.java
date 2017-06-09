@@ -704,7 +704,7 @@ public class DatabaseAdaptorTest {
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "id:int, url:string");
     // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.everyDocIdSql", "select id, url from data");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("db.uniqueKey value: The key must be a single");
     getObjectUnderTest(moreEntries);
@@ -922,11 +922,13 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUrlMetadataLister_noDocIdIsUrl() throws Exception {
+    executeUpdate("create table data(id integer, url varchar)");
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("db.uniqueKey", "url:string");
     // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.everyDocIdSql", "select url from data");
+    moreEntries.put("db.singleDocContentSql", "select id, url from data");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("requires docId.isUrl to be \"true\"");
     getObjectUnderTest(moreEntries);
@@ -934,12 +936,14 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUrlMetadataLister_docIdIsUrlFalse() throws Exception {
+    executeUpdate("create table data(id integer, url varchar)");
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("docId.isUrl", "false");
     moreEntries.put("db.uniqueKey", "url:string");
     // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.everyDocIdSql", "select id, url from data");
+    moreEntries.put("db.singleDocContentSql", "select * from data");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("requires docId.isUrl to be \"true\"");
     getObjectUnderTest(moreEntries);

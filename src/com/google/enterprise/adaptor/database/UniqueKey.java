@@ -51,21 +51,22 @@ class UniqueKey {
   private final Map<String, ColumnType> types;  // types of DocId columns
   private final List<String> contentSqlCols;  // columns for content query
   private final List<String> aclSqlCols;  // columns for acl query
+  private final boolean encodeDocIds;
 
   private UniqueKey(List<String> docIdSqlCols, Map<String, ColumnType> types,
-      List<String> contentSqlCols, List<String> aclSqlCols) {
+      List<String> contentSqlCols, List<String> aclSqlCols,
+      boolean encodeDocIds) {
     this.docIdSqlCols = docIdSqlCols;
     this.types = types;
     this.contentSqlCols = contentSqlCols;
     this.aclSqlCols = aclSqlCols;
+    this.encodeDocIds = encodeDocIds;
   }
 
-  String makeUniqueId(ResultSet rs, boolean encode) throws SQLException {
-    if (!encode) {
-      if (docIdSqlCols.size() == 1) {
-        return rs.getString(docIdSqlCols.get(0));
-      }
-      throw new AssertionError("not encoding implies exactly one parameter");
+  String makeUniqueId(ResultSet rs) throws SQLException {
+    if (!encodeDocIds) {
+      // DocId must be a single string column.
+      return rs.getString(docIdSqlCols.get(0));
     }
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < docIdSqlCols.size(); i++) {
@@ -205,27 +206,9 @@ class UniqueKey {
         + aclSqlCols + ")";
   }
 
-  @Override
-  public boolean equals(Object other) {
-    boolean same = false;
-    if (other instanceof UniqueKey) {
-      UniqueKey key = (UniqueKey) other;
-      same = docIdSqlCols.equals(key.docIdSqlCols)
-          && types.equals(key.types)
-          && contentSqlCols.equals(key.contentSqlCols)
-          && aclSqlCols.equals(key.aclSqlCols);
-    }
-    return same;
-  }
-
-  @Override
-  public int hashCode() {
-    return java.util.Objects.hash(docIdSqlCols, types, contentSqlCols, aclSqlCols);
-  }
-
   /** Builder to create instances of {@code UniqueKey}. */
   static class Builder {
-    private List<String> docIdSqlCols;  // columns used for DocId
+    private final List<String> docIdSqlCols;  // columns used for DocId
     private Map<String, ColumnType> types;  // types of DocId columns
     private List<String> contentSqlCols;  // columns for content query
     private List<String> aclSqlCols;  // columns for acl query
@@ -252,7 +235,7 @@ class UniqueKey {
             "Invalid db.uniqueKey parameter: value cannot be empty.");
       }
 
-      docIdSqlCols = new ArrayList<String>();
+      List<String> tmpNames = new ArrayList<>();
       types = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
       for (String e : docIdSqlColumns.split(",", 0)) {
         log.fine("element: `" + e + "'");
@@ -274,14 +257,14 @@ class UniqueKey {
             throw new InvalidConfigurationException(errmsg);
           }
         }
-        docIdSqlCols.add(name);
+        tmpNames.add(name);
         if (types.put(name, type) != null) {
           String errmsg = "Invalid db.uniqueKey configuration: key name '"
               + name + "' was repeated.";
           throw new InvalidConfigurationException(errmsg);
         }
       }
-      docIdSqlCols = Collections.unmodifiableList(docIdSqlCols);
+      docIdSqlCols = Collections.unmodifiableList(tmpNames);
       contentSqlCols = docIdSqlCols;
       aclSqlCols = docIdSqlCols;
     }
@@ -434,7 +417,7 @@ class UniqueKey {
     /** Return the Map of column types. */
     @VisibleForTesting
     Map<String, ColumnType> getColumnTypes() {
-      return types;
+      return Collections.unmodifiableMap(types);
     }
 
     /**
@@ -460,7 +443,8 @@ class UniqueKey {
         throw new InvalidConfigurationException("Invalid db.uniqueKey value:"
            + " The key must be a single string column when docId.isUrl=true.");
       }
-      return new UniqueKey(docIdSqlCols, types, contentSqlCols, aclSqlCols);
+      return new UniqueKey(docIdSqlCols, types, contentSqlCols, aclSqlCols,
+                           encodeDocIds);
     }
   }
 }

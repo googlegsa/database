@@ -172,10 +172,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     password = context.getSensitiveValueDecoder().decodeValue(
         cfg.getValue("db.password"));
 
-    boolean leaveIdAlone = new Boolean(cfg.getValue("docId.isUrl"));
-    encodeDocId = !leaveIdAlone;
-    log.config("encodeDocId: " + encodeDocId);
-
     everyDocIdSql = cfg.getValue("db.everyDocIdSql");
     log.config("every doc id sql: " + everyDocIdSql);
 
@@ -203,6 +199,12 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
 
     modeOfOperation = cfg.getValue("db.modeOfOperation");
+    log.config("mode of operation: " + modeOfOperation);
+
+    boolean leaveIdAlone = new Boolean(cfg.getValue("docId.isUrl"));
+    encodeDocId = !leaveIdAlone;
+    log.config("encodeDocId: " + encodeDocId);
+
     if (modeOfOperation.equals("urlAndMetadataLister") && encodeDocId) {
       String errmsg = "db.modeOfOperation of \"" + modeOfOperation
           + "\" requires docId.isUrl to be \"true\"";
@@ -405,7 +407,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         BufferedPusher outstream = new BufferedPusher(pusher)) {
       log.finer("queried for stream");
       while (rs.next()) {
-        DocId id = new DocId(uniqueKey.makeUniqueId(rs, encodeDocId));
+        DocId id = new DocId(uniqueKey.makeUniqueId(rs));
         DocIdPusher.Record.Builder builder = new DocIdPusher.Record.Builder(id);
         if (isDeleteAction(rs)) {
           builder.setDeleteFromIndex(true);
@@ -916,7 +918,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             hasColumn(rs.getMetaData(), GsaSpecialColumns.GSA_TIMESTAMP);
         log.log(Level.FINEST, "hasTimestamp: {0}", hasTimestamp);
         while (rs.next()) {
-          DocId id = new DocId(uniqueKey.makeUniqueId(rs, encodeDocId));
+          DocId id = new DocId(uniqueKey.makeUniqueId(rs));
           DocIdPusher.Record.Builder builder =
               new DocIdPusher.Record.Builder(id).setCrawlImmediately(true);
           if ("urlAndMetadataLister".equals(modeOfOperation)) {
