@@ -14,10 +14,12 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.hamcrest.CoreMatchers.isA;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.After;
@@ -25,8 +27,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectOutputStream;
 import java.io.StringWriter;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -76,6 +81,22 @@ public class TupleReaderTest {
     Result des = new StreamResult(writer);
     trans.transform(source, des);
     return writer.toString();
+  }
+
+  @Test
+  public void testConstructor_nullResultSet() {
+    thrown.expect(NullPointerException.class);
+    new TupleReader(null);
+  }
+
+  @Test
+  public void testParse_emptyResultSet() throws Exception {
+    executeUpdate("create table data(colname varchar)");
+    ResultSet rs = executeQuery("select * from data");
+    thrown.expect(TransformerException.class);
+    thrown.expectCause(isA(SAXException.class));
+    thrown.expectMessage("No data is available");
+    generateXml(rs);
   }
 
   /**
@@ -492,6 +513,53 @@ public class TupleReaderTest {
         + "<table>"
         + "<table_rec>"
         + "<COLNAME SQLType=\"CLOB\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testOther() throws Exception {
+    // H2's OTHER type requires a serialized Java object.
+    String serializable = "hello world";
+    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+    try (ObjectOutputStream out = new ObjectOutputStream(buffer)) {
+      out.writeObject(serializable);
+    }
+
+    executeUpdate("create table data(colname other)");
+    String sql = "insert into data(colname) values (?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setObject(1, buffer.toByteArray());
+      assertEquals(1, ps.executeUpdate());
+    }
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"OTHER\">"
+        + serializable
+        + "</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testOther_null() throws Exception {
+    executeUpdate("create table data(other other)");
+    executeUpdate("insert into data(other) values(null)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<OTHER SQLType=\"OTHER\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";

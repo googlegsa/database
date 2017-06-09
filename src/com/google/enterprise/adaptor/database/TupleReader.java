@@ -26,6 +26,8 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.Writer;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.NClob;
@@ -39,6 +41,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -80,26 +83,35 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
   private static final DateFormat TIMEFMT = new SimpleDateFormat("hh:mm:ss");
   private static final DateFormat TIMEZONEFMT = new SimpleDateFormat("Z");
 
-  private final ResultSet resultSet;
-  private final String ns; // namespace
-  private final String rootElement;
-  private final String tableElement;
-  private final String recordElement;
+  /** Map from SQL types to SQL type names. */
+  private static final HashMap<Integer, String> sqlTypeNames = new HashMap<>();
 
-  public TupleReader(ResultSet resultSet) {
-    this(resultSet, "", "database", "table", "table_rec");
+  static {
+    for (Field field : Types.class.getFields()) {
+      if (field.getType() == int.class
+          && (field.getModifiers() & Modifier.STATIC) == Modifier.STATIC) {
+        try {
+          sqlTypeNames.put(field.getInt(null), field.getName());
+        } catch (IllegalAccessException | IllegalArgumentException e) {
+          // These should not be possible with the checks above.
+          throw new AssertionError(e);
+        }
+      }
+    }
   }
 
-  public TupleReader(ResultSet resultSet, String ns, String rootElement,
-      String tableElement, String recordElement) {
+  private static final String NS = ""; // namespace
+  private static final String ROOT_ELEMENT = "database";
+  private static final String TABLE_ELEMENT = "table";
+  private static final String RECORD_ELEMENT = "table_rec";
+
+  private final ResultSet resultSet;
+
+  public TupleReader(ResultSet resultSet) {
     if (resultSet == null) {
       throw new NullPointerException();
     }
     this.resultSet = resultSet;
-    this.ns = ns;
-    this.rootElement = rootElement;
-    this.tableElement = tableElement;
-    this.recordElement = recordElement;
   }
 
   /**
@@ -114,19 +126,11 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
       ContentHandler handler = super.getContentHandler();
       AttributesImpl atts = new AttributesImpl();
       handler.startDocument();
-      if (rootElement != null) {
-        handler.startElement(ns, rootElement, rootElement, atts);
-      }
-      if (tableElement != null) {
-        handler.startElement(ns, tableElement, tableElement, atts);
-      }
+      handler.startElement(NS, ROOT_ELEMENT, ROOT_ELEMENT, atts);
+      handler.startElement(NS, TABLE_ELEMENT, TABLE_ELEMENT, atts);
       emitRow(resultSet, handler);
-      if (tableElement != null) {
-        handler.endElement(ns, tableElement, tableElement);
-      }
-      if (rootElement != null) {
-        handler.endElement(ns, rootElement, rootElement);
-      }
+      handler.endElement(NS, TABLE_ELEMENT, TABLE_ELEMENT);
+      handler.endElement(NS, ROOT_ELEMENT, ROOT_ELEMENT);
       handler.endDocument();
     } catch (SQLException ex) {
       throw new SAXException(ex);
@@ -136,9 +140,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
   protected void emitRow(ResultSet resultSet, ContentHandler handler)
       throws SQLException, SAXException, IOException {
     AttributesImpl atts = new AttributesImpl();
-    if (recordElement != null) {
-      handler.startElement(ns, recordElement, recordElement, atts);
-    }
+    handler.startElement(NS, RECORD_ELEMENT, RECORD_ELEMENT, atts);
     ResultSetMetaData rsmd = resultSet.getMetaData();
     int colCount = rsmd.getColumnCount();
 
@@ -146,10 +148,8 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
       atts.clear();
       String columnName = rsmd.getColumnLabel(col);
       int sqlType = rsmd.getColumnType(col);
-      String sqlTypeName = getColumnTypeName(sqlType);
-      if (sqlTypeName != null) {
-        atts.addAttribute("", "SQLType", "SQLType", "NMTOKEN", sqlTypeName);
-      }
+      String sqlTypeName = getColumnTypeName(sqlType, rsmd, col);
+      atts.addAttribute("", "SQLType", "SQLType", "NMTOKEN", sqlTypeName);
       log.fine("sqlTypeName: " + sqlTypeName);
       switch (sqlType) {
         case Types.DATE:
@@ -308,13 +308,12 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           break;
         case Types.OTHER:
         default:
-          string = resultSet.getString(col);
-          if (null == string) {
-            string = "" + resultSet.getObject(col);
-          }
-          try (Writer writer = new ContentHandlerWriter(handler)) {
-            handler.startElement("", columnName, columnName, atts);
-            writer.write(string);
+          value = resultSet.getObject(col);
+          if (value != null) {
+            try (Writer writer = new ContentHandlerWriter(handler)) {
+              handler.startElement("", columnName, columnName, atts);
+              writer.write(String.valueOf(value));
+            }
           }
           break;
       }
@@ -324,93 +323,30 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
       }
       handler.endElement("", columnName, columnName);
     }
-    if (recordElement != null) {
-      handler.endElement(ns, recordElement, recordElement);
-    }
+    handler.endElement(NS, RECORD_ELEMENT, RECORD_ELEMENT);
   }
 
   /**
    * Return a SQL type name for the column type.
    * Use this instead of {@link ResultSetMetaData.getColumnTypeName()} 
-   * because drivers return different names. MySQL returns very stupid
-   * names (TEXT => "BLOB").
+   * because drivers return different names.
    *
    * @param sqlType a type from java.sql.Types
-   * @return a string name, null if sqlType is unknown
+   * @return a name for the type from the first non-null value found
+   *     looking in java.sql.Types, calling ResultSetMetaData.getColumnTypeName,
+   *      and falling back to a string of the raw integer type itself
    */
-  private static String getColumnTypeName(int sqlType) {
-    switch (sqlType) {
-      case Types.BIT:
-        return "BIT";
-      case Types.TINYINT:
-        return "TINYINT";
-      case Types.SMALLINT:
-        return "SMALLINT";
-      case Types.INTEGER:
-        return "INTEGER";
-      case Types.BIGINT:
-        return "BIGINT";
-      case Types.FLOAT:
-        return "FLOAT";
-      case Types.REAL:
-        return "REAL";
-      case Types.DOUBLE:
-        return "DOUBLE";
-      case Types.NUMERIC:
-        return "NUMERIC";
-      case Types.DECIMAL:
-        return "DECIMAL";
-      case Types.CHAR:
-        return "CHAR";
-      case Types.VARCHAR:
-        return "VARCHAR";
-      case Types.LONGVARCHAR:
-        return "LONGVARCHAR";
-      case Types.DATE:
-        return "DATE";
-      case Types.TIME:
-        return "TIME";
-      case Types.TIMESTAMP:
-        return "TIMESTAMP";
-      case Types.BINARY:
-        return "BINARY";
-      case Types.VARBINARY:
-        return "VARBINARY";
-      case Types.LONGVARBINARY:
-        return "LONGVARBINARY";
-      case Types.NULL:
-        return "NULL";
-      case Types.OTHER:
-        return "OTHER";
-      case Types.JAVA_OBJECT:
-        return "JAVA_OBJECT";
-      case Types.DISTINCT:
-        return "DISTINCT";
-      case Types.STRUCT:
-        return "STRUCT";
-      case Types.ARRAY:
-        return "ARRAY";
-      case Types.BLOB:
-        return "BLOB";
-      case Types.CLOB:
-        return "CLOB";
-      case Types.REF:
-        return "REF";
-      case Types.DATALINK:
-        return "DATALINK";
-      case Types.BOOLEAN:
-        return "BOOLEAN";
-      case Types.NCHAR:
-        return "NCHAR";
-      case Types.NVARCHAR:
-        return "NVARCHAR";
-      case Types.NCLOB:
-        return "NCLOB";
-      case Types.LONGNVARCHAR:
-        return "LONGNVARCHAR";
-      default:
-        return String.valueOf(sqlType);
-    }
+  private static String getColumnTypeName(int sqlType, ResultSetMetaData rsmd,
+      int columnIndex) throws SQLException {
+     String sqlTypeName = sqlTypeNames.get(sqlType);
+     if (sqlTypeName == null) {
+       // Try the database's name for non-standard types.
+       sqlTypeName = rsmd.getColumnTypeName(columnIndex);
+       if (sqlTypeName == null || sqlTypeName.isEmpty()) {
+         sqlTypeName = String.valueOf(sqlType);
+       }
+     }
+     return sqlTypeName;
   }
 
   /**
