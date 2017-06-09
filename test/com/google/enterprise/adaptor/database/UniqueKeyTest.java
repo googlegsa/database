@@ -16,7 +16,11 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
+import static com.google.enterprise.adaptor.database.UniqueKey.ColumnType;
+import static java.util.Arrays.asList;
+import static java.util.Locale.US;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
@@ -33,8 +37,13 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.util.Collections;
+import java.sql.Types;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
+import java.util.TimeZone;
+import java.util.TreeMap;
 
 /** Test cases for {@link UniqueKey}. */
 public class UniqueKeyTest {
@@ -47,38 +56,40 @@ public class UniqueKeyTest {
   }
 
   private UniqueKey newUniqueKey(String ukDecls) {
-    return newUniqueKey(ukDecls, "", "");
+    return new UniqueKey.Builder(ukDecls).build();
   }
 
   private UniqueKey newUniqueKey(String ukDecls, String contentSqlColumns,
       String aclSqlColumns) {
-    return new UniqueKey(ukDecls, contentSqlColumns, aclSqlColumns, true);
+    return new UniqueKey.Builder(ukDecls)
+        .setContentSqlColumns(contentSqlColumns)
+        .setAclSqlColumns(aclSqlColumns)
+        .build();
   }
 
   @Test
   public void testNullKeys() {
     thrown.expect(NullPointerException.class);
-    UniqueKey uk = newUniqueKey(null, "", "");
+    new UniqueKey.Builder(null);
   }
 
   @Test
   public void testNullContentCols() {
     thrown.expect(NullPointerException.class);
-    UniqueKey uk = newUniqueKey("num:int", null, "");
+    new UniqueKey.Builder("num:int").setContentSqlColumns(null);
   }
 
   @Test
   public void testNullAclCols() {
     thrown.expect(NullPointerException.class);
-    UniqueKey uk = newUniqueKey("num:int", "", null);
+    new UniqueKey.Builder("num:int").setAclSqlColumns(null);
   }
 
   @Test
   public void testSingleInt() {
-    UniqueKey uk = newUniqueKey("numnum:int");
-    assertEquals(1, uk.numElementsForTest());
-    assertEquals("numnum", uk.nameForTest(0));
-    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
+    UniqueKey.Builder ukb = new UniqueKey.Builder("numnum:int");
+    assertEquals(asList("numnum"), ukb.getDocIdSqlColumns());
+    assertEquals(ColumnType.INT, ukb.getColumnTypes().get("numnum"));
   }
 
   @Test
@@ -86,41 +97,44 @@ public class UniqueKeyTest {
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage(
         "Invalid db.uniqueKey parameter: value cannot be empty.");
-    UniqueKey uk = newUniqueKey(" ");
+    new UniqueKey.Builder(" ");
   }
 
   @Test
   public void testTwoInt() {
-    UniqueKey uk = newUniqueKey("numnum:int,other:int");
-    assertEquals(2, uk.numElementsForTest());
-    assertEquals("numnum", uk.nameForTest(0));
-    assertEquals("other", uk.nameForTest(1));
-    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
-    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(1));
+    UniqueKey.Builder ukb = new UniqueKey.Builder("numnum:int,other:int");
+    assertEquals(asList("numnum", "other"), ukb.getDocIdSqlColumns());
+    assertEquals(ColumnType.INT, ukb.getColumnTypes().get("numnum"));
+    assertEquals(ColumnType.INT, ukb.getColumnTypes().get("other"));
   }
 
   @Test
   public void testIntString() {
-    UniqueKey uk = newUniqueKey("numnum:int,strstr:string");
-    assertEquals(2, uk.numElementsForTest());
-    assertEquals("numnum", uk.nameForTest(0));
-    assertEquals("strstr", uk.nameForTest(1));
-    assertEquals(UniqueKey.ColumnType.INT, uk.typeForTest(0));
-    assertEquals(UniqueKey.ColumnType.STRING, uk.typeForTest(1));
+    UniqueKey.Builder ukb = new UniqueKey.Builder("numnum:int,strstr:string");
+    assertEquals(asList("numnum", "strstr"), ukb.getDocIdSqlColumns());
+    assertEquals(ColumnType.INT, ukb.getColumnTypes().get("numnum"));
+    assertEquals(ColumnType.STRING, ukb.getColumnTypes().get("strstr"));
   }
 
   @Test
   public void testUrlIntColumn() {
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("db.uniqueKey value: The key must be a single");
-    new UniqueKey("numnum:int", "", "", false);
+    new UniqueKey.Builder("numnum:int").setEncodeDocIds(false).build();
   }
 
   @Test
   public void testUrlTwoColumns() {
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("db.uniqueKey value: The key must be a single");
-    UniqueKey uk = new UniqueKey("str1:string,str2:string", "", "", false);
+    new UniqueKey.Builder("str1:string,str2:string")
+        .setEncodeDocIds(false).build();
+  }
+
+  @Test
+  public void testUrlColumnMissingType() {
+    thrown.expect(InvalidConfigurationException.class);
+    new UniqueKey.Builder("url").setEncodeDocIds(false).build();
   }
 
   @Test
@@ -128,22 +142,21 @@ public class UniqueKeyTest {
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage(
         "Invalid db.uniqueKey configuration: key name 'num' was repeated.");
-    UniqueKey uk = newUniqueKey("NUM:int,num:string");
+    new UniqueKey.Builder("NUM:int,num:string");
   }
 
   @Test
   public void testBadDef() {
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("Invalid UniqueKey type 'invalid' for 'strstr'.");
-    UniqueKey uk = newUniqueKey("numnum:int,strstr:invalid");
+    new UniqueKey.Builder("numnum:int,strstr:invalid");
   }
 
   @Test
   public void testUnknownType() {
-    UniqueKey uk = newUniqueKey("id");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("Unknown column type for the following columns: [id]");
-    uk.addColumnTypes(Collections.<String, Integer>emptyMap());
+    new UniqueKey.Builder("id").build();
   }
 
   @Test
@@ -151,8 +164,8 @@ public class UniqueKeyTest {
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage(
         "Unknown column 'IsStranger' from db.singleDocContentSqlParameters");
-    UniqueKey uk = newUniqueKey("numnum:int,strstr:string",
-        "numnum,IsStranger,strstr", "");
+    new UniqueKey.Builder("numnum:int,strstr:string")
+        .setContentSqlColumns("numnum,IsStranger,strstr");
   }
 
   @Test
@@ -160,8 +173,97 @@ public class UniqueKeyTest {
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage(
         "Unknown column 'IsStranger' from db.aclSqlParameters");
-    UniqueKey uk = newUniqueKey("numnum:int,strstr:string", "",
-        "numnum,IsStranger,strstr");
+    new UniqueKey.Builder("numnum:int,strstr:string")
+        .setAclSqlColumns("numnum,IsStranger,strstr");
+  }
+
+  @Test
+  public void testAddColumnTypes() {
+    Map<String, Integer> sqlTypes = new HashMap<>();
+    sqlTypes.put("BIT", Types.BIT);
+    sqlTypes.put("BOOLEAN", Types.BOOLEAN);
+    sqlTypes.put("TINYINT", Types.TINYINT);
+    sqlTypes.put("SMALLINT", Types.SMALLINT);
+    sqlTypes.put("INTEGER", Types.INTEGER);
+    sqlTypes.put("BIGINT", Types.BIGINT);
+    sqlTypes.put("CHAR", Types.CHAR);
+    sqlTypes.put("VARCHAR", Types.VARCHAR);
+    sqlTypes.put("LONGVARCHAR", Types.LONGVARCHAR);
+    sqlTypes.put("NCHAR", Types.NCHAR);
+    sqlTypes.put("NVARCHAR", Types.NVARCHAR);
+    sqlTypes.put("LONGNVARCHAR", Types.LONGNVARCHAR);
+    sqlTypes.put("DATALINK", Types.DATALINK);
+    sqlTypes.put("DATE", Types.DATE);
+    sqlTypes.put("TIME", Types.TIME);
+    sqlTypes.put("TIMESTAMP", Types.TIMESTAMP);
+
+    Map<String, ColumnType> golden
+        = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    golden.put("BIT", ColumnType.INT);
+    golden.put("BOOLEAN", ColumnType.INT);
+    golden.put("TINYINT", ColumnType.INT);
+    golden.put("SMALLINT", ColumnType.INT);
+    golden.put("INTEGER", ColumnType.INT);
+    golden.put("BIGINT", ColumnType.LONG);
+    golden.put("CHAR", ColumnType.STRING);
+    golden.put("VARCHAR", ColumnType.STRING);
+    golden.put("LONGVARCHAR", ColumnType.STRING);
+    golden.put("NCHAR", ColumnType.STRING);
+    golden.put("NVARCHAR", ColumnType.STRING);
+    golden.put("LONGNVARCHAR", ColumnType.STRING);
+    golden.put("DATALINK", ColumnType.STRING);
+    golden.put("DATE", ColumnType.DATE);
+    golden.put("TIME", ColumnType.TIME);
+    golden.put("TIMESTAMP", ColumnType.TIMESTAMP);
+
+    UniqueKey.Builder ukb = new UniqueKey.Builder("BIT, BOOLEAN, TINYINT, "
+        + "SMALLINT, INTEGER, BIGINT, CHAR, VARCHAR, LONGVARCHAR, NCHAR, "
+        + "NVARCHAR, LONGNVARCHAR, DATALINK, DATE, TIME, TIMESTAMP");
+    ukb.addColumnTypes(sqlTypes);
+    assertEquals(golden, ukb.getColumnTypes());
+  }
+
+  @Test
+  public void testAddColumnTypes_invalidType() {
+    Map<String, Integer> sqlTypes = new HashMap<>();
+    sqlTypes.put("blob", Types.BLOB);
+
+    UniqueKey.Builder ukb = new UniqueKey.Builder("blob");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Invalid UniqueKey SQLtype");
+    ukb.addColumnTypes(sqlTypes);
+  }
+
+  @Test
+  public void testEquals() throws Exception {
+    UniqueKey uk1 = new UniqueKey.Builder("id:int").build();
+    assertTrue(uk1.equals(new UniqueKey.Builder("id:int").build()));
+    assertFalse(uk1.equals(new UniqueKey.Builder("foo:int").build()));
+    assertFalse(uk1.equals(new UniqueKey.Builder("id:string").build()));
+    UniqueKey uk2 = new UniqueKey.Builder("id:int, other:string").build();
+    assertFalse(uk2.equals(uk1));
+    assertFalse(uk2.equals(new UniqueKey.Builder("id:int, other:string")
+        .setContentSqlColumns("other").build()));
+    assertFalse(uk2.equals(new UniqueKey.Builder("id:int, other:string")
+        .setAclSqlColumns("other").build()));
+    assertFalse(uk1.equals("Foo"));
+  }
+
+  @Test
+  public void testEqualsHashCode() throws Exception {
+    int hashCode1 =  new UniqueKey.Builder("id:int").build().hashCode();
+    assertEquals(hashCode1, new UniqueKey.Builder("id:int").build().hashCode());
+    assertFalse(
+        hashCode1 == new UniqueKey.Builder("foo:int").build().hashCode());
+    assertFalse(
+        hashCode1 == new UniqueKey.Builder("id:string").build().hashCode());
+    int hashCode2
+        = new UniqueKey.Builder("id:int, other:string").build().hashCode();
+    assertFalse(hashCode2 == hashCode1);
+    assertFalse(hashCode2 == new UniqueKey.Builder("id:int, other:string")
+        .setContentSqlColumns("other").build().hashCode());
+    assertFalse(hashCode2 == new UniqueKey.Builder("id:int, other:string")
+        .setAclSqlColumns("other").build().hashCode());
   }
 
   @Test
@@ -174,6 +276,51 @@ public class UniqueKeyTest {
       UniqueKey uk = newUniqueKey("numnum:int,strstr:string");
       assertTrue("ResultSet is empty", rs.next());
       assertEquals("345/abc", uk.makeUniqueId(rs, /*encode=*/ true));
+    }
+  }
+
+  @Test
+  public void testProcessingDocId_encodingError() throws SQLException {
+    executeUpdate("create table data(numnum int, strstr varchar)");
+    executeUpdate("insert into data(numnum, strstr) values(345, 'abc')");
+
+    try (Statement stmt = getConnection().createStatement();
+        ResultSet rs = stmt.executeQuery("select * from data")) {
+      UniqueKey uk = newUniqueKey("numnum:int,strstr:string");
+      assertTrue("ResultSet is empty", rs.next());
+      thrown.handleAssertionErrors();
+      thrown.expect(AssertionError.class);
+      thrown.expectMessage("not encoding implies exactly one parameter");
+      uk.makeUniqueId(rs, /*encode=*/ false);
+    }
+  }
+
+  @Test
+  public void testProcessingDocId_allTypes() throws SQLException {
+    executeUpdate("create table data(c1 integer, c2 bigint, c3 varchar, "
+        + "c4 date, c5 time, c6 timestamp)");
+    String sql = "insert into data(c1, c2, c3, c4, c5, c6) "
+        + "values (?, ?, ?, ?, ?, ?)";
+    Calendar gmt = Calendar.getInstance(TimeZone.getTimeZone("GMT"), US);
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setInt(1, 123);
+      ps.setLong(2, 4567890L);
+      ps.setString(3, "foo");
+      ps.setDate(4, new Date(0L), gmt);
+      ps.setTime(5, new Time(0L), gmt);
+      // TODO(bmj): setTimestamp with Calendar broken in H2?
+      ps.setTimestamp(6, new Timestamp(0L)/*, gmt*/);
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    UniqueKey uk = new UniqueKey.Builder(
+        "c1:int, c2:long, c3:string, c4:date, c5:time, c6:timestamp").build();
+
+    try (Statement stmt = getConnection().createStatement();
+        ResultSet rs = stmt.executeQuery("select * from data")) {
+      assertTrue("ResultSet is empty", rs.next());
+      assertEquals("123/4567890/foo/1970-01-01/00:00:00/0",
+          uk.makeUniqueId(rs, /*encode=*/ true));
     }
   }
 
@@ -201,6 +348,19 @@ public class UniqueKeyTest {
       assertTrue("ResultSet is empty", rs.next());
       assertEquals("5_/5_/_/_//_/_/6_/6",
           uk.makeUniqueId(rs, /*encode=*/ true));
+    }
+  }
+
+  @Test
+  public void testPreparingRetrieval_wrongColumnCount() throws SQLException {
+    executeUpdate("create table data(id integer, other varchar)");
+
+    String sql = "insert into data(id, other) values (?, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      UniqueKey uk = newUniqueKey("id:int, other:string");
+      thrown.expect(IllegalStateException.class);
+      thrown.expectMessage("Wrong number of values for primary key");
+      uk.setContentSqlValues(ps, "123/foo/bar");
     }
   }
 

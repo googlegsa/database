@@ -649,13 +649,16 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUniqueKeyInvalidType() throws Exception {
+    executeUpdate("create table data(productid int, other varchar)");
     // Type of unique key id value cannot be "notvalid", since it's invalid.
     // That cat be int, string, timestamp, date, time, and long.
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "productid:notvalid");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.everyDocIdSql", "select productid from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where productid = ?");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("Invalid UniqueKey type 'notvalid'");
     getObjectUnderTest(moreEntries);
@@ -663,12 +666,15 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUniqueKeyContainsRepeatedKeyName() throws Exception {
+    executeUpdate("create table data(productid int, other varchar)");
     // Value of unique key cannot contain repeated key name.
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "productid:int,productid:string");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.everyDocIdSql", "select productid from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where productid = ?");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("key name 'productid' was repeated");
     getObjectUnderTest(moreEntries);
@@ -676,13 +682,15 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUniqueKeyEmpty() throws Exception {
+    executeUpdate("create table data(id int, url varchar)");
     // Value of unique id cannot be empty.
     // The value has to be something like "keyname:type"
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("db.uniqueKey parameter: value cannot be empty");
     getObjectUnderTest(moreEntries);
@@ -690,12 +698,13 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUniqueKeyUrl() throws Exception {
+    executeUpdate("create table data(id int, url varchar)");
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "id:int, url:string");
     // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("db.uniqueKey value: The key must be a single");
     getObjectUnderTest(moreEntries);

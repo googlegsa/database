@@ -176,14 +176,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     encodeDocId = !leaveIdAlone;
     log.config("encodeDocId: " + encodeDocId);
 
-    uniqueKey = new UniqueKey(
-        cfg.getValue("db.uniqueKey"),
-        cfg.getValue("db.singleDocContentSqlParameters"),
-        cfg.getValue("db.aclSqlParameters"),
-        encodeDocId
-    );
-    log.config("primary key: " + uniqueKey);
-
     everyDocIdSql = cfg.getValue("db.everyDocIdSql");
     log.config("every doc id sql: " + everyDocIdSql);
 
@@ -277,18 +269,24 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           "The following properties are set but will be ignored: " + ignored);
     }
 
+    UniqueKey.Builder ukBuilder
+        = new UniqueKey.Builder(cfg.getValue("db.uniqueKey"))
+        .setEncodeDocIds(encodeDocId)
+        .setContentSqlColumns(cfg.getValue("db.singleDocContentSqlParameters"))
+        .setAclSqlColumns(cfg.getValue("db.aclSqlParameters"));
+
     // Verify all column names.
     try (Connection conn = makeNewConnection()) {
       Map<String, Integer> columnTypes =
           verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
-              "db.uniqueKey", uniqueKey.getDocIdSqlColumns());
-      uniqueKey.addColumnTypes(columnTypes);
+              "db.uniqueKey", ukBuilder.getDocIdSqlColumns());
+      ukBuilder.addColumnTypes(columnTypes);
       verifyColumnNames(conn, "db.updateSql", updateSql,
-          "db.uniqueKey", uniqueKey.getDocIdSqlColumns());
+          "db.uniqueKey", ukBuilder.getDocIdSqlColumns());
       verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
-          "db.singleDocContentSqlParameters", uniqueKey.getContentSqlColumns());
+          "db.singleDocContentSqlParameters", ukBuilder.getContentSqlColumns());
       verifyColumnNames(conn, "db.aclSql", aclSql,
-          "db.aclSqlParameters", uniqueKey.getAclSqlColumns());
+          "db.aclSqlParameters", ukBuilder.getAclSqlColumns());
       if (!actionColumn.isEmpty()) {
         verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
             "db.actionColumn", Arrays.asList(actionColumn));
@@ -314,6 +312,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     } catch (SQLException e) {
       log.log(Level.WARNING, "Unable to validate configured column names");
     }
+
+    uniqueKey = ukBuilder.build();
+    log.config("primary key: " + uniqueKey);
   }
 
   /**
