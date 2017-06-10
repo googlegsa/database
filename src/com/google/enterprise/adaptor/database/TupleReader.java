@@ -14,6 +14,9 @@
 
 package com.google.enterprise.adaptor.database;
 
+import com.google.common.io.BaseEncoding;
+import com.google.enterprise.adaptor.IOHelper;
+
 import org.xml.sax.ContentHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -39,13 +42,10 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import javax.xml.bind.DatatypeConverter;
 
 /**
  * A XMLReader that reads one row of a ResultSet and outputs XML events
@@ -195,13 +195,11 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.BLOB:
           Blob blob = resultSet.getBlob(col);
           if (blob != null) {
-            try (InputStream lob = resultSet.getBinaryStream(col);
-                Writer writer = new ContentHandlerWriter(handler)) {
-              // so encode using Base64
+            try (InputStream lob = resultSet.getBinaryStream(col)) {
               atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
                   "base64binary");
               handler.startElement("", columnName, columnName, atts);
-              encode(lob, writer);
+              copyBase64EncodedData(lob, handler);
             } finally {
               try {
                 blob.free();
@@ -244,14 +242,12 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.BINARY:
         case Types.VARBINARY:
         case Types.LONGVARBINARY:
-          try (InputStream lob = resultSet.getBinaryStream(col);
-              Writer outWriter = new ContentHandlerWriter(handler)) {
+          try (InputStream lob = resultSet.getBinaryStream(col)) {
             if (lob != null) {
-              // so encode using Base64
               atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
                   "base64binary");
               handler.startElement("", columnName, columnName, atts);
-              encode(lob, outWriter);
+              copyBase64EncodedData(lob, handler);
             }
           }
           break;
@@ -373,36 +369,17 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
       handler.characters(buffer, 0, len);
     }
   }
-  
-  private static int encode(InputStream inStream, Writer out, int bufferSize)
-      throws IOException {
-    int len = 0;
-    byte[] buffer = new byte[bufferSize];
-    int numOfBytes = inStream.read(buffer, 0, buffer.length);
-    byte[] partToEncode = Arrays.copyOf(buffer, numOfBytes);
-    String converted = DatatypeConverter.printBase64Binary(partToEncode);
-    while (numOfBytes != -1) {
-      out.write(converted);
-      len += numOfBytes;
-      numOfBytes = inStream.read(buffer, 0, buffer.length);
-    }
-    return len;
-  }
 
   /**
-   * Write out a whole {@link InputStream} using Base64 encoding,
-   * using default buffer size of 1024*3.
+   * Writes a Base64-encoded copy of an InputStream to a Writer.
    *
-   * WARNING: This method will not flush the Writer 'out' (second argument). 
-   * You'll have to do this yourself, or loose some of your precious data. 
-   *
-   * @param inStream the input data stream
-   * @param out output writer
-   * @return number of bytes processed
+   * @param in the input data stream
+   * @param out the output writer
    */
-  private static int encode(InputStream inStream, Writer out)
-      throws IOException {
-    return encode(inStream, out, 1024 * 3);
+  private static void copyBase64EncodedData(InputStream in,
+      ContentHandler handler) throws IOException {
+    Writer writer = new ContentHandlerWriter(handler);
+    IOHelper.copyStream(in, BaseEncoding.base64().encodingStream(writer));
   }
 
   /**
@@ -410,7 +387,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
    * character data area.
    */
   private static class ContentHandlerWriter extends Writer {
-    private ContentHandler handler;
+    private final ContentHandler handler;
 
     /**
      * Create a writer to a handler.
