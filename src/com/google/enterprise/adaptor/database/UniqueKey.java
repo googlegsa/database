@@ -47,182 +47,30 @@ class UniqueKey {
     LONG
   }
 
-  private final List<String> names;  // columns used for DocId
+  private final List<String> docIdSqlCols;  // columns used for DocId
   private final Map<String, ColumnType> types;  // types of DocId columns
   private final List<String> contentSqlCols;  // columns for content query
   private final List<String> aclSqlCols;  // columns for acl query
+  private final boolean encodeDocIds;
 
-  UniqueKey(String ukDecls, String contentSqlColumns, String aclSqlColumns,
-      boolean encode) {
-    if (null == ukDecls) {
-      throw new NullPointerException();
-    }
-    if (null == contentSqlColumns) {
-      throw new NullPointerException();
-    }
-    if (null == aclSqlColumns) {
-      throw new NullPointerException();
-    }
-
-    if ("".equals(ukDecls.trim())) {
-      String errmsg = "Invalid db.uniqueKey parameter: value cannot be empty.";
-      throw new InvalidConfigurationException(errmsg);
-    }
-
-    List<String> tmpNames = new ArrayList<String>();
-    Map<String, ColumnType> tmpTypes =
-        new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    for (String e : ukDecls.split(",", 0)) {
-      log.fine("element: `" + e + "'");
-      e = e.trim();
-      String def[] = e.split(":", 2);
-      String name = def[0].trim();
-      ColumnType type;
-      if (def.length == 1) {
-        // No type given. Try to get type from ResultSetMetaData later.
-        type = null;
-      } else {
-        String typeStr = def[1].trim();
-        try {
-          type = ColumnType.valueOf(typeStr.toUpperCase(US));
-        } catch (IllegalArgumentException iae) {
-          String errmsg = "Invalid UniqueKey type '" + typeStr
-              + "' for '" + name + "'. Valid types are: "
-              + Arrays.toString(ColumnType.values()).toLowerCase(US);
-          throw new InvalidConfigurationException(errmsg);
-        }
-      }
-      if (tmpTypes.containsKey(name)) {
-        String errmsg = "Invalid db.uniqueKey configuration: key name '"
-            + name + "' was repeated.";
-        throw new InvalidConfigurationException(errmsg);
-      }
-      tmpNames.add(name);
-      tmpTypes.put(name, type);
-    }
-    if (!encode
-        && (tmpTypes.size() != 1
-            || tmpTypes.values().iterator().next() != ColumnType.STRING)) {
-      throw new InvalidConfigurationException("Invalid db.uniqueKey value:"
-          + " The key must be a single string column when docId.isUrl=true.");
-    }
-    names = Collections.unmodifiableList(tmpNames);
-    types = tmpTypes;
-
-    if ("".equals(contentSqlColumns.trim())) {
-      contentSqlCols = names;
-    } else {
-      contentSqlCols = splitIntoNameList("db.singleDocContentSqlParameters",
-          contentSqlColumns, tmpTypes.keySet());
-    }
-
-    if ("".equals(aclSqlColumns.trim())) {
-      aclSqlCols = names;
-    } else {
-      aclSqlCols = splitIntoNameList("db.aclSqlParameters", aclSqlColumns,
-          tmpTypes.keySet());
-    }
+  private UniqueKey(List<String> docIdSqlCols, Map<String, ColumnType> types,
+      List<String> contentSqlCols, List<String> aclSqlCols,
+      boolean encodeDocIds) {
+    this.docIdSqlCols = docIdSqlCols;
+    this.types = types;
+    this.contentSqlCols = contentSqlCols;
+    this.aclSqlCols = aclSqlCols;
+    this.encodeDocIds = encodeDocIds;
   }
 
-  private static List<String> splitIntoNameList(String paramConfig, String cols,
-      Set<String> validNames) {
-    List<String> tmpContentCols = new ArrayList<String>();
-    for (String name : cols.split(",", 0)) {
-      name = name.trim();
-      if (!validNames.contains(name)) {
-        String errmsg = "Unknown column '" + name + "' from " + paramConfig
-            + " not found in db.uniqueKey: " + validNames;
-        throw new InvalidConfigurationException(errmsg);
-      }
-      tmpContentCols.add(name);
-    }
-    return Collections.unmodifiableList(tmpContentCols);
-  }
-
-  List<String> getDocIdSqlColumns() {
-    return names;
-  }
-
-  List<String> getContentSqlColumns() {
-    return contentSqlCols;
-  }
-
-  List<String> getAclSqlColumns() {
-    return aclSqlCols;
-  }
-
-  /**
-   * Attempt to extract ColumnTypes from the supplied Map
-   * of column names to java.sql.Type
-   *
-   * @param sqlTypes Map of column names to Integer java.sql.Types
-   */
-  void addColumnTypes(Map<String, Integer> sqlTypes) {
-    for (Map.Entry<String, Integer> entry : sqlTypes.entrySet()) {
-      if (types.get(entry.getKey()) != null) {
-        continue;
-      }
-      ColumnType type;
-      switch (entry.getValue()) {
-        case Types.BIT:
-        case Types.BOOLEAN:
-        case Types.TINYINT:
-        case Types.SMALLINT:
-        case Types.INTEGER:
-          type = ColumnType.INT;
-          break;
-        case Types.BIGINT:
-          type = ColumnType.LONG;
-          break;
-        case Types.CHAR:
-        case Types.VARCHAR:
-        case Types.LONGVARCHAR:
-        case Types.NCHAR:
-        case Types.NVARCHAR:
-        case Types.LONGNVARCHAR:
-        case Types.DATALINK:
-          type = ColumnType.STRING;
-          break;
-        case Types.DATE:
-          type = ColumnType.DATE;
-          break;
-        case Types.TIME:
-          type = ColumnType.TIME;
-          break;
-        case Types.TIMESTAMP:
-          type = ColumnType.TIMESTAMP;
-          break;
-        default:
-          String errmsg = "Invalid UniqueKey SQLtype '" + entry.getValue() + "'"
-              + " for " + entry.getKey() + ". Please set an explicit key type"
-              + " in db.uniqueKey.";
-          throw new InvalidConfigurationException(errmsg);
-      }
-      types.put(entry.getKey(), type);
-    }
-    ArrayList<String> badColumns = new ArrayList<>();
-    for (Map.Entry<String, ColumnType> entry : types.entrySet()) {
-      if (entry.getValue() == null) {
-        badColumns.add(entry.getKey());
-      }
-    }
-    if (!badColumns.isEmpty()) {
-      throw new InvalidConfigurationException("Unknown column type for the"
-          + " following columns: " + badColumns
-          + ". Please set explicit types in db.uniqueKey.");
-    }
-  }
-
-  String makeUniqueId(ResultSet rs, boolean encode) throws SQLException {
-    if (!encode) {
-      if (names.size() == 1) {
-        return rs.getString(names.get(0));
-      }
-      throw new AssertionError("not encoding implies exactly one parameter");
+  String makeUniqueId(ResultSet rs) throws SQLException {
+    if (!encodeDocIds) {
+      // DocId must be a single string column.
+      return rs.getString(docIdSqlCols.get(0));
     }
     StringBuilder sb = new StringBuilder();
-    for (int i = 0; i < names.size(); i++) {
-      String name = names.get(i);
+    for (int i = 0; i < docIdSqlCols.size(); i++) {
+      String name = docIdSqlCols.get(i);
       String part;
       switch (types.get(name)) {
         case INT:
@@ -257,7 +105,7 @@ class UniqueKey {
     // parse on / that isn't preceded by escape char _
     // (a / that is preceded by _ is part of column value)
     String parts[] = uniqueId.split("(?<!_)/", -1);
-    if (parts.length != names.size()) {
+    if (parts.length != docIdSqlCols.size()) {
       String errmsg = "Wrong number of values for primary key: "
           + "id: " + uniqueId + ", parts: " + Arrays.asList(parts);
       throw new IllegalStateException(errmsg);
@@ -265,7 +113,7 @@ class UniqueKey {
     Map<String, String> zip = new TreeMap<String, String>();
     for (int i = 0; i < parts.length; i++) {
       String columnValue = decodeSlashInData(parts[i]);
-      zip.put(names.get(i), columnValue);
+      zip.put(docIdSqlCols.get(i), columnValue);
     }
     for (int i = 0; i < sqlCols.size(); i++) {
       String colName = sqlCols.get(i);
@@ -352,51 +200,251 @@ class UniqueKey {
     return id;
   }
 
-  /** Number of columns that make up the primary key. */
-  @VisibleForTesting
-  int numElementsForTest() {
-    return names.size(); 
-  }
-
-  /** Name of particular column in primary key. */
-  @VisibleForTesting
-  String nameForTest(int i) {
-    return names.get(i);
-  }
-
-  /** Type of particular column in primary key. */
-  @VisibleForTesting
-  ColumnType typeForTest(int i) {
-    return types.get(names.get(i));
-  }
-
-  /** Type of a named column in primary key. */
-  @VisibleForTesting
-  ColumnType typeForTest(String name) {
-    return types.get(name);
-  }
-
   @Override
   public String toString() {
-    return "UniqueKey(" + names + "," + types + "," + contentSqlCols + ","
+    return "UniqueKey(" + docIdSqlCols + "," + types + "," + contentSqlCols + ","
         + aclSqlCols + ")";
   }
 
-  @Override
-  public boolean equals(Object other) {
-    boolean same = false;
-    if (other instanceof UniqueKey) {
-      UniqueKey key = (UniqueKey) other;
-      same = names.equals(key.names)
-          && types.equals(key.types)
-          && contentSqlCols.equals(key.contentSqlCols)
-          && aclSqlCols.equals(key.aclSqlCols);
-    }
-    return same;
-  }
+  /** Builder to create instances of {@code UniqueKey}. */
+  static class Builder {
+    private final List<String> docIdSqlCols;  // columns used for DocId
+    private Map<String, ColumnType> types;  // types of DocId columns
+    private List<String> contentSqlCols;  // columns for content query
+    private List<String> aclSqlCols;  // columns for acl query
+    private boolean encodeDocIds = true;
 
-  @Override
-  public int hashCode() {
-    return java.util.Objects.hash(names, types, contentSqlCols, aclSqlCols);
+    /**
+     * Create a mutable builder for the UniqueKey configuration.
+     *
+     * @param docIdSqlColumns comma separated list of column names
+     *     and optional types of the form: columnName[:type][, ...].
+     *     If specified {@code type} must be one of
+     *     {@code int, long, string, date, time, or timestamp}.
+     * @throws InvalidConfigurationException if duplicate column names are
+     *     provided, or an invalid column type is specified.
+     * @throws NullPointerException if docIdSqlColumns is null
+     */
+    Builder(String docIdSqlColumns) throws InvalidConfigurationException {
+      if (null == docIdSqlColumns) {
+        throw new NullPointerException();
+      }
+
+      if ("".equals(docIdSqlColumns.trim())) {
+        throw new InvalidConfigurationException(
+            "Invalid db.uniqueKey parameter: value cannot be empty.");
+      }
+
+      List<String> tmpNames = new ArrayList<>();
+      types = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+      for (String e : docIdSqlColumns.split(",", 0)) {
+        log.fine("element: `" + e + "'");
+        e = e.trim();
+        String def[] = e.split(":", 2);
+        String name = def[0].trim();
+        ColumnType type;
+        if (def.length == 1) {
+          // No type given. Try to get type from ResultSetMetaData later.
+          type = null;
+        } else {
+          String typeStr = def[1].trim();
+          try {
+            type = ColumnType.valueOf(typeStr.toUpperCase(US));
+          } catch (IllegalArgumentException iae) {
+            String errmsg = "Invalid UniqueKey type '" + typeStr
+                + "' for '" + name + "'. Valid types are: "
+                + Arrays.toString(ColumnType.values()).toLowerCase(US);
+            throw new InvalidConfigurationException(errmsg);
+          }
+        }
+        tmpNames.add(name);
+        if (types.put(name, type) != null) {
+          String errmsg = "Invalid db.uniqueKey configuration: key name '"
+              + name + "' was repeated.";
+          throw new InvalidConfigurationException(errmsg);
+        }
+      }
+      docIdSqlCols = Collections.unmodifiableList(tmpNames);
+      contentSqlCols = docIdSqlCols;
+      aclSqlCols = docIdSqlCols;
+    }
+
+    /**
+     * Sets whether to encode DocIds composed of mulitple column values,
+     * separated by slashes.
+     * If not encoding DocIds, the {@code docIdSqlColumns} supplied to the
+     * {@code Builder} must consist of a single column of type {@code string}.
+     *
+     * @param encodeDocIds if {@code true} encode the DocId
+     */
+    Builder setEncodeDocIds(boolean encodeDocIds) {
+      this.encodeDocIds = encodeDocIds;
+      return this;
+    }
+
+    /**
+     * Sets the columns used by the {@code db.singleDocContentSql} query
+     * parameters. The columms must also be included in the
+     * {@code docIdSqlColumns} supplied to the {@code Builder} constructor.
+     *
+     * @param contentSqlColumns comma separated list of column names
+     * @return this Builder
+     * @throws InvalidConfigurationException if a column name is not found in
+     *     the list of columns supplied to this Builder's constructor
+     * @throws NullPointerException if contentSqlColumns is null
+     */
+    Builder setContentSqlColumns(String contentSqlColumns)
+        throws InvalidConfigurationException {
+      if (null == contentSqlColumns) {
+        throw new NullPointerException();
+      }
+      if (!contentSqlColumns.trim().isEmpty()) {
+        this.contentSqlCols
+            = splitIntoNameList("db.singleDocContentSqlParameters",
+                contentSqlColumns, types.keySet());
+      }
+      return this;
+    }
+
+    /**
+     * Sets the columns used by the {@code db.aclSql} query parameters.
+     * The columms must also be included in the
+     * {@code docIdSqlColumns} supplied to the {@code Builder} constructor.
+     *
+     * @param aclSqlColumns comma separated list of column names
+     * @return this Builder
+     * @throws InvalidConfigurationException if a column name is not found in
+     *     the list of columns supplied to this Builder's constructor.
+     * @throws NullPointerException if aclSqlColumns is null
+     */
+    Builder setAclSqlColumns(String aclSqlColumns)
+        throws InvalidConfigurationException {
+      if (null == aclSqlColumns) {
+        throw new NullPointerException();
+      }
+      if (!aclSqlColumns.trim().isEmpty()) {
+        this.aclSqlCols = splitIntoNameList("db.aclSqlParameters",
+            aclSqlColumns, types.keySet());
+      }
+      return this;
+    }
+
+    private static List<String> splitIntoNameList(String paramConfig,
+        String cols, Set<String> validNames) {
+      List<String> columnNames = new ArrayList<String>();
+      for (String name : cols.split(",", 0)) {
+        name = name.trim();
+        if (!validNames.contains(name)) {
+          String errmsg = "Unknown column '" + name + "' from " + paramConfig
+              + " not found in db.uniqueKey: " + validNames;
+          throw new InvalidConfigurationException(errmsg);
+        }
+        columnNames.add(name);
+      }
+      return Collections.unmodifiableList(columnNames);
+    }
+
+    /**
+     * Attempt to extract ColumnTypes from the supplied Map
+     * of column names to java.sql.Type
+     *
+     * @param sqlTypes Map of column names to Integer java.sql.Types
+     * @return this Builder
+     * @throws InvalidConfigurationException if a column's SQL type cannot be
+     *     mapped to a ColumnType.
+     */
+    Builder addColumnTypes(Map<String, Integer> sqlTypes) {
+      for (Map.Entry<String, Integer> entry : sqlTypes.entrySet()) {
+        if (types.get(entry.getKey()) != null) {
+          continue;
+        }
+        ColumnType type;
+        switch (entry.getValue()) {
+          case Types.BIT:
+          case Types.BOOLEAN:
+          case Types.TINYINT:
+          case Types.SMALLINT:
+          case Types.INTEGER:
+            type = ColumnType.INT;
+            break;
+          case Types.BIGINT:
+            type = ColumnType.LONG;
+            break;
+          case Types.CHAR:
+          case Types.VARCHAR:
+          case Types.LONGVARCHAR:
+          case Types.NCHAR:
+          case Types.NVARCHAR:
+          case Types.LONGNVARCHAR:
+          case Types.DATALINK:
+            type = ColumnType.STRING;
+            break;
+          case Types.DATE:
+            type = ColumnType.DATE;
+            break;
+          case Types.TIME:
+            type = ColumnType.TIME;
+            break;
+          case Types.TIMESTAMP:
+            type = ColumnType.TIMESTAMP;
+            break;
+          default:
+            String errmsg = "Invalid UniqueKey SQLtype '" + entry.getValue()
+                + "' for " + entry.getKey() + ". Please set an explicit key "
+                + "type in db.uniqueKey.";
+            throw new InvalidConfigurationException(errmsg);
+        }
+        types.put(entry.getKey(), type);
+      }
+      return this;
+    }
+
+    /** Return the list of docIdSqlColumns. */
+    List<String> getDocIdSqlColumns() {
+      return docIdSqlCols;
+    }
+
+    /** Return the list of contentSqlColumns. */
+    List<String> getContentSqlColumns() {
+      return contentSqlCols;
+    }
+
+    /** Return the list of aclSqlColumns. */
+    List<String> getAclSqlColumns() {
+      return aclSqlCols;
+    }
+
+    /** Return the Map of column types. */
+    @VisibleForTesting
+    Map<String, ColumnType> getColumnTypes() {
+      return Collections.unmodifiableMap(types);
+    }
+
+    /**
+     * @return a {@code UniqueKey} instance constructed with configuration
+     *   supplied to this Builder.
+     */
+    UniqueKey build() throws InvalidConfigurationException {
+      ArrayList<String> badColumns = new ArrayList<>();
+      for (Map.Entry<String, ColumnType> entry : types.entrySet()) {
+        if (entry.getValue() == null) {
+          badColumns.add(entry.getKey());
+        }
+      }
+      if (!badColumns.isEmpty()) {
+        throw new InvalidConfigurationException("Unknown column type for the"
+            + " following columns: " + badColumns
+            + ". Please set explicit types in db.uniqueKey.");
+      }
+      types = Collections.unmodifiableMap(types);
+      if (!encodeDocIds
+          && (types.size() != 1
+              || types.values().iterator().next() != ColumnType.STRING)) {
+        throw new InvalidConfigurationException("Invalid db.uniqueKey value:"
+           + " The key must be a single string column when docId.isUrl=true.");
+      }
+      return new UniqueKey(docIdSqlCols, types, contentSqlCols, aclSqlCols,
+                           encodeDocIds);
+    }
   }
 }
