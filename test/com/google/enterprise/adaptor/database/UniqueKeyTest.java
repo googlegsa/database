@@ -20,7 +20,6 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.UniqueKey.ColumnType;
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 
@@ -33,7 +32,6 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -238,12 +236,9 @@ public class UniqueKeyTest {
     executeUpdate("create table data(numnum int, strstr varchar)");
     executeUpdate("insert into data(numnum, strstr) values(345, 'abc')");
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      UniqueKey uk = newUniqueKey("numnum:int,strstr:string");
-      assertTrue("ResultSet is empty", rs.next());
-      assertEquals("345/abc", uk.makeUniqueId(rs));
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    UniqueKey uk = newUniqueKey("numnum:int,strstr:string");
+    assertEquals("345/abc", uk.makeUniqueId(rs));
   }
 
   @Test
@@ -267,12 +262,9 @@ public class UniqueKeyTest {
     executeUpdate("create table data(a varchar, b varchar)");
     executeUpdate("insert into data(a, b) values('5/5', '6/6')");
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      UniqueKey uk = newUniqueKey("a:string,b:string");
-      assertTrue("ResultSet is empty", rs.next());
-      assertEquals("5_/5/6_/6", uk.makeUniqueId(rs));
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    UniqueKey uk = newUniqueKey("a:string,b:string");
+    assertEquals("5_/5/6_/6", uk.makeUniqueId(rs));
   }
 
   @Test
@@ -280,12 +272,9 @@ public class UniqueKeyTest {
     executeUpdate("create table data(a varchar, b varchar)");
     executeUpdate("insert into data(a, b) values('5/5//', '//6/6')");
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      UniqueKey uk = newUniqueKey("a:string,b:string");
-      assertTrue("ResultSet is empty", rs.next());
-      assertEquals("5_/5_/_/_//_/_/6_/6", uk.makeUniqueId(rs));
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    UniqueKey uk = newUniqueKey("a:string,b:string");
+    assertEquals("5_/5_/_/_//_/_/6_/6", uk.makeUniqueId(rs));
   }
 
   @Test
@@ -318,16 +307,13 @@ public class UniqueKeyTest {
       assertEquals(1, ps.executeUpdate());
     }
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      assertEquals(888, rs.getInt("numnum"));
-      assertEquals("bluesky", rs.getString("strstr"));
-      assertEquals(new Timestamp(1414701070212L), rs.getTimestamp("timestamp"));
-      assertEquals(Date.valueOf("2014-01-01"), rs.getDate("date"));
-      assertEquals(Time.valueOf("02:03:04"), rs.getTime("time"));
-      assertEquals(123L, rs.getLong("long"));
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    assertEquals(888, rs.getInt("numnum"));
+    assertEquals("bluesky", rs.getString("strstr"));
+    assertEquals(new Timestamp(1414701070212L), rs.getTimestamp("timestamp"));
+    assertEquals(Date.valueOf("2014-01-01"), rs.getDate("date"));
+    assertEquals(Time.valueOf("02:03:04"), rs.getTime("time"));
+    assertEquals(123L, rs.getLong("long"));
   }
 
   @Test
@@ -345,17 +331,14 @@ public class UniqueKeyTest {
       assertEquals(1, ps.executeUpdate());
     }
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      assertEquals(888, rs.getInt(1));
-      assertEquals(888, rs.getInt(2));
-      assertEquals("bluesky", rs.getString(3));
-      assertEquals(888, rs.getInt(4));
-      assertEquals("bluesky", rs.getString(5));
-      assertEquals("bluesky", rs.getString(6));
-      assertEquals(888, rs.getInt(7));
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    assertEquals(888, rs.getInt(1));
+    assertEquals(888, rs.getInt(2));
+    assertEquals("bluesky", rs.getString(3));
+    assertEquals(888, rs.getInt(4));
+    assertEquals("bluesky", rs.getString(5));
+    assertEquals("bluesky", rs.getString(6));
+    assertEquals(888, rs.getInt(7));
   }
 
   @Test
@@ -369,13 +352,10 @@ public class UniqueKeyTest {
       assertEquals(1, ps.executeUpdate());
     }
 
-    try (Statement stmt = getConnection().createStatement();
-        ResultSet rs = stmt.executeQuery("select * from data")) {
-      assertTrue("ResultSet is empty", rs.next());
-      assertEquals("5/5", rs.getString(1));
-      assertEquals("6/6", rs.getString(2));
-      assertEquals("5/5", rs.getString(3));
-    }
+    ResultSet rs = executeQueryAndNext("select * from data");
+    assertEquals("5/5", rs.getString(1));
+    assertEquals("6/6", rs.getString(2));
+    assertEquals("5/5", rs.getString(3));
   }
 
   private static String makeId(char choices[], int maxlen) {
@@ -405,21 +385,15 @@ public class UniqueKeyTest {
           "insert into data(a, b) values('" + elem1 + "', '" + elem2 + "')");
 
       UniqueKey uk = newUniqueKey("a:string,b:string");
-      String id;
-      try (Statement stmt = getConnection().createStatement();
-          ResultSet rs = stmt.executeQuery("select * from data")) {
-        assertTrue("ResultSet is empty", rs.next());
-        id = uk.makeUniqueId(rs);
-      }
+      ResultSet rs = executeQueryAndNext("select * from data");
+      String id = uk.makeUniqueId(rs);
 
       String sql = "select * from data where a = ? and b = ?";
       try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
         uk.setContentSqlValues(ps, id);
-        try (ResultSet rs = ps.executeQuery()) {
-          assertTrue("ResultSet is empty", rs.next());
-          assertEquals(elem1, rs.getString(1));
-          assertEquals(elem2, rs.getString(2));
-        }
+        rs = executeQueryAndNext("select * from data");
+        assertEquals(elem1, rs.getString(1));
+        assertEquals(elem2, rs.getString(2));
       } catch (Exception e) {
         throw new RuntimeException("elem1: " + elem1 + ", elem2: " + elem2 
             + ", id: " + id, e);
