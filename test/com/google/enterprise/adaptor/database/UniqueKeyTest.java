@@ -108,7 +108,8 @@ public class UniqueKeyTest {
 
   @Test
   public void testIntString() {
-    UniqueKey.Builder builder = new UniqueKey.Builder("numnum:int,strstr:string");
+    UniqueKey.Builder builder
+        = new UniqueKey.Builder("numnum:int,strstr:string");
     assertEquals(asList("numnum", "strstr"), builder.getDocIdSqlColumns());
     assertEquals(ColumnType.INT, builder.getColumnTypes().get("numnum"));
     assertEquals(ColumnType.STRING, builder.getColumnTypes().get("strstr"));
@@ -251,12 +252,13 @@ public class UniqueKeyTest {
         + "c4 date, c5 time, c6 timestamp)");
     executeUpdate("insert into data(c1, c2, c3, c4, c5, c6) "
         + "values (123, 4567890, 'foo', "
-        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09T12:34:56'})");
+        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56'})");
 
     UniqueKey uk = new UniqueKey.Builder(
         "c1:int, c2:long, c3:string, c4:date, c5:time, c6:timestamp").build();
     ResultSet rs = executeQueryAndNext("select * from data");
-    assertEquals("123/4567890/foo/2007-08-09/12:34:56/1186688096000",
+    assertEquals("123/4567890/foo/2007-08-09/12:34:56/"
+                 + Timestamp.valueOf("2007-08-09 12:34:56").getTime(),
                  uk.makeUniqueId(rs));
   }
 
