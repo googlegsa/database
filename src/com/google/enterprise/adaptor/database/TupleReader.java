@@ -24,6 +24,7 @@ import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.AttributesImpl;
 import org.xml.sax.helpers.XMLFilterImpl;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -378,7 +379,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
    */
   private static void copyBase64EncodedData(InputStream in,
       ContentHandler handler) throws IOException {
-    Writer writer = new ContentHandlerWriter(handler);
+    Writer writer = new BufferedWriter(new ContentHandlerWriter(handler));
     IOHelper.copyStream(in, BaseEncoding.base64().encodingStream(writer));
   }
 
