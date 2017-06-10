@@ -18,7 +18,6 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.CoreMatchers.isA;
 import static org.junit.Assert.assertEquals;
 
@@ -40,6 +39,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Random;
 import java.util.TimeZone;
 
 import javax.xml.bind.DatatypeConverter;
@@ -99,9 +99,6 @@ public class TupleReaderTest {
     generateXml(rs);
   }
 
-  /**
-   * Test varchar column.
-   */
   @Test
   public void testVarchar() throws Exception {
     executeUpdate("create table data(colname varchar)");
@@ -136,9 +133,6 @@ public class TupleReaderTest {
     assertEquals(golden, result);
   }
 
-  /**
-   * Test Char column.
-   */
   @Test
   public void testChar() throws Exception {
     executeUpdate("create table data(colname char)");
@@ -173,9 +167,6 @@ public class TupleReaderTest {
     assertEquals(golden, result);
   }
 
-  /**
-   * Test integer column.
-   */
   @Test
   public void testInteger() throws Exception {
     executeUpdate("create table data(colname integer)");
@@ -210,9 +201,6 @@ public class TupleReaderTest {
     assertEquals(golden, result);
   }
 
-  /**
-   * Test boolean column.
-   */
   @Test
   public void testBoolean() throws Exception {
     executeUpdate("create table data(colname boolean)");
@@ -247,9 +235,6 @@ public class TupleReaderTest {
     assertEquals(golden, result);
   }
 
-  /**
-   * Test date column.
-   */
   @Test
   public void testDate() throws Exception {
     executeUpdate("create table data(colname date)");
@@ -284,9 +269,6 @@ public class TupleReaderTest {
     assertEquals(golden, result);
   }
 
-  /**
-   * Test TIMESTAMP column.
-   */
   @Test
   public void testTimestamp() throws Exception {
     executeUpdate("create table data(colname timestamp)");
@@ -340,9 +322,6 @@ public class TupleReaderTest {
     assertEquals(golden, result);
   }
 
-  /**
-   * Test TIME column.
-   */
   @Test
   public void testTime() throws Exception {
     executeUpdate("create table data(colname time)");
@@ -397,37 +376,17 @@ public class TupleReaderTest {
     assertEquals(golden, result);
   }
 
-  /**
-   * Test BLOB column.
-   */
   @Test
   public void testBlob() throws Exception {
-    String blobData =
-        " Google's indices consist of information that has been"
-            + " identified, indexed and compiled through an automated"
-            + " process with no advance review by human beings. Given"
-            + " the enormous volume of web site information added,"
-            + " deleted, and changed on a frequent basis, Google cannot"
-            + " and does not screen anything made available through its"
-            + " indices. For each web site reflected in Google's"
-            + " indices, if either (i) a site owner restricts access to"
-            + " his or her web site or (ii) a site is taken down from"
-            + " the web, then, upon receipt of a request by the site"
-            + " owner or a third party in the second instance, Google"
-            + " would consider on a case-by-case basis requests to"
-            + " remove the link to that site from its indices. However,"
-            + " if the operator of the site does not take steps to"
-            + " prevent it, the automatic facilities used to create"
-            + " the indices are likely to find that site and index it"
-            + " again in a relatively short amount of time.";
+    byte[] blobData = new byte[12345];
+    new Random().nextBytes(blobData);
     executeUpdate("create table data(colname blob)");
     String sql = "insert into data(colname) values (?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBinaryStream(1, new ByteArrayInputStream(blobData.getBytes(UTF_8)));
+      ps.setBinaryStream(1, new ByteArrayInputStream(blobData));
       assertEquals(1, ps.executeUpdate());
     }
-    String base64BlobData = DatatypeConverter.printBase64Binary(
-        blobData.getBytes(UTF_8));
+    String base64BlobData = DatatypeConverter.printBase64Binary(blobData);
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -435,6 +394,23 @@ public class TupleReaderTest {
         + "<COLNAME SQLType=\"BLOB\" encoding=\"base64binary\">"
         + base64BlobData
         + "</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testBlob_empty() throws Exception {
+    executeUpdate("create table data(colname blob)");
+    executeUpdate("insert into data(colname) values('')");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"BLOB\" encoding=\"base64binary\"/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -460,9 +436,6 @@ public class TupleReaderTest {
     assertEquals(golden, result);
   }
 
-  /**
-   * Test CLOB column.
-   */
   @Test
   public void testClob() throws Exception {
     String clobData =
