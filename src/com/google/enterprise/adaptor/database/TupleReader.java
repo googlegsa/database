@@ -43,7 +43,6 @@ import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
-import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.logging.Level;
@@ -80,10 +79,20 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
   private static final Logger log = Logger.getLogger(TupleReader.class
       .getName());
 
-  // format data, time, timestamp according to ISO 8601
-  private static final DateFormat DATEFMT = new SimpleDateFormat("yyyy-MM-dd");
-  private static final DateFormat TIMEFMT = new SimpleDateFormat("hh:mm:ss");
-  private static final DateFormat TIMEZONEFMT = new SimpleDateFormat("Z");
+  // Format time and timestamp according to ISO 8601.
+  // SimpleDateFormat is not thread-safe.
+  private static final ThreadLocal<SimpleDateFormat> TIMESTAMP_FORMAT =
+      new ThreadLocal<SimpleDateFormat>() {
+        @Override protected SimpleDateFormat initialValue() {
+          return new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+        }
+      };
+  private static final ThreadLocal<SimpleDateFormat> TIMEZONE_FORMAT =
+      new ThreadLocal<SimpleDateFormat>() {
+        @Override protected SimpleDateFormat initialValue() {
+          return new SimpleDateFormat("Z");
+        }
+      };
 
   /** Map from SQL types to SQL type names. */
   private static final HashMap<Integer, String> sqlTypeNames = new HashMap<>();
@@ -164,7 +173,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           if (dateValue != null) {
             try (Writer outWriter = new ContentHandlerWriter(handler)) {
               handler.startElement("", columnName, columnName, atts);
-              outWriter.write(DATEFMT.format(dateValue));
+              outWriter.write(dateValue.toString());
             }
           }
           break;
@@ -175,13 +184,13 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           if (tsValue != null) {
             try (Writer outWriter = new ContentHandlerWriter(handler)) {
               handler.startElement("", columnName, columnName, atts);
-              String timezone = TIMEZONEFMT.format(tsValue);
+              String timezone = TIMEZONE_FORMAT.get().format(tsValue);
               // java timezone not ISO compliant
               timezone =
                   timezone.substring(0, timezone.length() - 2) + ":"
                       + timezone.substring(timezone.length() - 2);
-              outWriter.write(DATEFMT.format(tsValue) + "T"
-                  + TIMEFMT.format(tsValue) + timezone);
+              outWriter.write(
+                  TIMESTAMP_FORMAT.get().format(tsValue) + timezone);
             }
           }
           break;
@@ -190,12 +199,12 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           if (timeValue != null) {
             try (Writer outWriter = new ContentHandlerWriter(handler)) {
               handler.startElement("", columnName, columnName, atts);
-              String timezone = TIMEZONEFMT.format(timeValue);
+              String timezone = TIMEZONE_FORMAT.get().format(timeValue);
               // java timezone not ISO compliant
               timezone =
                   timezone.substring(0, timezone.length() - 2) + ":"
                       + timezone.substring(timezone.length() - 2);
-              outWriter.write(TIMEFMT.format(timeValue) + timezone);
+              outWriter.write(timeValue + timezone);
             }
           }
           break;
