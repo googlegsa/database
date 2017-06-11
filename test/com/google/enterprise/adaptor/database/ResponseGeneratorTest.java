@@ -289,8 +289,8 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     List<String> messages = new ArrayList<String>();
-    captureLogMessages(ResponseGenerator.class, "Column type not handled",
-        messages);
+    captureLogMessages(ResponseGenerator.class,
+        "Content column type not supported", messages);
     resgen.generateResponse(rs, response);
     assertEquals("", bar.baos.toString(UTF_8.name()));
     assertEquals(messages.toString(), 1, messages.size());

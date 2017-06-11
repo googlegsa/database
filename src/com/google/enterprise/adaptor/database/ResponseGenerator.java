@@ -38,6 +38,7 @@ import java.sql.NClob;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.SQLXML;
 import java.sql.Types;
 import java.util.Collections;
 import java.util.Map;
@@ -406,6 +407,7 @@ public abstract class ResponseGenerator {
           new Object[] {getContentColumnName(), columnType});
 
       OutputStream out = resp.getOutputStream();
+      // This code supports *LOB, *CHAR, *BINARY, and SQLXML types only.
       switch (columnType) {
         case Types.BLOB:
           Blob blob = rs.getBlob(index);
@@ -451,6 +453,21 @@ public abstract class ResponseGenerator {
             }
           }
           break;
+        case Types.SQLXML:
+          SQLXML sqlxml = rs.getSQLXML(index);
+          if (sqlxml != null) {
+            try (Reader reader = sqlxml.getCharacterStream();
+                Writer writer = new OutputStreamWriter(out, UTF_8)) {
+              copy(reader, writer);
+            } finally {
+              try {
+                sqlxml.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing SQLXML", e);
+              }
+            }
+          }
+          break;
         case -13: // Oracle BFILE.
         case Types.LONGVARBINARY:
           try (InputStream in = rs.getBinaryStream(index)) {
@@ -492,11 +509,13 @@ public abstract class ResponseGenerator {
           }
           break;
         default:
-          log.log(Level.FINEST, "Column type not handled: {0}", columnType);
+          log.log(Level.WARNING, "Content column type not supported: {0}",
+              columnType);
           break;
       }
     }
 
+    /** A copy of IOHelper.copyStream for Reader/Writer. */
     private void copy(Reader reader, Writer writer) throws IOException {
       char[] buffer = new char[8192];
       int len;
