@@ -402,6 +402,25 @@ public class ResponseGeneratorTest {
   }
 
   @Test
+  public void testFilepathColumnModeIncorrectColumnName() throws Exception {
+    MockResponse far = new MockResponse();
+    Response response = newProxyInstance(Response.class, far);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "wrongcolumn");
+    String content = "we live inside a file\nwe do\nyes";
+    File testFile = writeTempFile(content);
+
+    executeUpdate("create table data(filepath varchar)");
+    executeUpdate("insert into data(filepath) values ('"
+        + testFile.getAbsolutePath() + "')");
+
+    ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
+    ResultSet rs = executeQueryAndNext("select * from data");
+    thrown.expect(java.sql.SQLException.class);
+    resgen.generateResponse(rs, response);
+  }
+
+  @Test
   public void testUrlColumn() throws Exception {
     MockResponse uar = new MockResponse();
     Response response = newProxyInstance(Response.class, uar);
@@ -423,6 +442,22 @@ public class ResponseGeneratorTest {
     assertEquals(content, uar.baos.toString(UTF_8.name()));
     assertEquals("text/plain", uar.contentType);
     assertEquals(testUri, uar.displayUrl);
+  }
+
+  @Test
+  public void testUrlColumnModeIncorrectColumnName() throws Exception {
+    MockResponse far = new MockResponse();
+    Response response = newProxyInstance(Response.class, far);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "wrongcolumn");
+
+    executeUpdate("create table data(url varchar)");
+    executeUpdate("insert into data(url) values ('some URL')");
+
+    ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
+    ResultSet rs = executeQueryAndNext("select * from data");
+    thrown.expect(java.sql.SQLException.class);
+    resgen.generateResponse(rs, response);
   }
 
   @Test
@@ -485,7 +520,8 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testContentTypeColumn_contentTypeOverride() throws Exception {
+  public void testContentColumn_contentTypeOverrideAndContentTypeCol()
+      throws Exception {
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
@@ -521,7 +557,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testContentTypeColumn() throws Exception {
+  public void testContentColumn_contentTypeCol() throws Exception {
     String content = "hello world";
     executeUpdate(
         "create table data(id int, content blob, contentType varchar)");
@@ -547,7 +583,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testContentTypeColumn_null() throws Exception {
+  public void testContentColumn_contentTypeCol_nullValue() throws Exception {
     String content = "hello world";
     executeUpdate(
         "create table data(id int, content blob, contentType varchar)");
@@ -576,7 +612,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testDisplayUrlColumn() throws Exception {
+  public void testContentColumn_displayUrlCol() throws Exception {
     String content = "hello world";
     String url = "http://host/hard-coded-blob-display-url";
     executeUpdate("create table data(id int, content blob, url varchar)");
@@ -601,7 +637,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testDisplayUrlColumn_nullUrl() throws Exception {
+  public void testContentColumn_displayUrlCol_nullValue() throws Exception {
     String content = "hello world";
     executeUpdate("create table data(id int, content blob, url varchar)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -628,7 +664,7 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testDisplayUrlColumn_invalidUrl() throws Exception {
+  public void testContentColumn_displayUrlCol_invalidUrl() throws Exception {
     String content = "hello world";
     String url = "invalid-display-url";
     executeUpdate("create table data(id int, content blob, url varchar)");
