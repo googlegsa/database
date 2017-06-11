@@ -154,7 +154,7 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
       atts.addAttribute("", "SQLType", "SQLType", "NMTOKEN", sqlTypeName);
       log.fine("sqlTypeName: " + sqlTypeName);
 
-      // This code tries to ready every SQL type.
+      // This code does not support structured types.
       // TODO(jlacey): The handling of numbers, booleans, characters,
       // and other objects is very similar. The differences are getString
       // versus getObject and whether copyValidXmlCharacters is called.
