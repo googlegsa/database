@@ -669,6 +669,46 @@ public class TupleReaderTest {
   }
 
   @Test
+  public void testOther_invalidXmlChars() throws Exception {
+    // H2's OTHER type requires a serialized Java object.
+    StringBuilder input = new StringBuilder();
+    StringBuilder output = new StringBuilder();
+    for (char i = '\0'; i <= '\u001F'; i++) {
+      input.append(i);
+      output.append('\uFFFD');
+    }
+    input.append("\uFFFE\uFFFF");
+    output.append("\uFFFD\uFFFD");
+    output.setCharAt('\t', '\t');
+    output.setCharAt('\n', '\n');
+    output.replace('\r', '\r' + 1, "&#13;");
+    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+    try (ObjectOutputStream out = new ObjectOutputStream(buffer)) {
+      out.writeObject(input.toString());
+    }
+
+    executeUpdate("create table data(colname other)");
+    String sql = "insert into data(colname) values (?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setObject(1, buffer.toByteArray());
+      assertEquals(1, ps.executeUpdate());
+    }
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"OTHER\">"
+        + output.toString()
+        + "</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
   public void testOther_null() throws Exception {
     executeUpdate("create table data(other other)");
     executeUpdate("insert into data(other) values(null)");

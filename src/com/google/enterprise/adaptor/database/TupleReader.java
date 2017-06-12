@@ -171,10 +171,8 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.DATE:
           Date dateValue = resultSet.getDate(col);
           if (dateValue != null) {
-            try (Writer outWriter = new ContentHandlerWriter(handler)) {
-              handler.startElement("", columnName, columnName, atts);
-              outWriter.write(dateValue.toString());
-            }
+            handler.startElement("", columnName, columnName, atts);
+            copyCharacters(dateValue.toString(), handler);
           }
           break;
         case Types.TIMESTAMP:
@@ -182,30 +180,26 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           // parameter.
           Timestamp tsValue = resultSet.getTimestamp(col);
           if (tsValue != null) {
-            try (Writer outWriter = new ContentHandlerWriter(handler)) {
-              handler.startElement("", columnName, columnName, atts);
-              String timezone = TIMEZONE_FORMAT.get().format(tsValue);
-              // java timezone not ISO compliant
-              timezone =
-                  timezone.substring(0, timezone.length() - 2) + ":"
-                      + timezone.substring(timezone.length() - 2);
-              outWriter.write(
-                  TIMESTAMP_FORMAT.get().format(tsValue) + timezone);
-            }
+            handler.startElement("", columnName, columnName, atts);
+            String timezone = TIMEZONE_FORMAT.get().format(tsValue);
+            // java timezone not ISO compliant
+            timezone =
+                timezone.substring(0, timezone.length() - 2) + ":"
+                + timezone.substring(timezone.length() - 2);
+            copyCharacters(TIMESTAMP_FORMAT.get().format(tsValue) + timezone,
+                handler);
           }
           break;
         case Types.TIME:
           Time timeValue = resultSet.getTime(col);
           if (timeValue != null) {
-            try (Writer outWriter = new ContentHandlerWriter(handler)) {
-              handler.startElement("", columnName, columnName, atts);
-              String timezone = TIMEZONE_FORMAT.get().format(timeValue);
-              // java timezone not ISO compliant
-              timezone =
-                  timezone.substring(0, timezone.length() - 2) + ":"
-                      + timezone.substring(timezone.length() - 2);
-              outWriter.write(timeValue + timezone);
-            }
+            handler.startElement("", columnName, columnName, atts);
+            String timezone = TIMEZONE_FORMAT.get().format(timeValue);
+            // java timezone not ISO compliant
+            timezone =
+                timezone.substring(0, timezone.length() - 2) + ":"
+                + timezone.substring(timezone.length() - 2);
+            copyCharacters(timeValue + timezone, handler);
           }
           break;
         case Types.BLOB:
@@ -293,10 +287,8 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.NUMERIC:
           String string = resultSet.getString(col);
           if (string != null) {
-            try (Writer outWriter = new ContentHandlerWriter(handler)) {
-              handler.startElement("", columnName, columnName, atts);
-              outWriter.write(string);
-            }
+            handler.startElement("", columnName, columnName, atts);
+            copyCharacters(string, handler);
           }
           break;
         case Types.CHAR:
@@ -329,10 +321,8 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         case Types.BOOLEAN:
           Object value = resultSet.getObject(col);
           if (value != null) {
-            try (Writer outWriter = new ContentHandlerWriter(handler)) {
-              handler.startElement("", columnName, columnName, atts);
-              outWriter.write(String.valueOf(value));
-            }
+            handler.startElement("", columnName, columnName, atts);
+            copyCharacters(value.toString(), handler);
           }
           break;
         case Types.ARRAY:
@@ -345,10 +335,8 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
         default:
           value = resultSet.getObject(col);
           if (value != null) {
-            try (Writer writer = new ContentHandlerWriter(handler)) {
-              handler.startElement("", columnName, columnName, atts);
-              writer.write(String.valueOf(value));
-            }
+            handler.startElement("", columnName, columnName, atts);
+            copyValidXmlCharacters(new StringReader(value.toString()), handler);
           }
           break;
       }
@@ -409,63 +397,41 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
     }
   }
 
-  /**
-   * Writes a Base64-encoded copy of an InputStream to a Writer.
-   *
-   * @param in the input data stream
-   * @param out the output writer
-   */
-  private static void copyBase64EncodedData(InputStream in,
-      ContentHandler handler) throws IOException {
-    Writer writer = new BufferedWriter(new ContentHandlerWriter(handler));
-    IOHelper.copyStream(in, BaseEncoding.base64().encodingStream(writer));
+  private static void copyCharacters(String str, ContentHandler handler)
+      throws SAXException {
+    char[] chars = str.toCharArray();
+    handler.characters(chars, 0, chars.length);
   }
 
   /**
-   * A writer that writes to the {@link org.xml.sax.ContentHandler}'s 
-   * character data area.
+   * Writes a Base64-encoded copy of an InputStream to the
+   * {@link org.xml.sax.ContentHandler}'s character data area.
    */
-  private static class ContentHandlerWriter extends Writer {
-    private final ContentHandler handler;
-
-    /**
-     * Create a writer to a handler.
-     *
-     * @param handler a {@link org.xml.sax.ContentHandler} object, not null
-     */
-    public ContentHandlerWriter(ContentHandler handler) {
-      this.handler = handler;
-    }
-
-    /**
-     * Do nothing (no-op).
-     */
-    public void close() throws IOException {
-      // no-op
-    }
-
-    /**
-     * Do nothing (no-op).
-     */
-    public void flush() throws IOException {
-      // no-op
-    }
-
-    /**
-     * Write a character buffer to the character data of the handler.
-     * <p>
-     * Calls the handler's characters method.
-     *
-     * @param cbuf the character buffer
-     * @param off the starting offset in cbuf
-     * @param len length of data in cbuf
-     * @see org.xml.sax.ContentHandler#characters()
-     */
-    public void write(char[] cbuf, int off, int len) throws IOException {
-      try {
-        handler.characters(cbuf, off, len);
-      } catch (SAXException ex) {
-        throw new IOException(ex);
+  private static void copyBase64EncodedData(InputStream in,
+      final ContentHandler handler) throws IOException, SAXException {
+    Writer writer =
+        new BufferedWriter(
+            new Writer() {
+              @Override public void close() throws IOException { }
+              @Override public void flush() throws IOException { }
+              @Override public void write(char[] cbuf, int off, int len)
+                  throws IOException {
+                try {
+                  handler.characters(cbuf, off, len);
+                } catch (SAXException ex) {
+                  throw new IOException(ex);
+                }
+              }
+            });
+    try {
+      IOHelper.copyStream(in, BaseEncoding.base64().encodingStream(writer));
+    } catch (IOException e) {
+      // Unwrap a SAXException that we wrapped in an IOException above.
+      Throwable cause = e.getCause();
+      if (cause instanceof SAXException) {
+        throw (SAXException) cause;
+      } else {
+        throw e;
       }
     }
   }
