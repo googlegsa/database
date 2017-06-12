@@ -155,6 +155,57 @@ public class ResponseGeneratorTest {
   }
 
   @Test
+  public void testRowToText_multipleTypes() throws Exception {
+    executeUpdate("create table data ("
+        + "intcol integer, booleancol boolean, charcol varchar,"
+        + " datecol date, timecol time, timestampcol timestamp,"
+        + " clobcol clob, blobcol blob, arraycol array)");
+    String sql = "insert into data values (1, true, ?,"
+        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56.7'},"
+        + "?, ?, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+        ps.setString(1, "hello, world");
+        ps.setString(2, "It's a big world");
+        ps.setBytes(3, "A big, bad world".getBytes(UTF_8));
+        ps.setObject(4, new String[] { "hello", "world" });
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(ResponseGenerator.class,
+        "Column type not supported for text", messages);
+    resgen.generateResponse(rs, response);
+    String golden = "DATA,DATA,DATA,DATA,DATA,DATA,DATA\n"
+        + "INTCOL,BOOLEANCOL,CHARCOL,DATECOL,TIMECOL,TIMESTAMPCOL,CLOBCOL\n"
+        + "1,true,\"hello, world\",2007-08-09,12:34:56,2007-08-09 12:34:56.7,"
+        + "It's a big world\n";
+    assertEquals(golden, bar.baos.toString(UTF_8.name()));
+    assertEquals(messages.toString(), 2, messages.size());
+  }
+
+  @Test
+  public void testRowToText_null() throws Exception {
+    executeUpdate("create table data (id integer, this varchar, that clob)");
+    executeUpdate("insert into data (id) values (1)");
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    String golden = "DATA,DATA,DATA\nID,THIS,THAT\n1,,\n";
+    assertEquals(golden, bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
   public void testRowToText_specialCharacters() throws Exception {
     executeUpdate(
         "create table data (id integer, name varchar, quote varchar)");
