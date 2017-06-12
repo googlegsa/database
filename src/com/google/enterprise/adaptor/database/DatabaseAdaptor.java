@@ -85,7 +85,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private UniqueKey uniqueKey;
   private String everyDocIdSql;
   private String singleDocContentSql;
-  private String actionColumn;
   private MetadataColumns metadataColumns;
   private ResponseGenerator respGenerator;
   private String aclSql;
@@ -105,8 +104,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.everyDocIdSql", null);
     config.addKey("db.singleDocContentSql", "");
     config.addKey("db.singleDocContentSqlParameters", "");
-    // column that contains either "add" or "delete" action.
-    config.addKey("db.actionColumn", "");
     config.addKey("db.metadataColumns", "");
     // when set to true, if "db.metadataColumns" is blank, it will use all
     // returned columns as metadata.
@@ -177,9 +174,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     singleDocContentSql = cfg.getValue("db.singleDocContentSql");
     log.config("single doc content sql: " + singleDocContentSql);
-
-    actionColumn = cfg.getValue("db.actionColumn");
-    log.config("action column: " + actionColumn);
 
     Boolean includeAllColumnsAsMetadata = new Boolean(cfg.getValue(
         "db.includeAllColumnsAsMetadata"));
@@ -289,10 +283,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           "db.singleDocContentSqlParameters", ukBuilder.getContentSqlColumns());
       verifyColumnNames(conn, "db.aclSql", aclSql,
           "db.aclSqlParameters", ukBuilder.getAclSqlColumns());
-      if (!actionColumn.isEmpty()) {
-        verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
-            "db.actionColumn", Arrays.asList(actionColumn));
-      }
       if (metadataColumns != null) {
         if ("urlAndMetadataLister".equals(modeOfOperation)) {
           verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
@@ -406,10 +396,13 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         ResultSet rs = stmt.executeQuery();
         BufferedPusher outstream = new BufferedPusher(pusher)) {
       log.finer("queried for stream");
+      boolean hasAction
+          = hasColumn(rs.getMetaData(), GsaSpecialColumns.GSA_ACTION);
+      log.log(Level.FINEST, "hasAction: {0}", hasAction);
       while (rs.next()) {
         DocId id = new DocId(uniqueKey.makeUniqueId(rs));
         DocIdPusher.Record.Builder builder = new DocIdPusher.Record.Builder(id);
-        if (isDeleteAction(rs)) {
+        if (hasAction && isDeleteAction(rs)) {
           builder.setDeleteFromIndex(true);
         } else if ("urlAndMetadataLister".equals(modeOfOperation)) {
           addMetadataToRecordBuilder(builder, rs);
@@ -424,11 +417,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   }
 
   private boolean isDeleteAction(ResultSet rs) throws SQLException {
-    if (!actionColumn.equals("")) {
-      String action = rs.getString(actionColumn);
-      return (action != null && "delete".equals(action.toLowerCase(US)));
-    }
-    return false;
+    String action = rs.getString(GsaSpecialColumns.GSA_ACTION.toString());
+    return (action != null && "delete".equals(action.toLowerCase(US)));
   }
 
   private interface MetadataHandler {
@@ -943,14 +933,18 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           PreparedStatement stmt = getUpdateStreamFromDb(conn);
           ResultSet rs = stmt.executeQuery();
           BufferedPusher outstream = new BufferedPusher(pusher)) {
-        hasTimestamp =
-            hasColumn(rs.getMetaData(), GsaSpecialColumns.GSA_TIMESTAMP);
+        ResultSetMetaData rsmd = rs.getMetaData();
+        boolean hasAction = hasColumn(rsmd, GsaSpecialColumns.GSA_ACTION);
+        log.log(Level.FINEST, "hasAction: {0}", hasAction);
+        hasTimestamp = hasColumn(rsmd, GsaSpecialColumns.GSA_TIMESTAMP);
         log.log(Level.FINEST, "hasTimestamp: {0}", hasTimestamp);
         while (rs.next()) {
           DocId id = new DocId(uniqueKey.makeUniqueId(rs));
           DocIdPusher.Record.Builder builder =
               new DocIdPusher.Record.Builder(id).setCrawlImmediately(true);
-          if ("urlAndMetadataLister".equals(modeOfOperation)) {
+          if (hasAction && isDeleteAction(rs)) {
+            builder.setDeleteFromIndex(true);
+          } else if ("urlAndMetadataLister".equals(modeOfOperation)) {
             addMetadataToRecordBuilder(builder, rs);
           }
           DocIdPusher.Record record = builder.build();
@@ -1005,7 +999,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     GSA_DENY_USERS,
     GSA_PERMIT_GROUPS,
     GSA_DENY_GROUPS,
-    GSA_TIMESTAMP;
+    GSA_TIMESTAMP,
+    GSA_ACTION
   }
 
   private static class AllPublic implements AuthzAuthority {

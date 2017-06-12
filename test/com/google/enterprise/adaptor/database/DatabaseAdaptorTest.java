@@ -1183,24 +1183,6 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testInitVerifyColumnNames_actionColumn() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
-
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "select id from data");
-    moreEntries.put("db.actionColumn", "other");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("[other] not found in query");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
   public void testInitVerifyColumnNames_metadataColumns() throws Exception {
     executeUpdate("create table data(id int, other varchar)");
 
@@ -1308,7 +1290,7 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testGetDocIdsActionColumn() throws Exception {
+  public void testGetDocIds_gsaAction() throws Exception {
     executeUpdate("create table data(id integer, url varchar, action varchar)");
     executeUpdate("insert into data(id, url, action) values"
         + "('1001', 'http://localhost/?q=1001', 'add'),"
@@ -1319,11 +1301,11 @@ public class DatabaseAdaptorTest {
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "url:string");
-    configEntries.put("db.everyDocIdSql", "select * from data order by url");
+    configEntries.put("db.everyDocIdSql",
+        "select id, url, action as GSA_ACTION from data order by url");
     configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("docId.isUrl", "true");
     configEntries.put("db.metadataColumns", "id:id");
-    configEntries.put("db.actionColumn", "action");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
     RecordingDocIdPusher pusher = new RecordingDocIdPusher();
@@ -1347,33 +1329,6 @@ public class DatabaseAdaptorTest {
         new Record.Builder(new DocId("http://localhost/?q=1005"))
             .setMetadata(metadata5).build()}),
         pusher.getRecords());
-  }
-
-  @Test
-  public void testGetDocIdsActionColumnMissing() throws Exception {
-    // Simulate a skipped column verification by creating the missing
-    // column for init but removing it for getDocIds.
-    executeUpdate("create table data(id integer, url varchar, action varchar)");
-    executeUpdate("insert into data(id, url, action) values"
-        + "(1001, 'http://localhost/?q=1001', 'add')");
-
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.actionColumn", "action");
-    configEntries.put("db.uniqueKey", "url:string");
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    configEntries.put("docId.isUrl", "true");
-    configEntries.put("db.metadataColumns", "id:col1");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-
-    executeUpdate("alter table data drop column action");
-
-    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
-    thrown.expect(IOException.class);
-    thrown.expectCause(isA(SQLException.class));
-    thrown.expectMessage("Column \"action\" not found");
-    adaptor.getDocIds(pusher);
   }
 
   @Test
@@ -1501,7 +1456,8 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(id integer, "
         + "other varchar default 'hello, world', ts timestamp)");
     executeUpdate("insert into data(id, ts) values "
-        + "(1, dateadd('minute', 1, current_timestamp())),"
+
+                  + "(1, dateadd('minute', 1, current_timestamp())),"
         + "(2, dateadd('minute', 2, current_timestamp())),"
         + "(3, dateadd('minute', 1, current_timestamp())),"
         + "(4, dateadd('minute', -1, current_timestamp()))");
@@ -1535,6 +1491,55 @@ public class DatabaseAdaptorTest {
     pusher.reset();
     lister.getModifiedDocIds(pusher);
     assertEquals(golden, pusher.getRecords());
+  }
+
+  @Test
+  public void testGetModifiedDocIds_gsaAction() throws Exception {
+    executeUpdate("create table data(url varchar, action varchar, "
+        + "other varchar default 'hello, world', ts timestamp)");
+    executeUpdate("insert into data(url, action, ts) values"
+        + "('http://localhost/0', 'add', "
+            + "dateadd('minute', -1, current_timestamp())),"
+        + "('http://localhost/1', 'add', "
+            + "dateadd('minute', 1, current_timestamp())),"
+        + "('http://localhost/2', 'delete', "
+            + "dateadd('minute', 1, current_timestamp())),"
+        + "('http://localhost/3', 'DELETE', "
+            + "dateadd('minute', 1, current_timestamp())),"
+        + "('http://localhost/4', 'foo', "
+            + "dateadd('minute', 1, current_timestamp())),"
+        + "('http://localhost/5', null, "
+            + "dateadd('minute', 1, current_timestamp()))");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url");
+    moreEntries.put("db.updateSql", "select url, action as gsa_action, other "
+        + "from data where ts >= ? order by url");
+    moreEntries.put("db.metadataColumns", "other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql", "");
+
+    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    lister.getModifiedDocIds(pusher);
+
+    Metadata metadata = new Metadata();
+    metadata.add("other", "hello, world");
+    assertEquals(Arrays.asList(new Record[] {
+        new Record.Builder(new DocId("http://localhost/1"))
+            .setMetadata(metadata).setCrawlImmediately(true).build(),
+        new Record.Builder(new DocId("http://localhost/2"))
+            .setDeleteFromIndex(true).setCrawlImmediately(true).build(),
+        new Record.Builder(new DocId("http://localhost/3"))
+            .setDeleteFromIndex(true).setCrawlImmediately(true).build(),
+        new Record.Builder(new DocId("http://localhost/4"))
+            .setMetadata(metadata).setCrawlImmediately(true).build(),
+        new Record.Builder(new DocId("http://localhost/5"))
+            .setMetadata(metadata).setCrawlImmediately(true).build()}),
+        pusher.getRecords());
   }
 
   @Test
