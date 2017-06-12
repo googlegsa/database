@@ -22,6 +22,7 @@ import static org.hamcrest.CoreMatchers.isA;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -35,6 +36,7 @@ import java.io.StringWriter;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -57,16 +59,21 @@ import javax.xml.transform.stream.StreamResult;
 public class TupleReaderTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();
-  
-  private final TransformerFactory transFactory;
-  private final Transformer trans;
-  
-  public TupleReaderTest() throws TransformerConfigurationException {
-    transFactory = TransformerFactory.newInstance();
+
+  private Transformer perTestTransformer;
+
+  @Before
+  public void setUp() throws TransformerConfigurationException {
+    perTestTransformer = transformer();
+  }
+
+  private Transformer transformer() throws TransformerConfigurationException {
+    TransformerFactory transFactory = TransformerFactory.newInstance();
     // Create a new Transformer that performs a copy of the Source to the
     // Result. i.e. the "identity transform".
-    trans = transFactory.newTransformer();
+    Transformer trans = transFactory.newTransformer();
     trans.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+    return trans;
   }
 
   @After
@@ -75,6 +82,11 @@ public class TupleReaderTest {
   }
 
   private String generateXml(ResultSet rs) throws TransformerException {
+    return generateXml(perTestTransformer, rs);
+  }
+
+  private String generateXml(Transformer trans, ResultSet rs)
+      throws TransformerException {
     TupleReader reader = new TupleReader(rs);
     Source source = new SAXSource(reader, /*ignored*/new InputSource());
     StringWriter writer = new StringWriter();
@@ -316,6 +328,83 @@ public class TupleReaderTest {
     ResultSet rs = executeQueryAndNext("select * from data");
     String result = generateXml(rs);
     assertEquals(golden, result);
+  }
+
+  @Test
+  public void testTimestamp_threadSafe() throws Throwable {
+    // Without ThreadLocal, even 2 threads and 1 iteration would throw
+    // an exception. These values are still very quick to test
+    // (14 milliseconds in my testing).
+    final int threadCount = 5;
+    final int iterations = 20;
+
+    // We're going to generate dates randomly distributed around the
+    // current date (e.g., in 2013, between 1970 and 2056).
+    Random rnd = new Random();
+    long now = new Date().getTime();
+    long scale = 2 * now / Integer.MAX_VALUE;
+
+    Thread[] threads = new Thread[threadCount];
+    final Throwable[] errors = new Throwable[threadCount];
+
+    executeUpdate("create table data(thread int, colname timestamp)");
+
+    // Start the threads.
+    for (int t = 0; t < threadCount; t++) {
+      long time = rnd.nextInt(Integer.MAX_VALUE) * scale;
+
+      Timestamp ts = new Timestamp(time);
+      executeUpdate("insert into data(thread, colname) values ("
+          + t + ", {ts '" + ts + "'})");
+
+      DateFormat timeZoneFmt = new SimpleDateFormat("X");
+      Calendar cal = Calendar.getInstance();
+      cal.setTimeInMillis(time);
+      Date date = cal.getTime();
+      final String golden = ""
+          + "<database>"
+          + "<table>"
+          + "<table_rec>"
+          + "<COLNAME SQLType=\"TIMESTAMP\">"
+          + ts.toString().replace(' ', 'T').replaceFirst("\\.\\d+$", "")
+          + timeZoneFmt.format(date) + ":00"
+          + "</COLNAME>"
+          + "</table_rec>"
+          + "</table>"
+          + "</database>";
+
+      final Transformer perThreadTransformer = transformer();
+
+      // Collect errors in the threads to throw them from the test
+      // thread or the test won't fail.
+      final int tt = t;
+      threads[t] = new Thread() {
+          @Override public void run() {
+            try {
+              ResultSet rs = executeQueryAndNext(
+                  "select colname from data where thread = " + tt);
+              for (int i = 0; i < iterations; i++) {
+                String result = generateXml(perThreadTransformer, rs);
+                assertEquals("Thread " + tt + "; iteration " + i,
+                    golden, result);
+              }
+            } catch (Throwable e) {
+              errors[tt] = e;
+            }
+          }
+        };
+      threads[t].start();
+    }
+
+    // Wait for each thread and check for errors.
+    StringBuilder builder = new StringBuilder();
+    for (int t = 0; t < threadCount; t++) {
+      threads[t].join();
+      if (errors[t] != null) {
+        builder.append(errors[t]).append("\n");
+      }
+    }
+    assertEquals(builder.toString(), 0, builder.length());
   }
 
   @Test
