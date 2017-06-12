@@ -28,6 +28,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
+import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -64,6 +65,16 @@ public abstract class ResponseGenerator {
 
   private static String emptyToNull(String value) {
     return (value == null || value.isEmpty()) ? null : value;
+  }
+
+  /** A copy of IOHelper.copyStream for Reader/Writer. */
+  private static void copy(Reader reader, Writer writer) throws IOException {
+    char[] buffer = new char[8192];
+    int len;
+    while ((len = reader.read(buffer)) != -1) {
+      writer.write(buffer, 0, len);
+    }
+    writer.flush();
   }
 
   private final Map<String, String> cfg;
@@ -227,19 +238,98 @@ public abstract class ResponseGenerator {
       StringBuilder line1 = new StringBuilder();
       StringBuilder line2 = new StringBuilder();
       StringBuilder line3 = new StringBuilder();
-      for (int i = 1; i < (numberOfColumns + 1); i++) {
-        String tableName = rsMetaData.getTableName(i);
-        String columnName = rsMetaData.getColumnLabel(i);
-        String value = rs.getString(i);
-        if (null == value) {
-          value = "" + rs.getObject(i);
+      for (int index = 1; index <= numberOfColumns; index++) {
+        int columnType = rsMetaData.getColumnType(index);
+        String tableName = rsMetaData.getTableName(index);
+        String columnName = rsMetaData.getColumnLabel(index);
+
+        // This code does not support binary or structured types.
+        Object value = null;
+        switch (columnType) {
+          case Types.DATE:
+            value = rs.getDate(index);
+            break;
+          case Types.TIME:
+            value = rs.getTime(index);
+            break;
+          case Types.TIMESTAMP:
+            value = rs.getTimestamp(index);
+            break;
+          case Types.CLOB:
+            Clob clob = rs.getClob(index);
+            if (clob != null) {
+              try (Reader reader = clob.getCharacterStream()) {
+                StringWriter writer = new StringWriter();
+                copy(reader, writer);
+                value = writer;
+              } finally {
+                try {
+                  clob.free();
+                } catch (Exception e) {
+                  log.log(Level.FINEST, "Error closing CLOB", e);
+                }
+              }
+            }
+            break;
+          case Types.NCLOB:
+            NClob nclob = rs.getNClob(index);
+            if (nclob != null) {
+              try (Reader reader = nclob.getCharacterStream()) {
+                StringWriter writer = new StringWriter();
+                copy(reader, writer);
+                value = writer;
+              } finally {
+                try {
+                  nclob.free();
+                } catch (Exception e) {
+                  log.log(Level.FINEST, "Error closing NCLOB", e);
+                }
+              }
+            }
+            break;
+          case Types.SQLXML:
+            SQLXML sqlxml = rs.getSQLXML(index);
+            if (sqlxml != null) {
+              try (Reader reader = sqlxml.getCharacterStream()) {
+                StringWriter writer = new StringWriter();
+                copy(reader, writer);
+                value = writer;
+              } finally {
+                try {
+                  sqlxml.free();
+                } catch (Exception e) {
+                  log.log(Level.FINEST, "Error closing SQLXML", e);
+                }
+              }
+            }
+            break;
+          case Types.BINARY:
+          case Types.VARBINARY:
+          case Types.LONGVARBINARY:
+          case Types.BLOB:
+          case -13: // Oracle BFILE.
+          case Types.ARRAY:
+          case Types.JAVA_OBJECT:
+          case Types.REF:
+          case Types.STRUCT:
+            log.log(Level.FINEST, "Column type not supported for text: {0}",
+                columnType);
+            continue;
+          default:
+            try {
+              value = rs.getObject(index);
+            } catch (SQLException e) {
+              log.log(Level.WARNING, "Skipping column for text: ''{0}'': {1}.",
+                  new Object[] { columnName, e.getMessage() });
+            }
+            break;
         }
         line1.append(",");
         line1.append(makeIntoCsvField(tableName));
         line2.append(",");
         line2.append(makeIntoCsvField(columnName));
         line3.append(",");
-        line3.append(makeIntoCsvField(value));
+        line3.append(makeIntoCsvField(value == null ? "" : value.toString()));
       }
       String document = line1.substring(1) + "\n" + line2.substring(1) + "\n"
           + line3.substring(1) + "\n";
@@ -513,16 +603,6 @@ public abstract class ResponseGenerator {
               columnType);
           break;
       }
-    }
-
-    /** A copy of IOHelper.copyStream for Reader/Writer. */
-    private void copy(Reader reader, Writer writer) throws IOException {
-      char[] buffer = new char[8192];
-      int len;
-      while ((len = reader.read(buffer)) != -1) {
-        writer.write(buffer, 0, len);
-      }
-      writer.flush();
     }
   }
 }
