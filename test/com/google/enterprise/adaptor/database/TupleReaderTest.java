@@ -268,6 +268,66 @@ public class TupleReaderTest {
   }
 
   @Test
+  public void testBinary() throws Exception {
+    byte[] binaryData = new byte[123];
+    new Random().nextBytes(binaryData);
+    executeUpdate("create table data(colname binary)");
+    String sql = "insert into data(colname) values (?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setBinaryStream(1, new ByteArrayInputStream(binaryData));
+      assertEquals(1, ps.executeUpdate());
+    }
+    String base64BinaryData = DatatypeConverter.printBase64Binary(binaryData);
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"VARBINARY\" encoding=\"base64binary\">"
+        + base64BinaryData
+        + "</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testBinary_empty() throws Exception {
+    executeUpdate("create table data(colname binary)");
+    executeUpdate("insert into data(colname) values('')");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"VARBINARY\" encoding=\"base64binary\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testBinary_null() throws Exception {
+    executeUpdate("create table data(colname binary)");
+    executeUpdate("insert into data(colname) values(null)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"VARBINARY\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
   public void testDate() throws Exception {
     executeUpdate("create table data(colname date)");
     executeUpdate("insert into data(colname) values({d '2004-10-06'})");
@@ -486,32 +546,6 @@ public class TupleReaderTest {
   }
 
   @Test
-  public void testBlob() throws Exception {
-    byte[] blobData = new byte[12345];
-    new Random().nextBytes(blobData);
-    executeUpdate("create table data(colname blob)");
-    String sql = "insert into data(colname) values (?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBinaryStream(1, new ByteArrayInputStream(blobData));
-      assertEquals(1, ps.executeUpdate());
-    }
-    String base64BlobData = DatatypeConverter.printBase64Binary(blobData);
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"BLOB\" encoding=\"base64binary\">"
-        + base64BlobData
-        + "</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
-  }
-
-  @Test
   public void testClob() throws Exception {
     String clobData =
         " Google's indices consist of information that has been"
@@ -561,6 +595,32 @@ public class TupleReaderTest {
         + "<table>"
         + "<table_rec>"
         + "<COLNAME SQLType=\"CLOB\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testBlob() throws Exception {
+    byte[] blobData = new byte[12345];
+    new Random().nextBytes(blobData);
+    executeUpdate("create table data(colname blob)");
+    String sql = "insert into data(colname) values (?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setBinaryStream(1, new ByteArrayInputStream(blobData));
+      assertEquals(1, ps.executeUpdate());
+    }
+    String base64BlobData = DatatypeConverter.printBase64Binary(blobData);
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"BLOB\" encoding=\"base64binary\">"
+        + base64BlobData
+        + "</COLNAME>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
