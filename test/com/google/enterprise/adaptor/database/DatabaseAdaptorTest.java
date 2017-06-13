@@ -1832,113 +1832,6 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testMetadataColumns_clob() throws Exception {
-    // NCLOB shows up as CLOB in H2
-    String content = "Hello World";
-    executeUpdate("create table data(id int, content clob)");
-    String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
-
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.uniqueKey", "ID:int");
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-    configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1"));
-    RecordingResponse response = new RecordingResponse();
-    adaptor.getDocContent(request, response);
-
-    Metadata expected = new Metadata();
-    expected.add("col1", "1");
-    expected.add("col2", content);
-    assertEquals(expected, response.getMetadata());
-  }
-
-  @Test
-  public void testMetadataColumns_varchar() throws Exception {
-    // LONGVARCHAR, LONGNVARCHAR show up as VARCHAR in H2.
-    String content = "Hello World";
-    executeUpdate("create table data(id int, content varchar)");
-    String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
-
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.uniqueKey", "ID:int");
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-    configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1"));
-    RecordingResponse response = new RecordingResponse();
-    adaptor.getDocContent(request, response);
-
-    Metadata expected = new Metadata();
-    expected.add("col1", "1");
-    expected.add("col2", content);
-    assertEquals(expected, response.getMetadata());
-  }
-
-  @Test
-  public void testMetadataColumns_integer() throws Exception {
-    executeUpdate("create table data(id int, content integer)");
-    executeUpdate("insert into data(id, content) values (1, 345697)");
-
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.uniqueKey", "ID:int");
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-    configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1"));
-    RecordingResponse response = new RecordingResponse();
-    adaptor.getDocContent(request, response);
-
-    Metadata expected = new Metadata();
-    expected.add("col1", "1");
-    expected.add("col2", "345697");
-    assertEquals(expected, response.getMetadata());
-  }
-
-  @Test
-  public void testMetadataColumns_clobNull() throws Exception {
-    executeUpdate("create table data(id int, content clob)");
-    executeUpdate("insert into data(id) values (1)");
-
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.uniqueKey", "ID:int");
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-    configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1"));
-    RecordingResponse response = new RecordingResponse();
-    adaptor.getDocContent(request, response);
-
-    Metadata expected = new Metadata();
-    expected.add("col1", "1");
-    assertEquals(expected, response.getMetadata());
-  }
-
-  @Test
   public void testMetadataColumns_date() throws Exception {
     executeUpdate("create table data(id integer, col date)");
     executeUpdate("insert into data(id, col) values(1001, {d '2004-10-06'})");
@@ -2078,6 +1971,113 @@ public class DatabaseAdaptorTest {
     Metadata metadata = new Metadata();
     metadata.add("col1", "1001");
     assertEquals(metadata, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_clob() throws Exception {
+    // NCLOB shows up as CLOB in H2
+    String content = "Hello World";
+    executeUpdate("create table data(id int, content clob)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, content);
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata expected = new Metadata();
+    expected.add("col1", "1");
+    expected.add("col2", content);
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_clobNull() throws Exception {
+    executeUpdate("create table data(id int, content clob)");
+    executeUpdate("insert into data(id) values (1)");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata expected = new Metadata();
+    expected.add("col1", "1");
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_integer() throws Exception {
+    executeUpdate("create table data(id int, content integer)");
+    executeUpdate("insert into data(id, content) values (1, 345697)");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata expected = new Metadata();
+    expected.add("col1", "1");
+    expected.add("col2", "345697");
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_varchar() throws Exception {
+    // LONGVARCHAR, LONGNVARCHAR show up as VARCHAR in H2.
+    String content = "Hello World";
+    executeUpdate("create table data(id int, content varchar)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, content);
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata expected = new Metadata();
+    expected.add("col1", "1");
+    expected.add("col2", content);
+    assertEquals(expected, response.getMetadata());
   }
 
   @Test

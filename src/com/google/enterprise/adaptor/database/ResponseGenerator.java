@@ -306,12 +306,12 @@ public abstract class ResponseGenerator {
           case Types.BINARY:
           case Types.VARBINARY:
           case Types.LONGVARBINARY:
-          case Types.BLOB:
           case -13: // Oracle BFILE.
+          case Types.BLOB:
           case Types.ARRAY:
-          case Types.JAVA_OBJECT:
           case Types.REF:
           case Types.STRUCT:
+          case Types.JAVA_OBJECT:
             log.log(Level.FINEST, "Column type not supported for text: {0}",
                 columnType);
             continue;
@@ -499,17 +499,43 @@ public abstract class ResponseGenerator {
       OutputStream out = resp.getOutputStream();
       // This code supports *LOB, *CHAR, *BINARY, and SQLXML types only.
       switch (columnType) {
-        case Types.BLOB:
-          Blob blob = rs.getBlob(index);
-          if (blob != null) {
-            try (InputStream in = blob.getBinaryStream()) {
+        case Types.CHAR:
+        case Types.VARCHAR:
+        case Types.NCHAR:
+        case Types.NVARCHAR:
+          String str = rs.getString(index);
+          if (str != null) {
+            out.write(str.getBytes(UTF_8));
+          }
+          break;
+        case Types.LONGVARCHAR:
+          try (Reader reader = rs.getCharacterStream(index);
+              Writer writer = new OutputStreamWriter(out, UTF_8)) {
+            if (reader != null) {
+              copy(reader, writer);
+            }
+          }
+          break;
+        case Types.LONGNVARCHAR:
+          try (Reader reader = rs.getNCharacterStream(index);
+              Writer writer = new OutputStreamWriter(out, UTF_8)) {
+            if (reader != null) {
+              copy(reader, writer);
+            }
+          }
+          break;
+        case Types.BINARY:
+        case Types.VARBINARY:
+          byte[] b = rs.getBytes(index);
+          if (b != null) {
+            out.write(b);
+          }
+          break;
+        case Types.LONGVARBINARY:
+        case -13: // Oracle BFILE.
+          try (InputStream in = rs.getBinaryStream(index)) {
+            if (in != null) {
               IOHelper.copyStream(in, out);
-            } finally {
-              try {
-                blob.free();
-              } catch (Exception e) {
-                log.log(Level.FINEST, "Error closing BLOB", e);
-              }
             }
           }
           break;
@@ -543,6 +569,20 @@ public abstract class ResponseGenerator {
             }
           }
           break;
+        case Types.BLOB:
+          Blob blob = rs.getBlob(index);
+          if (blob != null) {
+            try (InputStream in = blob.getBinaryStream()) {
+              IOHelper.copyStream(in, out);
+            } finally {
+              try {
+                blob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing BLOB", e);
+              }
+            }
+          }
+          break;
         case Types.SQLXML:
           SQLXML sqlxml = rs.getSQLXML(index);
           if (sqlxml != null) {
@@ -556,46 +596,6 @@ public abstract class ResponseGenerator {
                 log.log(Level.FINEST, "Error closing SQLXML", e);
               }
             }
-          }
-          break;
-        case -13: // Oracle BFILE.
-        case Types.LONGVARBINARY:
-          try (InputStream in = rs.getBinaryStream(index)) {
-            if (in != null) {
-              IOHelper.copyStream(in, out);
-            }
-          }
-          break;
-        case Types.LONGVARCHAR:
-          try (Reader reader = rs.getCharacterStream(index);
-              Writer writer = new OutputStreamWriter(out, UTF_8)) {
-            if (reader != null) {
-              copy(reader, writer);
-            }
-          }
-          break;
-        case Types.LONGNVARCHAR:
-          try (Reader reader = rs.getNCharacterStream(index);
-              Writer writer = new OutputStreamWriter(out, UTF_8)) {
-            if (reader != null) {
-              copy(reader, writer);
-            }
-          }
-          break;
-        case Types.BINARY:
-        case Types.VARBINARY:
-          byte[] b = rs.getBytes(index);
-          if (b != null) {
-            out.write(b);
-          }
-          break;
-        case Types.CHAR:
-        case Types.VARCHAR:
-        case Types.NCHAR:
-        case Types.NVARCHAR:
-          String str = rs.getString(index);
-          if (str != null) {
-            out.write(str.getBytes(UTF_8));
           }
           break;
         default:

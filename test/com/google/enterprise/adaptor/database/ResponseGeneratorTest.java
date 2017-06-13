@@ -324,11 +324,12 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testContentColumn_invalidType() throws Exception {
-    executeUpdate("create table data(id int, content timestamp)");
+  public void testContentColumn_clob() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setTimestamp(1, new Timestamp(0L));
+      ps.setString(1, content);
       assertEquals(1, ps.executeUpdate());
     }
 
@@ -339,12 +340,24 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
-    List<String> messages = new ArrayList<String>();
-    captureLogMessages(ResponseGenerator.class,
-        "Content column type not supported", messages);
+    resgen.generateResponse(rs, response);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testContentColumn_nullClob() throws Exception {
+    executeUpdate("create table data(id int, content clob)");
+    executeUpdate("insert into data(id) values (1)");
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
     assertEquals("", bar.baos.toString(UTF_8.name()));
-    assertEquals(messages.toString(), 1, messages.size());
   }
 
   @Test
@@ -397,12 +410,11 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testContentColumn_clob() throws Exception {
-    String content = "hello world";
-    executeUpdate("create table data(id int, content clob)");
+  public void testContentColumn_invalidType() throws Exception {
+    executeUpdate("create table data(id int, content timestamp)");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
+      ps.setTimestamp(1, new Timestamp(0L));
       assertEquals(1, ps.executeUpdate());
     }
 
@@ -413,24 +425,12 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
-  }
-
-  @Test
-  public void testContentColumn_nullClob() throws Exception {
-    executeUpdate("create table data(id int, content clob)");
-    executeUpdate("insert into data(id) values (1)");
-
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(ResponseGenerator.class,
+        "Content column type not supported", messages);
     resgen.generateResponse(rs, response);
     assertEquals("", bar.baos.toString(UTF_8.name()));
+    assertEquals(messages.toString(), 1, messages.size());
   }
 
   @Test
