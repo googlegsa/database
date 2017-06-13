@@ -159,7 +159,11 @@ public abstract class ResponseGenerator {
     return new FilepathColumn(config);
   }
 
-  /** @deprecated Use {@link #contentColumn contentColumn} */
+  /**
+   * @param config a map returned by {@code Config.getValuesWithPrefix}
+   * @return a blobColumn mode {@code ResponseGenerator}
+   * @deprecated Use {@link #contentColumn contentColumn}
+   */
   @Deprecated
   public static ResponseGenerator blobColumn(Map<String, String> config) {
     return contentColumn(config);
