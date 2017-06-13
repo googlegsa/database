@@ -398,7 +398,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       log.finer("queried for stream");
       boolean hasAction
           = hasColumn(rs.getMetaData(), GsaSpecialColumns.GSA_ACTION);
-      log.log(Level.FINEST, "hasAction: {0}", hasAction);
+      log.log(Level.FINEST, "Has GSA_ACTION column: {0}", hasAction);
       while (rs.next()) {
         DocId id = new DocId(uniqueKey.makeUniqueId(rs));
         DocIdPusher.Record.Builder builder = new DocIdPusher.Record.Builder(id);
@@ -935,9 +935,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           BufferedPusher outstream = new BufferedPusher(pusher)) {
         ResultSetMetaData rsmd = rs.getMetaData();
         boolean hasAction = hasColumn(rsmd, GsaSpecialColumns.GSA_ACTION);
-        log.log(Level.FINEST, "hasAction: {0}", hasAction);
+        log.log(Level.FINEST, "Has GSA_ACTION column: {0}", hasAction);
         hasTimestamp = hasColumn(rsmd, GsaSpecialColumns.GSA_TIMESTAMP);
-        log.log(Level.FINEST, "hasTimestamp: {0}", hasTimestamp);
+        log.log(Level.FINEST, "Has GSA_TIMESTAMP column: {0}", hasTimestamp);
         while (rs.next()) {
           DocId id = new DocId(uniqueKey.makeUniqueId(rs));
           DocIdPusher.Record.Builder builder =
@@ -999,8 +999,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     GSA_DENY_USERS,
     GSA_PERMIT_GROUPS,
     GSA_DENY_GROUPS,
-    GSA_TIMESTAMP,
-    GSA_ACTION
+    GSA_ACTION,
+    GSA_TIMESTAMP;
   }
 
   private static class AllPublic implements AuthzAuthority {

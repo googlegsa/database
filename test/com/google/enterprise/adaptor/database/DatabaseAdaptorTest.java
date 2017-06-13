@@ -1456,8 +1456,7 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(id integer, "
         + "other varchar default 'hello, world', ts timestamp)");
     executeUpdate("insert into data(id, ts) values "
-
-                  + "(1, dateadd('minute', 1, current_timestamp())),"
+        + "(1, dateadd('minute', 1, current_timestamp())),"
         + "(2, dateadd('minute', 2, current_timestamp())),"
         + "(3, dateadd('minute', 1, current_timestamp())),"
         + "(4, dateadd('minute', -1, current_timestamp()))");
