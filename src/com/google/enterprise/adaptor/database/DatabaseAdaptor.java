@@ -462,6 +462,37 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       // This code does not support binary or structured types.
       Object value = null;
       switch (columnType) {
+        case Types.LONGVARCHAR:
+          try (Reader reader = rs.getCharacterStream(index)) {
+            if (reader != null) {
+              char[] buffer = new char[4096];
+              int len;
+              if ((len = reader.read(buffer)) != -1) {
+                value = new String(buffer, 0, len);
+              }
+            }
+          }
+          break;
+        case Types.LONGNVARCHAR:
+          try (Reader reader = rs.getNCharacterStream(index)) {
+            if (reader != null) {
+              char[] buffer = new char[4096];
+              int len;
+              if ((len = reader.read(buffer)) != -1) {
+                value = new String(buffer, 0, len);
+              }
+            }
+          }
+          break;
+        case Types.DATE:
+          value = rs.getDate(index);
+          break;
+        case Types.TIME:
+          value = rs.getTime(index);
+          break;
+        case Types.TIMESTAMP:
+          value = rs.getTimestamp(index);
+          break;
         case Types.CLOB:
           Clob clob = rs.getClob(index);
           if (clob != null) {
@@ -508,46 +539,15 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             }
           }
           break;
-        case Types.LONGVARCHAR:
-          try (Reader reader = rs.getCharacterStream(index)) {
-            if (reader != null) {
-              char[] buffer = new char[4096];
-              int len;
-              if ((len = reader.read(buffer)) != -1) {
-                value = new String(buffer, 0, len);
-              }
-            }
-          }
-          break;
-        case Types.LONGNVARCHAR:
-          try (Reader reader = rs.getNCharacterStream(index)) {
-            if (reader != null) {
-              char[] buffer = new char[4096];
-              int len;
-              if ((len = reader.read(buffer)) != -1) {
-                value = new String(buffer, 0, len);
-              }
-            }
-          }
-          break;
-        case Types.DATE:
-          value = rs.getDate(index);
-          break;
-        case Types.TIME:
-          value = rs.getTime(index);
-          break;
-        case Types.TIMESTAMP:
-          value = rs.getTimestamp(index);
-          break;
         case Types.BINARY:
         case Types.VARBINARY:
         case Types.LONGVARBINARY:
-        case Types.BLOB:
         case -13: // Oracle BFILE.
+        case Types.BLOB:
         case Types.ARRAY:
-        case Types.JAVA_OBJECT:
         case Types.REF:
         case Types.STRUCT:
+        case Types.JAVA_OBJECT:
           log.log(Level.FINEST, "Metadata column type not supported: {0}",
               columnType);
           break;

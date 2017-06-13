@@ -168,11 +168,85 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
       // and other objects is very similar. The differences are getString
       // versus getObject and whether copyValidXmlCharacters is called.
       switch (sqlType) {
+        case Types.TINYINT:
+        case Types.SMALLINT:
+        case Types.INTEGER:
+        case Types.BIGINT:
+        case Types.REAL:
+        case Types.FLOAT:
+        case Types.DOUBLE:
+        case Types.DECIMAL:
+        case Types.NUMERIC:
+          String string = resultSet.getString(col);
+          if (string != null) {
+            handler.startElement("", columnName, columnName, atts);
+            copyCharacters(string, handler);
+          }
+          break;
+        case Types.BIT:
+        case Types.BOOLEAN:
+          Object value = resultSet.getObject(col);
+          if (value != null) {
+            handler.startElement("", columnName, columnName, atts);
+            copyCharacters(value.toString(), handler);
+          }
+          break;
+        case Types.CHAR:
+        case Types.VARCHAR:
+        case Types.NCHAR:
+        case Types.NVARCHAR:
+          string = resultSet.getString(col);
+          if (string != null) {
+            handler.startElement("", columnName, columnName, atts);
+            copyValidXmlCharacters(new StringReader(string), handler);
+          }
+          break;
+        case Types.LONGVARCHAR:
+          try (Reader reader = resultSet.getCharacterStream(col)) {
+            if (reader != null) {
+              handler.startElement("", columnName, columnName, atts);
+              copyValidXmlCharacters(reader, handler);
+            }
+          }
+          break;
+        case Types.LONGNVARCHAR:
+          try (Reader nReader = resultSet.getNCharacterStream(col)) {
+            if (nReader != null) {
+              handler.startElement("", columnName, columnName, atts);
+              copyValidXmlCharacters(nReader, handler);
+            }
+          }
+          break;
+        case Types.BINARY:
+        case Types.VARBINARY:
+        case Types.LONGVARBINARY:
+        case -13: // Oracle BFILE.
+          try (InputStream lob = resultSet.getBinaryStream(col)) {
+            if (lob != null) {
+              atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
+                  "base64binary");
+              handler.startElement("", columnName, columnName, atts);
+              copyBase64EncodedData(lob, handler);
+            }
+          }
+          break;
         case Types.DATE:
           Date dateValue = resultSet.getDate(col);
           if (dateValue != null) {
             handler.startElement("", columnName, columnName, atts);
             copyCharacters(dateValue.toString(), handler);
+          }
+          break;
+        case Types.TIME:
+          Time timeValue = resultSet.getTime(col);
+          if (timeValue != null) {
+            handler.startElement("", columnName, columnName, atts);
+            String timezone = TIMEZONE_FORMAT.get().format(timeValue);
+            // java timezone not ISO compliant
+            timezone =
+                timezone.substring(0, timezone.length() - 2) + ":"
+                + timezone.substring(timezone.length() - 2);
+            copyCharacters(timeValue + timezone, handler);
           }
           break;
         case Types.TIMESTAMP:
@@ -188,35 +262,6 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
                 + timezone.substring(timezone.length() - 2);
             copyCharacters(TIMESTAMP_FORMAT.get().format(tsValue) + timezone,
                 handler);
-          }
-          break;
-        case Types.TIME:
-          Time timeValue = resultSet.getTime(col);
-          if (timeValue != null) {
-            handler.startElement("", columnName, columnName, atts);
-            String timezone = TIMEZONE_FORMAT.get().format(timeValue);
-            // java timezone not ISO compliant
-            timezone =
-                timezone.substring(0, timezone.length() - 2) + ":"
-                + timezone.substring(timezone.length() - 2);
-            copyCharacters(timeValue + timezone, handler);
-          }
-          break;
-        case Types.BLOB:
-          Blob blob = resultSet.getBlob(col);
-          if (blob != null) {
-            try (InputStream lob = blob.getBinaryStream()) {
-              atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
-                  "base64binary");
-              handler.startElement("", columnName, columnName, atts);
-              copyBase64EncodedData(lob, handler);
-            } finally {
-              try {
-                blob.free();
-              } catch (Exception e) {
-                log.log(Level.FINEST, "Error closing BLOB", e);
-              }
-            }
           }
           break;
         case Types.CLOB:
@@ -249,6 +294,23 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
             }
           }
           break;
+        case Types.BLOB:
+          Blob blob = resultSet.getBlob(col);
+          if (blob != null) {
+            try (InputStream lob = blob.getBinaryStream()) {
+              atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
+                  "base64binary");
+              handler.startElement("", columnName, columnName, atts);
+              copyBase64EncodedData(lob, handler);
+            } finally {
+              try {
+                blob.free();
+              } catch (Exception e) {
+                log.log(Level.FINEST, "Error closing BLOB", e);
+              }
+            }
+          }
+          break;
         case Types.SQLXML:
           SQLXML sqlxml = resultSet.getSQLXML(col);
           if (sqlxml != null) {
@@ -264,71 +326,10 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
             }
           }
           break;
-        case Types.BINARY:
-        case Types.VARBINARY:
-        case Types.LONGVARBINARY:
-          try (InputStream lob = resultSet.getBinaryStream(col)) {
-            if (lob != null) {
-              atts.addAttribute("", "encoding", "encoding", "NMTOKEN",
-                  "base64binary");
-              handler.startElement("", columnName, columnName, atts);
-              copyBase64EncodedData(lob, handler);
-            }
-          }
-          break;
-        case Types.TINYINT:
-        case Types.SMALLINT:
-        case Types.INTEGER:
-        case Types.BIGINT:
-        case Types.REAL:
-        case Types.FLOAT:
-        case Types.DOUBLE:
-        case Types.DECIMAL:
-        case Types.NUMERIC:
-          String string = resultSet.getString(col);
-          if (string != null) {
-            handler.startElement("", columnName, columnName, atts);
-            copyCharacters(string, handler);
-          }
-          break;
-        case Types.CHAR:
-        case Types.VARCHAR:
-        case Types.NCHAR:
-        case Types.NVARCHAR:
-          string = resultSet.getString(col);
-          if (string != null) {
-            handler.startElement("", columnName, columnName, atts);
-            copyValidXmlCharacters(new StringReader(string), handler);
-          }
-          break;
-        case Types.LONGVARCHAR:
-          try (Reader reader = resultSet.getCharacterStream(col)) {
-            if (reader != null) {
-              handler.startElement("", columnName, columnName, atts);
-              copyValidXmlCharacters(reader, handler);
-            }
-          }
-          break;
-        case Types.LONGNVARCHAR:
-          try (Reader nReader = resultSet.getNCharacterStream(col)) {
-            if (nReader != null) {
-              handler.startElement("", columnName, columnName, atts);
-              copyValidXmlCharacters(nReader, handler);
-            }
-          }
-          break;
-        case Types.BIT:
-        case Types.BOOLEAN:
-          Object value = resultSet.getObject(col);
-          if (value != null) {
-            handler.startElement("", columnName, columnName, atts);
-            copyCharacters(value.toString(), handler);
-          }
-          break;
         case Types.ARRAY:
-        case Types.JAVA_OBJECT:
         case Types.REF:
         case Types.STRUCT:
+        case Types.JAVA_OBJECT:
           log.log(Level.FINEST, "Column type not supported in XML: {0}",
               sqlTypeName);
           continue;
