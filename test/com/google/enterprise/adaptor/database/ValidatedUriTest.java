@@ -127,6 +127,16 @@ public class ValidatedUriTest {
   }
 
   @Test
+  public void testPercentEncoding() throws Exception {
+    assertEquals(
+        "http://host.com:8080/a%20space/pre%20encoded/unicode%CE%91char"
+            + "?foo=a+bar&bar=%20baz#a+fragment",
+        new ValidatedUri("http://host.com:8080\\a space\\pre%20encoded/"
+            + "unicode\u0391char?foo=a bar&bar=%20baz#a+fragment")
+        .getUri().toString());
+  }
+
+  @Test
   public void testGetUri() throws Exception {
     assertEquals(new URI("http://example.com/foo/bar"),
         new ValidatedUri("http://example.com/foo/bar").getUri());
