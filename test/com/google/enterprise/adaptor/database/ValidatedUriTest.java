@@ -130,7 +130,7 @@ public class ValidatedUriTest {
   public void testPercentEncoding() throws Exception {
     assertEquals(
         "http://host.com:8080/a%20space/pre%20encoded/unicode%CE%91char"
-            + "?foo=a+bar&bar=%20baz#a+fragment",
+            + "?foo=a%20bar&bar=%20baz#a+fragment",
         new ValidatedUri("http://host.com:8080\\a space\\pre%20encoded/"
             + "unicode\u0391char?foo=a bar&bar=%20baz#a+fragment")
         .getUri().toString());

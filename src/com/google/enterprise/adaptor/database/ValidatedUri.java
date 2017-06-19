@@ -20,7 +20,6 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.StringTokenizer;
 
 /**
  * Validates URIs by syntax checking and validating the host is reachable.
@@ -67,42 +66,29 @@ class ValidatedUri {
     String[] parts = uriString.split("\\?", 2);
     StringBuilder builder = new StringBuilder();
     percentEncode(builder, parts[0].replace('\\', '/'));
-    if (parts.length == 1) {
-      return builder.toString();
-    }
-    builder.append('?');
-    StringTokenizer tokenizer = new StringTokenizer(parts[1], "&=#", true);
-    while (tokenizer.hasMoreTokens()) {
-      String token = tokenizer.nextToken();
-      switch (token) {
-        case "&":
-        case "=":
-        case "#":
-          builder.append(token);
-          break;
-        default:
-          percentEncode(builder, token.replace(' ', '+'));
-          break;
-      }
+    if (parts.length == 2) {
+      builder.append('?');
+      percentEncode(builder, parts[1]);
     }
     return builder.toString();
   }
 
-  private static final String PERCENT = "+%-./0123456789:%%%%%"
-      + "%ABCDEFGHIJKLMNOPQRSTUVWXYZ[%]%_"
+  private static final String PERCENT =
+      "%!%#$%&'()*+,-./0123456789:;%=%?"
+      + "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[%]%_"
       + "%abcdefghijklmnopqrstuvwxyz{%}~";
 
-  private static final char[] HEX = "0123456789ABCDEF".toCharArray();
+  private static final String HEX = "0123456789ABCDEF";
 
   /**
    * Percent-encode {@code text} as described in
    * <a href="http://tools.ietf.org/html/rfc3986#section-2">RFC 3986</a> and
    * using UTF-8. This is the most common form of percent encoding.
    * The characters A-Z, a-z, 0-9, '-', '_', '.', and '~' are left as-is per
-   * RFC 3986. The characters '/', ':', '[', ']' are left as-is as special
-   * characters. The characters '{' and '}' are left as-is to catch
-   * MessageFormat errors. The characters '%' and '+' are left as-is to
-   * preserve any existing percent encoding. The rest are percent encoded.
+   * RFC 3986. All RFC 3986 {@code reserved} characters are left as-is and
+   * assumed they are used correctly. Percent '%' characters are left as-is to
+   * preserve any existing percent encoding. The characters '{' and '}' are
+   * left as-is to catch MessageFormat errors. The rest are percent encoded.
    *
    * This was adapted from v3 Connector Manager's ServletUtil.
    *
@@ -112,12 +98,14 @@ class ValidatedUri {
   private static void percentEncode(StringBuilder sb, String text) {
     byte[] bytes = text.getBytes(Charsets.UTF_8);
     for (byte b : bytes) {
-      if (b >= '+' && b <= '~' && PERCENT.charAt(b - '+') != '%') {
+      if (b >= ' ' && b <= '~' && PERCENT.charAt(b - ' ') != '%') {
         sb.append((char) b);
       } else if ((char) b == '%') {
         sb.append((char) b);
       } else {
-        sb.append('%').append(HEX[(b >> 4) & 0x0F]).append(HEX[b & 0x0F]);
+        sb.append('%');
+        sb.append(HEX.charAt((b >> 4) & 0x0F));
+        sb.append(HEX.charAt(b & 0x0F));
       }
     }
   }
