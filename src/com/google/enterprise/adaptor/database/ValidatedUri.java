@@ -14,6 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import com.google.common.base.Strings;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -40,6 +42,8 @@ class ValidatedUri {
     if (Strings.isNullOrEmpty(uriString)) {
       throw new URISyntaxException("" + uriString, "null or empty URI");
     }
+    // TODO(bmj): Make ValidatedUri more fluent, so this is optional.
+    uriString = fixupUri(uriString);
     try {
       // Basic syntax checking, with more understandable error messages.
       // Also ensures the URI is a URL, not a URN, and is absolute.
@@ -56,6 +60,62 @@ class ValidatedUri {
 
     if (Strings.isNullOrEmpty(uri.getHost())) {
       throw new URISyntaxException(uriString, "no host");
+    }
+  }
+
+  // Fix up common URI syntax errors, backslashes, spaces, unescaped chars etc.
+  private static String fixupUri(String uriString) {
+    String[] parts = uriString.split("\\?", 2);
+    StringBuilder builder = new StringBuilder();
+    percentEncode(builder, parts[0].replace('\\', '/'));
+    if (parts.length == 2) {
+      builder.append('?');
+      percentEncode(builder, parts[1]);
+    }
+    return builder.toString();
+  }
+
+  private static final String HEX = "0123456789ABCDEF";
+
+  /**
+   * Percent-encode {@code text} as described in
+   * <a href="http://tools.ietf.org/html/rfc3986#section-2">RFC 3986</a> and
+   * using UTF-8. This is the most common form of percent encoding.
+   * The characters A-Z, a-z, 0-9, '-', '_', '.', and '~' are left as-is per
+   * RFC 3986. All RFC 3986 {@code reserved} characters are left as-is and
+   * assumed they are used correctly. Percent '%' characters are left as-is to
+   * preserve any existing percent encoding. The characters '{' and '}' are
+   * left as-is to catch MessageFormat errors. The rest are percent encoded.
+   *
+   * @param sb StringBuilder in which to encode the text
+   * @param text some plain text
+   */
+  private static void percentEncode(StringBuilder sb, String text) {
+    // Encodes chars <= ' ', '"', '<', '>', '\', '^', '`', '|', >= DEL.
+    byte[] bytes = text.getBytes(UTF_8);
+    for (byte b : bytes) {
+      if (b <= ' ' || b > '~') {
+        sb.append('%');
+        sb.append(HEX.charAt((b >> 4) & 0x0F));
+        sb.append(HEX.charAt(b & 0x0F));
+      } else {
+        switch ((char) b) {
+          case '"':
+          case '<':
+          case '>':
+          case '\\':
+          case '^':
+          case '`':
+          case '|':
+            sb.append('%');
+            sb.append(HEX.charAt((b >> 4) & 0x0F));
+            sb.append(HEX.charAt(b & 0x0F));
+            break;
+          default:
+            sb.append((char) b);
+            break;
+        }
+      }
     }
   }
 
