@@ -404,7 +404,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         try {
           id = new DocId(uniqueKey.makeUniqueId(rs));
         } catch (URISyntaxException e) {
-          log.log(Level.WARNING, "Invalid DocId URL: " + e.getMessage());
+          log.log(Level.WARNING, "Invalid DocId URL, skipping row: "
+              + e.getMessage());
           continue;
         }
         DocIdPusher.Record.Builder builder = new DocIdPusher.Record.Builder(id);
@@ -949,7 +950,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           try {
             id = new DocId(uniqueKey.makeUniqueId(rs));
           } catch (URISyntaxException e) {
-            log.log(Level.WARNING, "Invalid DocId URL: " + e.getMessage());
+            log.log(Level.WARNING, "Invalid DocId URL, skipping row: "
+                + e.getMessage());
             continue;
           }
           DocIdPusher.Record.Builder builder =
