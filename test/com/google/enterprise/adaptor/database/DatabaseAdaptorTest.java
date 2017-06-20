@@ -1267,7 +1267,8 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetDocIds_urlAndMetadataLister() throws Exception {
     executeUpdate("create table data(url varchar, name varchar)");
-    executeUpdate("insert into data(url, name) values('http://', 'John')");
+    executeUpdate(
+        "insert into data(url, name) values('http://localhost/','John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "url:string");
@@ -1281,11 +1282,44 @@ public class DatabaseAdaptorTest {
     adaptor.getDocIds(pusher);
 
     Metadata metadata = new Metadata();
-    metadata.add("col1",  "http://");
+    metadata.add("col1",  "http://localhost/");
     metadata.add("col2",  "John");
     assertEquals(
-        Arrays.asList(new Record.Builder(new DocId("http://"))
+        Arrays.asList(new Record.Builder(new DocId("http://localhost/"))
           .setMetadata(metadata).build()),
+        pusher.getRecords());
+  }
+
+  @Test
+  public void testGetDocIds_docIdIsUrl() throws Exception {
+    // Add time to show the records as modified.
+    executeUpdate("create table data(url varchar)");
+    executeUpdate("insert into data(url) values "
+        + "('http://host/foo'), ('foo/bar'), ('http://host/bar'), "
+        + "('http://host/foo bar')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    moreEntries.put("db.everyDocIdSql", "select url from data");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.updateSql", "select url from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where url = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class, "Invalid DocId URL", messages);
+    adaptor.getDocIds(pusher);
+
+    assertEquals(messages.toString(), 1, messages.size());
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("http://host/foo")).build(),
+            new Record.Builder(new DocId("http://host/bar")).build(),
+            new Record.Builder(new DocId("http://host/foo%20bar")).build()),
         pusher.getRecords());
   }
 
@@ -1656,11 +1690,49 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testGetModifiedDocIds_docIdIsUrl() throws Exception {
+    // Add time to show the records as modified.
+    executeUpdate("create table data(url varchar, ts timestamp)");
+    executeUpdate("insert into data(url, ts) values "
+        + "('http://host/foo', dateadd('minute', 1, current_timestamp())),"
+        + "('foo/bar', dateadd('minute', 1, current_timestamp())),"
+        + "('http://host/bar', dateadd('minute', 1, current_timestamp())),"
+        + "('http://host/foo bar', dateadd('minute', 1, current_timestamp()))");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    moreEntries.put("db.updateSql", "select url from data where ts >= ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select url from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where url = ?");
+
+    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class, "Invalid DocId URL", messages);
+    lister.getModifiedDocIds(pusher);
+
+    assertEquals(messages.toString(), 1, messages.size());
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("http://host/foo"))
+            .setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("http://host/bar"))
+            .setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("http://host/foo%20bar"))
+            .setCrawlImmediately(true).build()),
+        pusher.getRecords());
+  }
+
+  @Test
   public void testGetModifiedDocIds_urlAndMetadataLister() throws Exception {
     // Add time to show the records as modified.
     executeUpdate("create table data(url varchar,"
         + " other varchar, ts timestamp)");
-    executeUpdate("insert into data(url, other, ts) values ('http://',"
+    executeUpdate("insert into data(url, other, ts) values ('http://localhost',"
         + " 'hello world', dateadd('minute', 1, current_timestamp()))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -1683,10 +1755,11 @@ public class DatabaseAdaptorTest {
     metadata.add("other",  "hello world");
     assertEquals(
         Arrays.asList(
-            new Record.Builder(new DocId("http://"))
+            new Record.Builder(new DocId("http://localhost"))
             .setMetadata(metadata).setCrawlImmediately(true).build()),
         pusher.getRecords());
   }
+
 
   @Test
   public void testGetModifiedDocIds_disableStreaming() throws Exception {

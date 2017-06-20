@@ -40,6 +40,7 @@ import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.net.URISyntaxException;
 import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -91,7 +92,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String aclPrincipalDelimiter;
   private String aclNamespace;
   private boolean disableStreaming;
-  private boolean encodeDocId;
+  private boolean docIdIsUrl;
   private String modeOfOperation;
 
   @Override
@@ -195,17 +196,16 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     modeOfOperation = cfg.getValue("db.modeOfOperation");
     log.config("mode of operation: " + modeOfOperation);
 
-    boolean leaveIdAlone = new Boolean(cfg.getValue("docId.isUrl"));
-    encodeDocId = !leaveIdAlone;
-    log.config("encodeDocId: " + encodeDocId);
+    docIdIsUrl = Boolean.parseBoolean(cfg.getValue("docId.isUrl"));
+    log.config("docId.isUrl: " + docIdIsUrl);
 
-    if (modeOfOperation.equals("urlAndMetadataLister") && encodeDocId) {
+    if (modeOfOperation.equals("urlAndMetadataLister") && !docIdIsUrl) {
       String errmsg = "db.modeOfOperation of \"" + modeOfOperation
           + "\" requires docId.isUrl to be \"true\"";
       throw new InvalidConfigurationException(errmsg);
     }
 
-    if (leaveIdAlone) {
+    if (docIdIsUrl) {
       log.config("adaptor runs in lister-only mode");
 
       if (!singleDocContentSql.isEmpty()) {
@@ -267,7 +267,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     UniqueKey.Builder ukBuilder
         = new UniqueKey.Builder(cfg.getValue("db.uniqueKey"))
-        .setEncodeDocIds(encodeDocId)
+        .setDocIdIsUrl(docIdIsUrl)
         .setContentSqlColumns(cfg.getValue("db.singleDocContentSqlParameters"))
         .setAclSqlColumns(cfg.getValue("db.aclSqlParameters"));
 
@@ -400,7 +400,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           = hasColumn(rs.getMetaData(), GsaSpecialColumns.GSA_ACTION);
       log.log(Level.FINEST, "Has GSA_ACTION column: {0}", hasAction);
       while (rs.next()) {
-        DocId id = new DocId(uniqueKey.makeUniqueId(rs));
+        DocId id;
+        try {
+          id = new DocId(uniqueKey.makeUniqueId(rs));
+        } catch (URISyntaxException e) {
+          log.log(Level.WARNING, "Invalid DocId URL, skipping row: "
+              + e.getMessage());
+          continue;
+        }
         DocIdPusher.Record.Builder builder = new DocIdPusher.Record.Builder(id);
         if (hasAction && isDeleteAction(rs)) {
           builder.setDeleteFromIndex(true);
@@ -583,7 +590,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   /** Gives the bytes of a document referenced with id. */
   @Override
   public void getDocContent(Request req, Response resp) throws IOException {
-    if (!encodeDocId) {
+    if (docIdIsUrl) {
       // adaptor operating in lister-only mode 
       resp.respondNotFound();
       return;
@@ -939,7 +946,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         hasTimestamp = hasColumn(rsmd, GsaSpecialColumns.GSA_TIMESTAMP);
         log.log(Level.FINEST, "Has GSA_TIMESTAMP column: {0}", hasTimestamp);
         while (rs.next()) {
-          DocId id = new DocId(uniqueKey.makeUniqueId(rs));
+          DocId id;
+          try {
+            id = new DocId(uniqueKey.makeUniqueId(rs));
+          } catch (URISyntaxException e) {
+            log.log(Level.WARNING, "Invalid DocId URL, skipping row: "
+                + e.getMessage());
+            continue;
+          }
           DocIdPusher.Record.Builder builder =
               new DocIdPusher.Record.Builder(id).setCrawlImmediately(true);
           if (hasAction && isDeleteAction(rs)) {
