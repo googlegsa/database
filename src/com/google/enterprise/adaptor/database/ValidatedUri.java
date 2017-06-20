@@ -41,6 +41,7 @@ class ValidatedUri {
     if (Strings.isNullOrEmpty(uriString)) {
       throw new URISyntaxException("" + uriString, "null or empty URI");
     }
+    // TODO(bmj): Make ValidatedUri more fluent, so this is optional.
     uriString = fixupUri(uriString);
     try {
       // Basic syntax checking, with more understandable error messages.
@@ -73,12 +74,6 @@ class ValidatedUri {
     return builder.toString();
   }
 
-  // Encodes chars <= ' ', '"', '<', '>', '\', '^', '`', '|', >= DEL.
-  private static final String PERCENT =
-      "%!%#$%&'()*+,-./0123456789:;%=%?"
-      + "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[%]%_"
-      + "%abcdefghijklmnopqrstuvwxyz{%}~";
-
   private static final String HEX = "0123456789ABCDEF";
 
   /**
@@ -91,22 +86,34 @@ class ValidatedUri {
    * preserve any existing percent encoding. The characters '{' and '}' are
    * left as-is to catch MessageFormat errors. The rest are percent encoded.
    *
-   * This was adapted from v3 Connector Manager's ServletUtil.
-   *
    * @param sb StringBuilder in which to encode the text
    * @param text some plain text
    */
   private static void percentEncode(StringBuilder sb, String text) {
+    // Encodes chars <= ' ', '"', '<', '>', '\', '^', '`', '|', >= DEL.
     byte[] bytes = text.getBytes(Charsets.UTF_8);
     for (byte b : bytes) {
-      if (b >= ' ' && b <= '~' && PERCENT.charAt(b - ' ') != '%') {
-        sb.append((char) b);
-      } else if ((char) b == '%') {
-        sb.append((char) b);
-      } else {
+      if (b <= ' ' || b > '~') {
         sb.append('%');
         sb.append(HEX.charAt((b >> 4) & 0x0F));
         sb.append(HEX.charAt(b & 0x0F));
+      } else {
+        switch ((char) b) {
+          case '"':
+          case '<':
+          case '>':
+          case '\\':
+          case '^':
+          case '`':
+          case '|':
+            sb.append('%');
+            sb.append(HEX.charAt((b >> 4) & 0x0F));
+            sb.append(HEX.charAt(b & 0x0F));
+            break;
+          default:
+            sb.append((char) b);
+            break;
+        }
       }
     }
   }
