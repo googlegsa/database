@@ -14,7 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
-import com.google.common.base.Charsets;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import com.google.common.base.Strings;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -91,7 +92,7 @@ class ValidatedUri {
    */
   private static void percentEncode(StringBuilder sb, String text) {
     // Encodes chars <= ' ', '"', '<', '>', '\', '^', '`', '|', >= DEL.
-    byte[] bytes = text.getBytes(Charsets.UTF_8);
+    byte[] bytes = text.getBytes(UTF_8);
     for (byte b : bytes) {
       if (b <= ' ' || b > '~') {
         sb.append('%');
