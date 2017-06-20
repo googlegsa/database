@@ -73,6 +73,7 @@ class ValidatedUri {
     return builder.toString();
   }
 
+  // Encodes chars <= ' ', '"', '<', '>', '\', '^', '`', '|', >= DEL.
   private static final String PERCENT =
       "%!%#$%&'()*+,-./0123456789:;%=%?"
       + "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[%]%_"
