@@ -19,11 +19,11 @@ import static java.util.Locale.US;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 
+import java.net.URISyntaxException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -51,22 +51,23 @@ class UniqueKey {
   private final Map<String, ColumnType> types;  // types of DocId columns
   private final List<String> contentSqlCols;  // columns for content query
   private final List<String> aclSqlCols;  // columns for acl query
-  private final boolean encodeDocIds;
+  private final boolean docIdIsUrl;
 
   private UniqueKey(List<String> docIdSqlCols, Map<String, ColumnType> types,
       List<String> contentSqlCols, List<String> aclSqlCols,
-      boolean encodeDocIds) {
+      boolean docIdIsUrl) {
     this.docIdSqlCols = docIdSqlCols;
     this.types = types;
     this.contentSqlCols = contentSqlCols;
     this.aclSqlCols = aclSqlCols;
-    this.encodeDocIds = encodeDocIds;
+    this.docIdIsUrl = docIdIsUrl;
   }
 
-  String makeUniqueId(ResultSet rs) throws SQLException {
-    if (!encodeDocIds) {
+  String makeUniqueId(ResultSet rs) throws SQLException, URISyntaxException {
+    if (docIdIsUrl) {
       // DocId must be a single string column.
-      return rs.getString(docIdSqlCols.get(0));
+      String urlStr = rs.getString(docIdSqlCols.get(0));
+      return new ValidatedUri(urlStr).getUri().toString();
     }
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < docIdSqlCols.size(); i++) {
@@ -212,7 +213,7 @@ class UniqueKey {
     private Map<String, ColumnType> types;  // types of DocId columns
     private List<String> contentSqlCols;  // columns for content query
     private List<String> aclSqlCols;  // columns for acl query
-    private boolean encodeDocIds = true;
+    private boolean docIdIsUrl = false;
 
     /**
      * Create a mutable builder for the UniqueKey configuration.
@@ -270,15 +271,16 @@ class UniqueKey {
     }
 
     /**
-     * Sets whether to encode DocIds composed of mulitple column values,
-     * separated by slashes.
-     * If not encoding DocIds, the {@code docIdSqlColumns} supplied to the
-     * {@code Builder} must consist of a single column of type {@code string}.
+     * Sets whether the DocId is a URL or not. If {@code true}, the
+     * {@code docIdSqlColumns} supplied to the {@code Builder} must
+     * consist of a single column of type {@code string}. If {@code false},
+     * {@link #makeUniqueId} will encode DocIds composed of mulitple
+     * column values, separated by slashes.
      *
-     * @param encodeDocIds if {@code true} encode the DocId
+     * @param docIdIsUrl if {@code true} the DocId is an URL
      */
-    Builder setEncodeDocIds(boolean encodeDocIds) {
-      this.encodeDocIds = encodeDocIds;
+    Builder setDocIdIsUrl(boolean docIdIsUrl) {
+      this.docIdIsUrl = docIdIsUrl;
       return this;
     }
 
@@ -437,14 +439,14 @@ class UniqueKey {
             + ". Please set explicit types in db.uniqueKey.");
       }
       types = Collections.unmodifiableMap(types);
-      if (!encodeDocIds
+      if (docIdIsUrl
           && (types.size() != 1
               || types.values().iterator().next() != ColumnType.STRING)) {
         throw new InvalidConfigurationException("Invalid db.uniqueKey value:"
            + " The key must be a single string column when docId.isUrl=true.");
       }
       return new UniqueKey(docIdSqlCols, types, contentSqlCols, aclSqlCols,
-                           encodeDocIds);
+                           docIdIsUrl);
     }
   }
 }

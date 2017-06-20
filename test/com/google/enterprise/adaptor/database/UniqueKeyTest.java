@@ -28,6 +28,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.net.URISyntaxException;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -117,7 +118,7 @@ public class UniqueKeyTest {
   public void testUrlIntColumn() {
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("db.uniqueKey value: The key must be a single");
-    new UniqueKey.Builder("numnum:int").setEncodeDocIds(false).build();
+    new UniqueKey.Builder("numnum:int").setDocIdIsUrl(true).build();
   }
 
   @Test
@@ -125,13 +126,13 @@ public class UniqueKeyTest {
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("db.uniqueKey value: The key must be a single");
     new UniqueKey.Builder("str1:string,str2:string")
-        .setEncodeDocIds(false).build();
+        .setDocIdIsUrl(true).build();
   }
 
   @Test
   public void testUrlColumnMissingType() {
     thrown.expect(InvalidConfigurationException.class);
-    new UniqueKey.Builder("url").setEncodeDocIds(false).build();
+    new UniqueKey.Builder("url").setDocIdIsUrl(true).build();
   }
 
   @Test
@@ -232,7 +233,7 @@ public class UniqueKeyTest {
   }
 
   @Test
-  public void testProcessingDocId() throws SQLException {
+  public void testProcessingDocId() throws Exception {
     executeUpdate("create table data(numnum int, strstr varchar)");
     executeUpdate("insert into data(numnum, strstr) values(345, 'abc')");
 
@@ -242,7 +243,7 @@ public class UniqueKeyTest {
   }
 
   @Test
-  public void testProcessingDocId_allTypes() throws SQLException {
+  public void testProcessingDocId_allTypes() throws Exception {
     executeUpdate("create table data(c1 integer, c2 bigint, c3 varchar, "
         + "c4 date, c5 time, c6 timestamp)");
     executeUpdate("insert into data(c1, c2, c3, c4, c5, c6) "
@@ -258,7 +259,30 @@ public class UniqueKeyTest {
   }
 
   @Test
-  public void testProcessingDocIdWithSlash() throws SQLException {
+  public void testProcessingDocId_docIdIsUrl() throws Exception {
+    executeUpdate("create table data(url varchar)");
+    executeUpdate("insert into data(url) values('http://localhost/foo/bar')");
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    UniqueKey uk =
+        new UniqueKey.Builder("url:string").setDocIdIsUrl(true).build();
+    assertEquals("http://localhost/foo/bar", uk.makeUniqueId(rs));
+  }
+
+  @Test
+  public void testProcessingDocId_docIdIsInvalidUrl() throws Exception {
+    executeUpdate("create table data(url varchar)");
+    executeUpdate("insert into data(url) values('foo/bar')");
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    UniqueKey uk =
+        new UniqueKey.Builder("url:string").setDocIdIsUrl(true).build();
+    thrown.expect(URISyntaxException.class);
+    uk.makeUniqueId(rs);
+  }
+
+  @Test
+  public void testProcessingDocIdWithSlash() throws Exception {
     executeUpdate("create table data(a varchar, b varchar)");
     executeUpdate("insert into data(a, b) values('5/5', '6/6')");
 
@@ -268,7 +292,7 @@ public class UniqueKeyTest {
   }
 
   @Test
-  public void testProcessingDocIdWithMoreSlashes() throws SQLException {
+  public void testProcessingDocIdWithMoreSlashes() throws Exception {
     executeUpdate("create table data(a varchar, b varchar)");
     executeUpdate("insert into data(a, b) values('5/5//', '//6/6')");
 
@@ -378,7 +402,7 @@ public class UniqueKeyTest {
   }
 
   private void testUniqueElementsRoundTrip(String elem1, String elem2)
-      throws SQLException {
+      throws Exception {
     try {
       executeUpdate("create table data(a varchar, b varchar)");
       executeUpdate(
@@ -404,7 +428,7 @@ public class UniqueKeyTest {
   }
 
   @Test
-  public void testFuzzSlashesAndEscapes() throws SQLException {
+  public void testFuzzSlashesAndEscapes() throws Exception {
     for (int fuzzCase = 0; fuzzCase < 1000; fuzzCase++) {
       String elem1 = makeSomeIdsWithJustSlashesAndEscapeChar();
       String elem2 = makeSomeIdsWithJustSlashesAndEscapeChar();
@@ -413,7 +437,7 @@ public class UniqueKeyTest {
   }
 
   @Test
-  public void testEmptiesPreserved() throws SQLException {
+  public void testEmptiesPreserved() throws Exception {
     testUniqueElementsRoundTrip("", "");
     testUniqueElementsRoundTrip("", "_stuff/");
     testUniqueElementsRoundTrip("_stuff/", "");
