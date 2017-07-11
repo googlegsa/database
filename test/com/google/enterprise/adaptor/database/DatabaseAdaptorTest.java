@@ -682,6 +682,23 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitUniqueKeyContainsRepeatedKeyNameDifferentCase()
+      throws Exception {
+    executeUpdate("create table data(productid int, other varchar)");
+    // Value of unique key cannot contain repeated key name.
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "productid:int,PRODUCTID:string");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "select productid from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where productid = ?");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("key name 'PRODUCTID' was repeated");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
   public void testInitUniqueKeyEmpty() throws Exception {
     executeUpdate("create table data(id int, url varchar)");
     // Value of unique id cannot be empty.
@@ -1130,6 +1147,22 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitVerifyColumnNames_singleDocContentSql_differentCase()
+      throws Exception {
+    executeUpdate("create table data(productid int, other varchar)");
+    // Value of unique key cannot contain repeated key name.
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "productid:int");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "select productid from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where productid = ?");
+    moreEntries.put("db.singleDocContentSqlParameters", "PRODUCTID");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
   public void testInitVerifyColumnNames_aclSql() throws Exception {
     executeUpdate("create table data(id int, other varchar)");
 
@@ -1144,6 +1177,22 @@ public class DatabaseAdaptorTest {
 
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[id] not found in query");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitVerifyColumnNames_aclSql_differentCase()
+      throws Exception {
+    executeUpdate("create table data(productid int, other varchar)");
+    // Value of unique key cannot contain repeated key name.
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "productid:int");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "select productid from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where productid = ?");
+    moreEntries.put("db.aclSqlParameters", "PRODUCTID");
     getObjectUnderTest(moreEntries);
   }
 
