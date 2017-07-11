@@ -698,6 +698,26 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitUniqueKeyOptionalTypes() throws Exception {
+    executeUpdate("create table data(id int, name varchar, ordered timestamp)");
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id, name, ordered:timestamp");
+    moreEntries.put("db.everyDocIdSql", "select id, name, ordered from data");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class, "primary key: ", messages);
+    getObjectUnderTest(moreEntries);
+    assertEquals(messages.toString(), 1, messages.size());
+    // Verify the unspecified types were correctly determined from the DB.
+    assertThat(messages.get(0).toLowerCase(),
+        containsString("{id=int, name=string, ordered=timestamp}"));
+  }
+
+  @Test
   public void testInitUniqueKeyUrl() throws Exception {
     executeUpdate("create table data(id int, url varchar)");
     Map<String, String> moreEntries = new HashMap<String, String>();
