@@ -261,7 +261,7 @@ class UniqueKey {
         tmpNames.add(name);
         if (types.put(name, type) != null) {
           String errmsg = "Invalid db.uniqueKey configuration: key name '"
-              + name + "' was repeated.";
+              + name + "' was repeated. Use a column alias if required.";
           throw new InvalidConfigurationException(errmsg);
         }
       }
