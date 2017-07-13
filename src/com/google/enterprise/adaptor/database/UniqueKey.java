@@ -111,7 +111,7 @@ class UniqueKey {
           + "id: " + uniqueId + ", parts: " + Arrays.asList(parts);
       throw new IllegalStateException(errmsg);
     }
-    Map<String, String> zip = new TreeMap<String, String>();
+    Map<String, String> zip = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     for (int i = 0; i < parts.length; i++) {
       String columnValue = decodeSlashInData(parts[i]);
       zip.put(docIdSqlCols.get(i), columnValue);
@@ -261,7 +261,7 @@ class UniqueKey {
         tmpNames.add(name);
         if (types.put(name, type) != null) {
           String errmsg = "Invalid db.uniqueKey configuration: key name '"
-              + name + "' was repeated.";
+              + name + "' was repeated. Use a column alias if required.";
           throw new InvalidConfigurationException(errmsg);
         }
       }

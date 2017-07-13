@@ -341,6 +341,24 @@ public class UniqueKeyTest {
   }
 
   @Test
+  public void testPreparingRetrievalCaseInsensitiveColumnNames()
+      throws SQLException {
+    executeUpdate("create table data(numnum int, strstr varchar)");
+
+    String sql = "insert into data(numnum, strstr) values (?, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      UniqueKey uk =
+          newUniqueKey("numnum:int, strstr:string", "NUMNUM, StrStr", "");
+      uk.setContentSqlValues(ps, "888/bluesky");
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    assertEquals(888, rs.getInt("numnum"));
+    assertEquals("bluesky", rs.getString("strstr"));
+  }
+
+  @Test
   public void testPreparingRetrievalPerDocCols() throws SQLException {
     executeUpdate("create table data("
         + "col1 int, col2 int, col3 varchar, col4 int, col5 varchar, "
@@ -363,6 +381,24 @@ public class UniqueKeyTest {
     assertEquals("bluesky", rs.getString(5));
     assertEquals("bluesky", rs.getString(6));
     assertEquals(888, rs.getInt(7));
+  }
+
+  @Test
+  public void testPreparingAclRetrievalCaseInsensitiveColumnNames()
+      throws SQLException {
+    executeUpdate("create table data(numnum int, strstr varchar)");
+
+    String sql = "insert into data(numnum, strstr) values (?, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      UniqueKey uk =
+          newUniqueKey("numnum:int, strstr:string", "", "NUMNUM, StrStr");
+      uk.setAclSqlValues(ps, "888/bluesky");
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    assertEquals(888, rs.getInt("numnum"));
+    assertEquals("bluesky", rs.getString("strstr"));
   }
 
   @Test
