@@ -51,6 +51,7 @@ import com.google.enterprise.adaptor.TestHelper.RecordingContext;
 import com.google.enterprise.adaptor.UserPrincipal;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.sql.Connection;
@@ -70,6 +71,7 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -95,6 +97,11 @@ public class DatabaseAdaptorTest {
 
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();
+
+  @Before
+  public void initialize() throws IOException {
+    JdbcFixture.initialize();
+  }
 
   @After
   public void dropAllObjects() throws SQLException {
@@ -598,10 +605,10 @@ public class DatabaseAdaptorTest {
   private DatabaseAdaptor getObjectUnderTest(Map<String, String> moreEntries,
       Holder<RecordingContext> contextHolder) throws Exception {
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.driverClass", JdbcFixture.DRIVER_CLASS);
-    configEntries.put("db.url", JdbcFixture.URL);
-    configEntries.put("db.user", JdbcFixture.USER);
-    configEntries.put("db.password", JdbcFixture.PASSWORD);
+    configEntries.put("db.driverClass", JdbcFixture.driver_class);
+    configEntries.put("db.url", JdbcFixture.url);
+    configEntries.put("db.user", JdbcFixture.user);
+    configEntries.put("db.password", JdbcFixture.password);
     configEntries.put("gsa.hostname", "localhost");
 
     File file = tempFolder.newFile("dba.test.properties");

@@ -28,6 +28,7 @@ import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
 
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -60,6 +61,11 @@ public class ResponseGeneratorTest {
 
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();
+
+  @Before
+  public void initialize() throws IOException {
+    JdbcFixture.initialize();
+  }
 
   @After
   public void dropAllObjects() throws SQLException {

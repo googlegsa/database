@@ -31,6 +31,7 @@ import org.xml.sax.SAXException;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.StringWriter;
 import java.sql.PreparedStatement;
@@ -63,8 +64,9 @@ public class TupleReaderTest {
   private Transformer perTestTransformer;
 
   @Before
-  public void setUp() throws TransformerConfigurationException {
+  public void setUp() throws TransformerConfigurationException, IOException {
     perTestTransformer = transformer();
+    JdbcFixture.initialize();
   }
 
   private Transformer transformer() throws TransformerConfigurationException {

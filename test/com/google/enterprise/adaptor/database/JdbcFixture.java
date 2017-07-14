@@ -16,28 +16,59 @@ package com.google.enterprise.adaptor.database;
 
 import static org.junit.Assert.assertTrue;
 
+import com.google.common.base.Strings;
 import org.h2.jdbcx.JdbcDataSource;
 
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayDeque;
+import java.util.Properties;
 
 /** Manages an in-memory H2 database for test purposes. */
 class JdbcFixture {
-  public static final String DRIVER_CLASS = "org.h2.Driver";
-  public static final String URL =
-      "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DEFAULT_ESCAPE=";
-  public static final String USER = "sa";
-  public static final String PASSWORD = "";
+  public static String database;
+  public static String driver_class;
+  public static String url;
+  public static String user;
+  public static String password;
 
   private static ArrayDeque<AutoCloseable> openObjects = new ArrayDeque<>();
 
-  /**
-   * Gets a JDBC connection to a named in-memory database.
-   * <p>
-   * Connection options:
+  /*
+   * Initializes the database connection parameters from build.properties file.
+   * Defaults to H2 database.
+   */
+  public static void initialize() throws IOException {
+    String propertiesFile = System.getProperty("build.properties");
+    Properties properties = new Properties();
+    if (!Strings.isNullOrEmpty(propertiesFile)) {
+      try {
+        properties.load(new FileReader(propertiesFile));
+        if (Strings.isNullOrEmpty(properties.getProperty("test.database"))) {
+          loadDefaultProperies(properties);
+        }
+      } catch (FileNotFoundException e) {
+        loadDefaultProperies(properties);
+      }
+    } else {
+      loadDefaultProperies(properties);
+    }
+
+    database = properties.getProperty("test.database");
+    driver_class = properties.getProperty("test.driver");
+    url = properties.getProperty("test.url");
+    user = properties.getProperty("test.user");
+    password = properties.getProperty("test.password");
+  }
+
+  /*
+   *  Connection options for default H2 database:
    *
    * <pre>DB_CLOSE_DELAY=-1</pre>
    * The database will remain open until the JVM exits, rather than
@@ -47,13 +78,34 @@ class JdbcFixture {
    * The default escape character is disabled, to match the DQL
    * behavior (and standard SQL).
    */
+  private static void loadDefaultProperies(Properties properties) {
+    properties.setProperty("test.database", "h2");
+    properties.setProperty("test.driver", "org.h2.Driver");
+    properties.setProperty("test.url",
+        "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DEFAULT_ESCAPE=");
+    properties.setProperty("test.user", "sa");
+    properties.setProperty("test.password", "");
+  }
+
+  /**
+   * Gets a JDBC connection to the database.
+   */
   public static Connection getConnection() {
     try {
-      JdbcDataSource ds = new JdbcDataSource();
-      ds.setURL(URL);
-      ds.setUser(USER);
-      ds.setPassword(PASSWORD);
-      return ds.getConnection();
+      if (database.equalsIgnoreCase("h2")) {
+        JdbcDataSource ds = new JdbcDataSource();
+        ds.setURL(url);
+        ds.setUser(user);
+        ds.setPassword(password);
+        return ds.getConnection();
+      } else {
+        try {
+          Class.forName(driver_class);
+          return DriverManager.getConnection(url, user, password);
+        } catch (ClassNotFoundException e) {
+          throw new RuntimeException(e);
+        }
+      }
     } catch (SQLException e) {
       throw new RuntimeException(e);
     }
@@ -71,7 +123,22 @@ class JdbcFixture {
         throw new AssertionError(e);
       }
     }
-    executeUpdate("drop all objects");
+    if (database.equalsIgnoreCase("h2")) {
+      executeUpdate("drop all objects");
+    } else if (database.equalsIgnoreCase("sqlserver")) {
+      dropSQLServerTables();
+      // TODO (srinivas): drop tables for Oracle database.
+    }
+  }
+
+  private static void dropSQLServerTables() throws SQLException {
+    String sql = "select 'DROP TABLE ' + name + '' FROM sys.tables";
+    ResultSet rs = executeQuery(sql);
+    while (rs.next()) {
+      String dropQuery = rs.getString(1);
+      Statement stmt = getConnection().createStatement();
+      stmt.execute(dropQuery);
+    }
   }
 
   public static ResultSet executeQuery(String sql) throws SQLException {
