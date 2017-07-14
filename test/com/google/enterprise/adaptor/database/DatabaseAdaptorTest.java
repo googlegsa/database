@@ -1360,6 +1360,28 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testGetDocIds_urlAndMetadataLister_ignoresContentColumnName()
+      throws Exception {
+    executeUpdate("create table data(url varchar, name varchar)");
+    executeUpdate(
+        "insert into data(url, name) values('http://localhost/','John')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "url:string");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    configEntries.put("docId.isUrl", "true");
+    configEntries.put("db.modeOfOpertation.urlAndMetadataLister.columnName",
+        "url");
+
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(ResponseGenerator.class,
+        "urlAndMetadataLister mode ignores columnName", messages);
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    assertEquals(messages.toString(), 1, messages.size());
+  }
+
+  @Test
   public void testGetDocIds_docIdIsUrl() throws Exception {
     // Add time to show the records as modified.
     executeUpdate("create table data(url varchar)");
@@ -1925,6 +1947,26 @@ public class DatabaseAdaptorTest {
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "url:string");
     moreEntries.put("db.everyDocIdSql", "select * from data");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    MockRequest request = new MockRequest(new DocId("http://"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+    assertEquals(RecordingResponse.State.NOT_FOUND, response.getState());
+   }
+
+  @Test
+  public void testGetDocContent_urlAndMetadataLister() throws Exception {
+    executeUpdate("create table data(url varchar, name varchar)");
+    executeUpdate("insert into data(url, name) values('http://', 'John')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where url = ?");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     MockRequest request = new MockRequest(new DocId("http://"));
