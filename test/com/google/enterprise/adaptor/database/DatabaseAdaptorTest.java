@@ -1201,18 +1201,36 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitVerifyColumnNames_aclSql_columnAlias() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.aclSql",
+        "select id, other as acl from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
   public void testInitVerifyColumnNames_aclSql_differentCase()
       throws Exception {
     executeUpdate("create table data(productid int, other varchar)");
     // Value of unique key cannot contain repeated key name.
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "productid:int");
+    moreEntries.put("db.aclSql",
+        "select productid, other from data where productid = ?");
+    moreEntries.put("db.aclSqlParameters", "PRODUCTID");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.everyDocIdSql", "select productid from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where productid = ?");
-    moreEntries.put("db.aclSqlParameters", "PRODUCTID");
     getObjectUnderTest(moreEntries);
   }
 
@@ -2359,6 +2377,43 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.singleDocContentSql",
         "select * from data where ID = ?");
     moreEntries.put("db.aclSql", "select * from acl where id = ?");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Acl golden = new Acl.Builder()
+        .setPermitUsers(Arrays.asList(new UserPrincipal("puser1")))
+        .setPermitGroups(Arrays.asList(new GroupPrincipal("pgroup1")))
+        .build();
+    assertEquals(golden, response.getAcl());
+  }
+
+  @Test
+  public void testGetDocContentAcl_columnAliases() throws Exception {
+    executeUpdate("create table data(id integer)");
+    executeUpdate("insert into data(id) values (1001), (1002)");
+    executeUpdate("create table acl(id int, allowed_groups varchar,"
+        + " allowed_users varchar)");
+    executeUpdate("insert into acl(id, allowed_groups, allowed_users) "
+        + "values (1001, 'pgroup1', 'puser1'), (1002, 'pgroup2', 'puser2')");
+
+    String aclSql = "select id, allowed_groups as gsa_permit_groups, "
+        + "allowed_users as gsa_permit_users from acl where id = ?";
+
+    ResultSet rs = executeQuery(aclSql.replace("?", "'1001'"));
+    ResultSetMetaData rsmd = rs.getMetaData();
+    assertEquals("allowed_groups", rsmd.getColumnName(2).toLowerCase());
+    assertEquals("gsa_permit_groups", rsmd.getColumnLabel(2).toLowerCase());
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select * from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    moreEntries.put("db.aclSql", aclSql);
     moreEntries.put("db.modeOfOperation", "rowToText");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
