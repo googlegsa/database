@@ -49,11 +49,6 @@ public class UniqueKeyTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();
 
-  @Before
-  public void initialize() throws IOException {
-    JdbcFixture.initialize();
-  }
-
   @After
   public void dropAllObjects() throws SQLException {
     JdbcFixture.dropAllObjects();

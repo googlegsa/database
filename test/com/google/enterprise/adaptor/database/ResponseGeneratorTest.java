@@ -62,11 +62,6 @@ public class ResponseGeneratorTest {
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();
 
-  @Before
-  public void initialize() throws IOException {
-    JdbcFixture.initialize();
-  }
-
   @After
   public void dropAllObjects() throws SQLException {
     JdbcFixture.dropAllObjects();

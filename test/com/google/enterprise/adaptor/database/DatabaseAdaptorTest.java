@@ -98,11 +98,6 @@ public class DatabaseAdaptorTest {
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();
 
-  @Before
-  public void initialize() throws IOException {
-    JdbcFixture.initialize();
-  }
-
   @After
   public void dropAllObjects() throws SQLException {
     JdbcFixture.dropAllObjects();
@@ -605,10 +600,10 @@ public class DatabaseAdaptorTest {
   private DatabaseAdaptor getObjectUnderTest(Map<String, String> moreEntries,
       Holder<RecordingContext> contextHolder) throws Exception {
     Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.driverClass", JdbcFixture.driver_class);
-    configEntries.put("db.url", JdbcFixture.url);
-    configEntries.put("db.user", JdbcFixture.user);
-    configEntries.put("db.password", JdbcFixture.password);
+    configEntries.put("db.driverClass", JdbcFixture.DRIVER_CLASS);
+    configEntries.put("db.url", JdbcFixture.URL);
+    configEntries.put("db.user", JdbcFixture.USER);
+    configEntries.put("db.password", JdbcFixture.PASSWORD);
     configEntries.put("gsa.hostname", "localhost");
 
     File file = tempFolder.newFile("dba.test.properties");

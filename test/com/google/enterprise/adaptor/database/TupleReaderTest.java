@@ -66,7 +66,6 @@ public class TupleReaderTest {
   @Before
   public void setUp() throws TransformerConfigurationException, IOException {
     perTestTransformer = transformer();
-    JdbcFixture.initialize();
   }
 
   private Transformer transformer() throws TransformerConfigurationException {

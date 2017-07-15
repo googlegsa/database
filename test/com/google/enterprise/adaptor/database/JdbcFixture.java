@@ -17,7 +17,6 @@ package com.google.enterprise.adaptor.database;
 import static org.junit.Assert.assertTrue;
 
 import com.google.common.base.Strings;
-import org.h2.jdbcx.JdbcDataSource;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -32,42 +31,18 @@ import java.util.Properties;
 
 /** Manages an in-memory H2 database for test purposes. */
 class JdbcFixture {
-  public static String database;
-  public static String driver_class;
-  public static String url;
-  public static String user;
-  public static String password;
+  public static final String DATABASE;
+  public static final String DRIVER_CLASS;
+  public static final String URL;
+  public static final String USER;
+  public static final String PASSWORD;
 
   private static ArrayDeque<AutoCloseable> openObjects = new ArrayDeque<>();
 
   /*
    * Initializes the database connection parameters from build.properties file.
    * Defaults to H2 database.
-   */
-  public static void initialize() throws IOException {
-    String propertiesFile = System.getProperty("build.properties");
-    Properties properties = new Properties();
-    if (!Strings.isNullOrEmpty(propertiesFile)) {
-      try {
-        properties.load(new FileReader(propertiesFile));
-        if (Strings.isNullOrEmpty(properties.getProperty("test.database"))) {
-          loadDefaultProperies(properties);
-        }
-      } catch (FileNotFoundException e) {
-        loadDefaultProperies(properties);
-      }
-    } else {
-      loadDefaultProperies(properties);
-    }
-
-    database = properties.getProperty("test.database");
-    driver_class = properties.getProperty("test.driver");
-    url = properties.getProperty("test.url");
-    user = properties.getProperty("test.user");
-    password = properties.getProperty("test.password");
-  }
-
-  /*
+   *
    *  Connection options for default H2 database:
    *
    * <pre>DB_CLOSE_DELAY=-1</pre>
@@ -78,13 +53,37 @@ class JdbcFixture {
    * The default escape character is disabled, to match the DQL
    * behavior (and standard SQL).
    */
-  private static void loadDefaultProperies(Properties properties) {
-    properties.setProperty("test.database", "h2");
-    properties.setProperty("test.driver", "org.h2.Driver");
-    properties.setProperty("test.url",
-        "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DEFAULT_ESCAPE=");
-    properties.setProperty("test.user", "sa");
-    properties.setProperty("test.password", "");
+  static {
+    String dbname = "h2";
+    String dbdriver = "org.h2.Driver";
+    String dburl = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DEFAULT_ESCAPE=";
+    String dbuser = "sa";
+    String dbpassword = "";
+
+    String propertiesFile = System.getProperty("build.properties");
+    Properties properties = new Properties();
+    if (!Strings.isNullOrEmpty(propertiesFile)) {
+      try {
+        properties.load(new FileReader(propertiesFile));
+        if (!Strings.isNullOrEmpty(properties.getProperty("test.database"))) {
+          dbname = properties.getProperty("test.database");
+          dbdriver = properties.getProperty("test.driver");
+          dburl = properties.getProperty("test.url");
+          dbuser = properties.getProperty("test.user");
+          dbpassword = properties.getProperty("test.password");
+        }
+      } catch(FileNotFoundException e) {
+        // use default values.
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    DATABASE = dbname;
+    DRIVER_CLASS = dbdriver;
+    URL = dburl;
+    USER = dbuser;
+    PASSWORD = dbpassword;
   }
 
   /**
@@ -92,21 +91,11 @@ class JdbcFixture {
    */
   public static Connection getConnection() {
     try {
-      if (database.equalsIgnoreCase("h2")) {
-        JdbcDataSource ds = new JdbcDataSource();
-        ds.setURL(url);
-        ds.setUser(user);
-        ds.setPassword(password);
-        return ds.getConnection();
-      } else {
-        try {
-          Class.forName(driver_class);
-          return DriverManager.getConnection(url, user, password);
-        } catch (ClassNotFoundException e) {
-          throw new RuntimeException(e);
-        }
-      }
+      Class.forName(DRIVER_CLASS);
+      return DriverManager.getConnection(URL, USER, PASSWORD);
     } catch (SQLException e) {
+      throw new RuntimeException(e);
+    } catch (ClassNotFoundException e) {
       throw new RuntimeException(e);
     }
   }
@@ -123,19 +112,20 @@ class JdbcFixture {
         throw new AssertionError(e);
       }
     }
-    if (database.equalsIgnoreCase("h2")) {
+    if (DATABASE.equalsIgnoreCase("h2")) {
       executeUpdate("drop all objects");
-    } else if (database.equalsIgnoreCase("sqlserver")) {
+    } else if (DATABASE.equalsIgnoreCase("sqlserver")) {
       dropSQLServerTables();
       // TODO (srinivas): drop tables for Oracle database.
     }
   }
 
   private static void dropSQLServerTables() throws SQLException {
-    String sql = "select 'DROP TABLE ' + name + '' FROM sys.tables";
+    String sql = "select name FROM sys.tables";
     ResultSet rs = executeQuery(sql);
     while (rs.next()) {
-      String dropQuery = rs.getString(1);
+      String name = rs.getString("name");
+      String dropQuery = "DROP TABLE " + name;
       Statement stmt = getConnection().createStatement();
       stmt.execute(dropQuery);
     }
