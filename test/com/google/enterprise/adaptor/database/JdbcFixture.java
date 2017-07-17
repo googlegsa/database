@@ -18,9 +18,12 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.common.base.Strings;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -31,13 +34,29 @@ import java.util.Properties;
 
 /** Manages an in-memory H2 database for test purposes. */
 class JdbcFixture {
-  public static final String DATABASE;
+  public static final Database DATABASE;
   public static final String DRIVER_CLASS;
   public static final String URL;
   public static final String USER;
   public static final String PASSWORD;
 
   private static ArrayDeque<AutoCloseable> openObjects = new ArrayDeque<>();
+
+  private enum Database {
+    H2("h2"),
+    SQLSERVER("sqlserver"),
+    ORACLE("oracle");
+
+    private final String tag;
+
+    private Database(String tag) {
+      this.tag = tag;
+    }
+
+    public String toString() {
+      return this.tag;
+    }
+  };
 
   /*
    * Initializes the database connection parameters from build.properties file.
@@ -54,25 +73,33 @@ class JdbcFixture {
    * behavior (and standard SQL).
    */
   static {
-    String dbname = "h2";
+    Database dbname = Database.H2;
     String dbdriver = "org.h2.Driver";
     String dburl = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DEFAULT_ESCAPE=";
     String dbuser = "sa";
     String dbpassword = "";
 
     String propertiesFile = System.getProperty("build.properties");
-    Properties properties = new Properties();
     if (!Strings.isNullOrEmpty(propertiesFile)) {
-      try {
-        properties.load(new FileReader(propertiesFile));
+      try (FileInputStream fis =
+          new FileInputStream(new File(propertiesFile))) {
+        Properties properties = new Properties();
+        properties.load(new InputStreamReader(fis, Charset.forName("UTF-8")));
         if (!Strings.isNullOrEmpty(properties.getProperty("test.database"))) {
-          dbname = properties.getProperty("test.database");
+          String name = properties.getProperty("test.database");
+          if (name.equals(Database.SQLSERVER.toString())) {
+            dbname = Database.SQLSERVER;
+          } else if (name.equals(Database.SQLSERVER.toString())) {
+            dbname = Database.ORACLE;
+          } else {
+            dbname = Database.H2;
+          }
           dbdriver = properties.getProperty("test.driver");
           dburl = properties.getProperty("test.url");
           dbuser = properties.getProperty("test.user");
           dbpassword = properties.getProperty("test.password");
         }
-      } catch(FileNotFoundException e) {
+      } catch (FileNotFoundException e) {
         // use default values.
       } catch (IOException e) {
         throw new RuntimeException(e);
@@ -112,22 +139,23 @@ class JdbcFixture {
         throw new AssertionError(e);
       }
     }
-    if (DATABASE.equalsIgnoreCase("h2")) {
+    if (DATABASE == Database.H2) {
       executeUpdate("drop all objects");
-    } else if (DATABASE.equalsIgnoreCase("sqlserver")) {
+    } else if (DATABASE == Database.SQLSERVER) {
       dropSQLServerTables();
+    } else if (DATABASE == Database.ORACLE) {
       // TODO (srinivas): drop tables for Oracle database.
     }
   }
 
   private static void dropSQLServerTables() throws SQLException {
-    String sql = "select name FROM sys.tables";
-    ResultSet rs = executeQuery(sql);
+    ResultSet rs = executeQuery("select name from sys.tables");
     while (rs.next()) {
-      String name = rs.getString("name");
-      String dropQuery = "DROP TABLE " + name;
-      Statement stmt = getConnection().createStatement();
-      stmt.execute(dropQuery);
+      String dropQuery = "drop table " + rs.getString("name");
+      try (Connection connection = getConnection();
+          Statement stmt = connection.createStatement()) {
+        stmt.execute(dropQuery);
+      }
     }
   }
 

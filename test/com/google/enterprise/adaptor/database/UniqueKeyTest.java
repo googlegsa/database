@@ -24,12 +24,10 @@ import static org.junit.Assert.assertEquals;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import java.io.IOException;
 import java.net.URISyntaxException;
 import java.sql.Date;
 import java.sql.PreparedStatement;
