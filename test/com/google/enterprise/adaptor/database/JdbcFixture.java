@@ -87,17 +87,19 @@ class JdbcFixture {
         properties.load(new InputStreamReader(fis, Charset.forName("UTF-8")));
         if (!Strings.isNullOrEmpty(properties.getProperty("test.database"))) {
           String name = properties.getProperty("test.database");
-          if (name.equals(Database.SQLSERVER.toString())) {
+          if (name.equalsIgnoreCase(Database.SQLSERVER.toString())) {
             dbname = Database.SQLSERVER;
-          } else if (name.equals(Database.SQLSERVER.toString())) {
+          } else if (name.equalsIgnoreCase(Database.SQLSERVER.toString())) {
             dbname = Database.ORACLE;
           } else {
             dbname = Database.H2;
           }
-          dbdriver = properties.getProperty("test.driver");
-          dburl = properties.getProperty("test.url");
-          dbuser = properties.getProperty("test.user");
-          dbpassword = properties.getProperty("test.password");
+          if (dbname != Database.H2) {
+            dbdriver = properties.getProperty("test.driver");
+            dburl = properties.getProperty("test.url");
+            dbuser = properties.getProperty("test.user");
+            dbpassword = properties.getProperty("test.password");
+          }
         }
       } catch (FileNotFoundException e) {
         // use default values.
