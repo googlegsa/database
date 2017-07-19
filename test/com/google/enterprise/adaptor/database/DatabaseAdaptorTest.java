@@ -50,6 +50,7 @@ import com.google.enterprise.adaptor.TestHelper;
 import com.google.enterprise.adaptor.TestHelper.RecordingContext;
 import com.google.enterprise.adaptor.UserPrincipal;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -1150,73 +1151,6 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testInitVerifyColumnNames_singleDocContentSql() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
-
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.singleDocContentSql",
-        "select other from data where id = ?");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "select id from data");
-
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("[id] not found in query");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
-  public void testInitVerifyColumnNames_singleDocContentSql_differentCase()
-      throws Exception {
-    executeUpdate("create table data(productid int, other varchar)");
-    // Value of unique key cannot contain repeated key name.
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.uniqueKey", "productid:int");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.everyDocIdSql", "select productid from data");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where productid = ?");
-    moreEntries.put("db.singleDocContentSqlParameters", "PRODUCTID");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
-  public void testInitVerifyColumnNames_aclSql() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
-
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.aclSql", "select other from data where id = ?");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "select id from data");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("[id] not found in query");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
-  public void testInitVerifyColumnNames_aclSql_differentCase()
-      throws Exception {
-    executeUpdate("create table data(productid int, other varchar)");
-    // Value of unique key cannot contain repeated key name.
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.uniqueKey", "productid:int");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.everyDocIdSql", "select productid from data");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where productid = ?");
-    moreEntries.put("db.aclSqlParameters", "PRODUCTID");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
   public void testInitVerifyColumnNames_urlAndMetadata() throws Exception {
     executeUpdate("create table data(url varchar, other varchar)");
 
@@ -1357,28 +1291,6 @@ public class DatabaseAdaptorTest {
         Arrays.asList(new Record.Builder(new DocId("http://localhost/"))
           .setMetadata(metadata).build()),
         pusher.getRecords());
-  }
-
-  @Test
-  public void testGetDocIds_urlAndMetadataLister_ignoresContentColumnName()
-      throws Exception {
-    executeUpdate("create table data(url varchar, name varchar)");
-    executeUpdate(
-        "insert into data(url, name) values('http://localhost/','John')");
-
-    Map<String, String> configEntries = new HashMap<String, String>();
-    configEntries.put("db.uniqueKey", "url:string");
-    configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    configEntries.put("docId.isUrl", "true");
-    configEntries.put("db.modeOfOpertation.urlAndMetadataLister.columnName",
-        "url");
-
-    List<String> messages = new ArrayList<String>();
-    captureLogMessages(ResponseGenerator.class,
-        "urlAndMetadataLister mode ignores columnName", messages);
-    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    assertEquals(messages.toString(), 1, messages.size());
   }
 
   @Test
@@ -1938,6 +1850,35 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testGetDocContent_modeOfOperationConfig() throws Exception {
+    executeUpdate("create table data(id integer, content varchar, "
+        + "contentType varchar, url varchar)");
+    executeUpdate("insert into data(id, content, contentType, url) "
+        + "values('1', 'Hello World!', 'text/rtf', 'http://foo/bar')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select id from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "contentColumn");
+    configEntries.put("db.modeOfOperation.contentColumn.columnName", "content");
+    configEntries.put("db.modeOfOperation.contentColumn.contentTypeCol",
+        "contentType");
+    configEntries.put("db.modeOfOperation.contentColumn.displayUrlCol", "url");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
+    adaptor.getDocContent(request, response);
+
+    assertEquals("Hello World!", baos.toString(UTF_8.toString()));
+    assertEquals("text/rtf", response.getContentType());
+    assertEquals("http://foo/bar", response.getDisplayUrl().toString());
+  }
+
+  @Test
   public void testGetDocContent_lister() throws Exception {
     executeUpdate("create table data(url varchar, name varchar)");
     executeUpdate("insert into data(url, name) values('http://', 'John')");
@@ -1947,26 +1888,6 @@ public class DatabaseAdaptorTest {
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "url:string");
     moreEntries.put("db.everyDocIdSql", "select * from data");
-
-    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    MockRequest request = new MockRequest(new DocId("http://"));
-    RecordingResponse response = new RecordingResponse();
-    adaptor.getDocContent(request, response);
-    assertEquals(RecordingResponse.State.NOT_FOUND, response.getState());
-   }
-
-  @Test
-  public void testGetDocContent_urlAndMetadataLister() throws Exception {
-    executeUpdate("create table data(url varchar, name varchar)");
-    executeUpdate("insert into data(url, name) values('http://', 'John')");
-
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    moreEntries.put("docId.isUrl", "true");
-    moreEntries.put("db.uniqueKey", "url:string");
-    moreEntries.put("db.everyDocIdSql", "select * from data");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where url = ?");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     MockRequest request = new MockRequest(new DocId("http://"));
