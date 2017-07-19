@@ -1201,22 +1201,6 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testInitVerifyColumnNames_aclSql_columnAlias() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
-
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.aclSql",
-        "select id, other as acl from data where id = ?");
-    // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "select id from data");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
-    getObjectUnderTest(moreEntries);
-  }
-
-  @Test
   public void testInitVerifyColumnNames_aclSql_differentCase()
       throws Exception {
     executeUpdate("create table data(productid int, other varchar)");
@@ -1284,6 +1268,22 @@ public class DatabaseAdaptorTest {
 
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[other] not found in query");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitVerifyColumnNames_metadataColumnAlias() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSql",
+        "select id, other as col1 from data where id = ?");
+    moreEntries.put("db.metadataColumns", "col1:col1");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.aclSql", "select * from data where id = ?");
     getObjectUnderTest(moreEntries);
   }
 
@@ -2363,36 +2363,36 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testGetDocContentAcl() throws Exception {
-    executeUpdate("create table data(id integer)");
-    executeUpdate("insert into data(id) values (1001), (1002)");
-    executeUpdate("create table acl(id int, gsa_permit_groups varchar,"
-        + " gsa_permit_users varchar)");
-    executeUpdate("insert into acl(id, gsa_permit_groups, gsa_permit_users) "
-        + "values (1001, 'pgroup1', 'puser1'), (1002, 'pgroup2', 'puser2')");
+  public void testMetadataColumns_columnAlias() throws Exception {
+    String content = "Who is number 1?";
+    executeUpdate("create table data(id int, content varchar)");
+    String sql = "insert into data(id, content) values (6, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, content);
+      assertEquals(1, ps.executeUpdate());
+    }
 
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "select * from data");
-    moreEntries.put("db.singleDocContentSql",
-        "select * from data where ID = ?");
-    moreEntries.put("db.aclSql", "select * from acl where id = ?");
-    moreEntries.put("db.modeOfOperation", "rowToText");
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select id, content as quote from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "id, quote");
 
-    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    MockRequest request = new MockRequest(new DocId("1001"));
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("6"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
-    Acl golden = new Acl.Builder()
-        .setPermitUsers(Arrays.asList(new UserPrincipal("puser1")))
-        .setPermitGroups(Arrays.asList(new GroupPrincipal("pgroup1")))
-        .build();
-    assertEquals(golden, response.getAcl());
+    Metadata expected = new Metadata();
+    expected.add("id", "6");
+    expected.add("quote", content);
+    assertEquals(expected, response.getMetadata());
   }
 
   @Test
-  public void testGetDocContentAcl_columnAliases() throws Exception {
+  public void testGetDocContentAcl() throws Exception {
     executeUpdate("create table data(id integer)");
     executeUpdate("insert into data(id) values (1001), (1002)");
     executeUpdate("create table acl(id int, allowed_groups varchar,"
