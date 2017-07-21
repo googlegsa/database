@@ -14,6 +14,7 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertTrue;
 
 import com.google.common.base.Strings;
@@ -21,9 +22,8 @@ import com.google.common.base.Strings;
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -34,11 +34,11 @@ import java.util.Properties;
 
 /** Manages an in-memory H2 database for test purposes. */
 class JdbcFixture {
-  public static final Database database;
-  public static final String driverClass;
-  public static final String url;
-  public static final String user;
-  public static final String password;
+  public static final Database DATABASE;
+  public static final String DRIVER_CLASS;
+  public static final String URL;
+  public static final String USER;
+  public static final String PASSWORD;
 
   private static ArrayDeque<AutoCloseable> openObjects = new ArrayDeque<>();
 
@@ -53,9 +53,9 @@ class JdbcFixture {
       this.tag = tag;
     }
 
-    public String toString() {
-      return this.tag;
-    }
+//    public String toString() {
+//      return this.tag;
+//    }
   };
 
   /*
@@ -82,21 +82,19 @@ class JdbcFixture {
     String propertiesFile = System.getProperty("build.properties");
     if (!Strings.isNullOrEmpty(propertiesFile)) {
       try (BufferedReader br =
-          Files.newBufferedReader(
-              FileSystems.getDefault().getPath(propertiesFile),
-              Charset.forName("UTF-8"))) {
+          Files.newBufferedReader(Paths.get(propertiesFile), UTF_8)) {
         Properties properties = new Properties();
         properties.load(br);
-        if (!Strings
-            .isNullOrEmpty(properties.getProperty("test.jdbc.database"))) {
-          String name = properties.getProperty("test.jdbc.database");
-          if (name.equalsIgnoreCase(Database.SQLSERVER.toString())) {
-            dbname = Database.SQLSERVER;
-          } else if (name.equalsIgnoreCase(Database.ORACLE.toString())) {
-            dbname = Database.ORACLE;
-          } else {
-            dbname = Database.H2;
-          }
+        String name = properties.getProperty("test.jdbc.database");
+        if (!Strings.isNullOrEmpty(name)) {
+          dbname = Database.valueOf(name.toUpperCase());
+          // if (name.equalsIgnoreCase(Database.SQLSERVER.toString())) {
+          // dbname = Database.SQLSERVER;
+          // } else if (name.equalsIgnoreCase(Database.ORACLE.toString())) {
+          // dbname = Database.ORACLE;
+          // } else {
+          // dbname = Database.H2;
+          // }
           if (dbname != Database.H2) {
             dbdriver = properties.getProperty("test.jdbc.driver");
             dburl = properties.getProperty("test.jdbc.url");
@@ -106,16 +104,18 @@ class JdbcFixture {
         }
       } catch (FileNotFoundException e) {
         // use default values.
+      } catch (IllegalArgumentException e) {
+        // use default values.
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
     }
 
-    database = dbname;
-    driverClass = dbdriver;
-    url = dburl;
-    user = dbuser;
-    password = dbpassword;
+    DATABASE = dbname;
+    DRIVER_CLASS = dbdriver;
+    URL = dburl;
+    USER = dbuser;
+    PASSWORD = dbpassword;
   }
 
   /**
@@ -123,8 +123,8 @@ class JdbcFixture {
    */
   public static Connection getConnection() {
     try {
-      Class.forName(driverClass);
-      return DriverManager.getConnection(url, user, password);
+      Class.forName(DRIVER_CLASS);
+      return DriverManager.getConnection(URL, USER, PASSWORD);
     } catch (SQLException e) {
       throw new RuntimeException(e);
     } catch (ClassNotFoundException e) {
@@ -144,11 +144,11 @@ class JdbcFixture {
         throw new AssertionError(e);
       }
     }
-    if (database == Database.H2) {
+    if (DATABASE == Database.H2) {
       executeUpdate("drop all objects");
-    } else if (database == Database.SQLSERVER) {
+    } else if (DATABASE == Database.SQLSERVER) {
       dropSQLServerTables();
-    } else if (database == Database.ORACLE) {
+    } else if (DATABASE == Database.ORACLE) {
       // TODO (srinivas): drop tables for Oracle database.
     }
   }
