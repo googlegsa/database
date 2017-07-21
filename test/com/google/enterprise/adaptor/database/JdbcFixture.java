@@ -48,7 +48,7 @@ class JdbcFixture {
 
   private static ArrayDeque<AutoCloseable> openObjects = new ArrayDeque<>();
 
-  private static enum Database { H2, MYSQL, ORACLE, SQLSERVER };
+  public static enum Database { H2, MYSQL, ORACLE, SQLSERVER };
 
   /*
    * Initializes the database connection parameters from build.properties file.
@@ -98,6 +98,13 @@ class JdbcFixture {
     URL = dburl;
     USER = dbuser;
     PASSWORD = dbpassword;
+  }
+
+  /**
+   * Returns {@code true} if the Database is of the supplied type.
+   */
+  public static boolean is(Database database) {
+    return DATABASE == database;
   }
 
   /**
