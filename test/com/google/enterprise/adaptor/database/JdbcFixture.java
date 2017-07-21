@@ -52,10 +52,6 @@ class JdbcFixture {
     private Database(String tag) {
       this.tag = tag;
     }
-
-//    public String toString() {
-//      return this.tag;
-//    }
   };
 
   /*
@@ -88,13 +84,6 @@ class JdbcFixture {
         String name = properties.getProperty("test.jdbc.database");
         if (!Strings.isNullOrEmpty(name)) {
           dbname = Database.valueOf(name.toUpperCase());
-          // if (name.equalsIgnoreCase(Database.SQLSERVER.toString())) {
-          // dbname = Database.SQLSERVER;
-          // } else if (name.equalsIgnoreCase(Database.ORACLE.toString())) {
-          // dbname = Database.ORACLE;
-          // } else {
-          // dbname = Database.H2;
-          // }
           if (dbname != Database.H2) {
             dbdriver = properties.getProperty("test.jdbc.driver");
             dburl = properties.getProperty("test.jdbc.url");
