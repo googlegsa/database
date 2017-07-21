@@ -15,6 +15,7 @@
 package com.google.enterprise.adaptor.database;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Locale.US;
 import static org.junit.Assert.assertTrue;
 
 import com.google.common.base.Strings;
@@ -32,7 +33,12 @@ import java.sql.Statement;
 import java.util.ArrayDeque;
 import java.util.Properties;
 
-/** Manages an in-memory H2 database for test purposes. */
+/**
+ * Manages a JDBC accessed database for test purposes.
+ * By default, these tests use an in-memory H2 database,
+ * however other database drivers may be used by configuring
+ * test.jdbc.* properties in build.properties.
+ */
 class JdbcFixture {
   public static final Database DATABASE;
   public static final String DRIVER_CLASS;
@@ -42,17 +48,7 @@ class JdbcFixture {
 
   private static ArrayDeque<AutoCloseable> openObjects = new ArrayDeque<>();
 
-  private enum Database {
-    H2("h2"),
-    SQLSERVER("sqlserver"),
-    ORACLE("oracle");
-
-    private final String tag;
-
-    private Database(String tag) {
-      this.tag = tag;
-    }
-  };
+  private static enum Database { H2, MYSQL, ORACLE, SQLSERVER };
 
   /*
    * Initializes the database connection parameters from build.properties file.
@@ -83,23 +79,20 @@ class JdbcFixture {
         properties.load(br);
         String name = properties.getProperty("test.jdbc.database");
         if (!Strings.isNullOrEmpty(name)) {
-          dbname = Database.valueOf(name.toUpperCase());
-          if (dbname != Database.H2) {
-            dbdriver = properties.getProperty("test.jdbc.driver");
-            dburl = properties.getProperty("test.jdbc.url");
-            dbuser = properties.getProperty("test.jdbc.user");
-            dbpassword = properties.getProperty("test.jdbc.password");
-          }
+          dbname = Database.valueOf(name.toUpperCase(US));
+          dbdriver = properties.getProperty("test.jdbc.driver");
+          dburl = properties.getProperty("test.jdbc.url");
+          dbuser = properties.getProperty("test.jdbc.user");
+          dbpassword = properties.getProperty("test.jdbc.password");
         }
-      } catch (FileNotFoundException e) {
-        // use default values.
-      } catch (IllegalArgumentException e) {
+      } catch (FileNotFoundException | IllegalArgumentException e) {
         // use default values.
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
     }
 
+    // TODO(SV): Log JDBC config.
     DATABASE = dbname;
     DRIVER_CLASS = dbdriver;
     URL = dburl;
@@ -135,10 +128,25 @@ class JdbcFixture {
     }
     if (DATABASE == Database.H2) {
       executeUpdate("drop all objects");
+    } else if (DATABASE == Database.MYSQL) {
+      dropMySQLTables();
     } else if (DATABASE == Database.SQLSERVER) {
       dropSQLServerTables();
     } else if (DATABASE == Database.ORACLE) {
       // TODO (srinivas): drop tables for Oracle database.
+    }
+  }
+
+  private static void dropMySQLTables() throws SQLException {
+    ResultSet rs = executeQuery(
+        "select table_name from information_schema.tables "
+        + "where table_schema = (select database())");
+    while (rs.next()) {
+      String dropQuery = "drop table " + rs.getString("table_name");
+      try (Connection connection = getConnection();
+          Statement stmt = connection.createStatement()) {
+        stmt.execute(dropQuery);
+      }
     }
   }
 

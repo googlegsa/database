@@ -261,6 +261,7 @@ lib/plexi submodule or add the the command line argument
       dir="${basedir}" maxmemory="512m">
       <sysproperty key="net.sourceforge.cobertura.datafile"
         file="${build-instrument.dir}/cobertura.ser"/>
+      <sysproperty key="build.properties" file="build.properties"/>
       <classpath refid="adaptor.run.classpath"/>
       <classpath refid="cobertura.classpath"/>
       <classpath refid="junit.classpath"/>
