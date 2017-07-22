@@ -22,6 +22,7 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Locale.US;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.isA;
@@ -730,7 +731,7 @@ public class DatabaseAdaptorTest {
     getObjectUnderTest(moreEntries);
     assertEquals(messages.toString(), 1, messages.size());
     // Verify the unspecified types were correctly determined from the DB.
-    assertThat(messages.get(0).toLowerCase(),
+    assertThat(messages.get(0).toLowerCase(US),
         containsString("{id=int, name=string, ordered=timestamp}"));
   }
 
@@ -1333,6 +1334,35 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "select id from data order by id");
+    moreEntries.put("db.metadataColumns", "other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    adaptor.getDocIds(pusher);
+
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("1")).setMetadata(null).build(),
+            new Record.Builder(new DocId("2")).setMetadata(null).build(),
+            new Record.Builder(new DocId("3")).setMetadata(null).build(),
+            new Record.Builder(new DocId("4")).setMetadata(null).build()),
+        pusher.getRecords());
+   }
+
+  @Test
+  public void testGetDocIds_columnAlias() throws Exception {
+    executeUpdate("create table data(id integer, other varchar)");
+    executeUpdate("insert into data(id, other) values(1, 'hello world'),"
+        + "(2, 'hello world'), (3, 'hello world'), (4, 'hello world')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "foo:int");
+    moreEntries.put("db.everyDocIdSql",
+        "select id as foo from data order by id");
     moreEntries.put("db.metadataColumns", "other");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.singleDocContentSql",
@@ -2405,8 +2435,8 @@ public class DatabaseAdaptorTest {
 
     ResultSet rs = executeQuery(aclSql.replace("?", "'1001'"));
     ResultSetMetaData rsmd = rs.getMetaData();
-    assertEquals("allowed_groups", rsmd.getColumnName(2).toLowerCase());
-    assertEquals("gsa_permit_groups", rsmd.getColumnLabel(2).toLowerCase());
+    assertEquals("allowed_groups", rsmd.getColumnName(2).toLowerCase(US));
+    assertEquals("gsa_permit_groups", rsmd.getColumnLabel(2).toLowerCase(US));
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "id:int");
