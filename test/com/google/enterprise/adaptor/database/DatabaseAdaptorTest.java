@@ -1860,7 +1860,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.uniqueKey", "id:int");
     configEntries.put("db.everyDocIdSql", "select id from data");
     configEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
+        "select content, contentType, url from data where id = ?");
     configEntries.put("db.modeOfOperation", "contentColumn");
     configEntries.put("db.modeOfOperation.contentColumn.columnName", "content");
     configEntries.put("db.modeOfOperation.contentColumn.contentTypeCol",
