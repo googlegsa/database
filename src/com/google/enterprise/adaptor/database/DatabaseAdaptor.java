@@ -279,10 +279,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       ukBuilder.addColumnTypes(columnTypes);
       verifyColumnNames(conn, "db.updateSql", updateSql,
           "db.uniqueKey", ukBuilder.getDocIdSqlColumns());
-      verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
-          "db.singleDocContentSqlParameters", ukBuilder.getContentSqlColumns());
-      verifyColumnNames(conn, "db.aclSql", aclSql,
-          "db.aclSqlParameters", ukBuilder.getAclSqlColumns());
       if (metadataColumns != null) {
         if ("urlAndMetadataLister".equals(modeOfOperation)) {
           verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,

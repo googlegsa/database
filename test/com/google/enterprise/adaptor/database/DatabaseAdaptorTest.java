@@ -51,6 +51,7 @@ import com.google.enterprise.adaptor.TestHelper;
 import com.google.enterprise.adaptor.TestHelper.RecordingContext;
 import com.google.enterprise.adaptor.UserPrincipal;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -1151,7 +1152,9 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testInitVerifyColumnNames_singleDocContentSql() throws Exception {
+  public void
+      testInitVerifyColumnNames_singleDocContentSql_uniqueKeyNotInSelect()
+          throws Exception {
     executeUpdate("create table data(id int, other varchar)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -1161,9 +1164,6 @@ public class DatabaseAdaptorTest {
         "select other from data where id = ?");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.everyDocIdSql", "select id from data");
-
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("[id] not found in query");
     getObjectUnderTest(moreEntries);
   }
 
@@ -1184,7 +1184,8 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testInitVerifyColumnNames_aclSql() throws Exception {
+  public void testInitVerifyColumnNames_aclSql_uniqueKeyNotInSelect()
+      throws Exception {
     executeUpdate("create table data(id int, other varchar)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -1195,9 +1196,6 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
-
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("[id] not found in query");
     getObjectUnderTest(moreEntries);
   }
 
@@ -1961,6 +1959,27 @@ public class DatabaseAdaptorTest {
     metadata.add("col1",  "1001");
     metadata.add("col2",  "John");
     assertEquals(metadata, response.getMetadata());
+  }
+
+  @Test
+  public void testGetDocContent_noUniqueKeyFieldsInSelect() throws Exception {
+    executeUpdate("create table data(id integer, content varchar)");
+    executeUpdate("insert into data(id, content) values('1', 'Hello World')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select id from data");
+    configEntries.put("db.singleDocContentSql",
+        "select content from data where id = ?");
+    configEntries.put("db.modeOfOperation", "contentColumn");
+    configEntries.put("db.modeOfOperation.contentColumn.columnName", "content");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
+    adaptor.getDocContent(request, response);
+    assertEquals("Hello World", baos.toString(UTF_8.toString()));
   }
 
   @Test
