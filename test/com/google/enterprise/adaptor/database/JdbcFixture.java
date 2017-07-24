@@ -114,9 +114,7 @@ class JdbcFixture {
     try {
       Class.forName(DRIVER_CLASS);
       return DriverManager.getConnection(URL, USER, PASSWORD);
-    } catch (SQLException e) {
-      throw new RuntimeException(e);
-    } catch (ClassNotFoundException e) {
+    } catch (SQLException | ClassNotFoundException e) {
       throw new RuntimeException(e);
     }
   }
@@ -133,17 +131,22 @@ class JdbcFixture {
         throw new AssertionError(e);
       }
     }
-    if (DATABASE == Database.H2) {
-      executeUpdate("drop all objects");
-    } else if (DATABASE == Database.SQLSERVER) {
-      dropSQLServerTables();
-    } else if (DATABASE == Database.ORACLE) {
-      // TODO (srinivas): drop tables for Oracle database.
+
+    switch (DATABASE) {
+      case H2:
+        executeUpdate("drop all objects");
+      break;
+      case SQLSERVER:
+        dropDatabaseTables("select name from sys.tables");
+      break;
+      case ORACLE:
+        // TODO (srinivas): drop tables for Oracle database.
+      break;
     }
   }
 
-  private static void dropSQLServerTables() throws SQLException {
-    ResultSet rs = executeQuery("select name from sys.tables");
+  private static void dropDatabaseTables(String query) throws SQLException {
+    ResultSet rs = executeQuery(query);
     while (rs.next()) {
       String dropQuery = "drop table " + rs.getString("name");
       try (Connection connection = getConnection();
