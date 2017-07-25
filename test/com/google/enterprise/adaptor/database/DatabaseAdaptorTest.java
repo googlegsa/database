@@ -1287,6 +1287,25 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitVerifyColumnNames_metadataColumnAliasBad()
+      throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSql",
+        "select id, other as col1 from data where id = ?");
+    moreEntries.put("db.metadataColumns", "other:other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[other] not found in query");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
   public void testInitVerifyColumnNames_modeOfOperation() throws Exception {
     executeUpdate("create table data(id int, other varchar)");
 
@@ -1980,6 +1999,30 @@ public class DatabaseAdaptorTest {
     RecordingResponse response = new RecordingResponse(baos);
     adaptor.getDocContent(request, response);
     assertEquals("Hello World", baos.toString(UTF_8.toString()));
+  }
+
+  @Test
+  public void testGetDocContent_wrongParameterColumnInQuery() throws Exception {
+    executeUpdate("create table data(id integer, notId integer)");
+    executeUpdate("insert into data(id, notId) values(1, 0), (2, 1)");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select id from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where notId = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "id:id, notId:notId");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata metadata = new Metadata();
+    metadata.add("id", "2");
+    metadata.add("notId", "1");
+    assertEquals(metadata, response.getMetadata());
   }
 
   @Test
