@@ -22,6 +22,7 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Locale.US;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.isA;
@@ -731,7 +732,7 @@ public class DatabaseAdaptorTest {
     getObjectUnderTest(moreEntries);
     assertEquals(messages.toString(), 1, messages.size());
     // Verify the unspecified types were correctly determined from the DB.
-    assertThat(messages.get(0).toLowerCase(),
+    assertThat(messages.get(0).toLowerCase(US),
         containsString("{id=int, name=string, ordered=timestamp}"));
   }
 
@@ -1151,7 +1152,9 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testInitVerifyColumnNames_singleDocContentSql() throws Exception {
+  public void
+      testInitVerifyColumnNames_singleDocContentSql_uniqueKeyNotInSelect()
+          throws Exception {
     executeUpdate("create table data(id int, other varchar)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -1161,9 +1164,6 @@ public class DatabaseAdaptorTest {
         "select other from data where id = ?");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.everyDocIdSql", "select id from data");
-
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("[id] not found in query");
     getObjectUnderTest(moreEntries);
   }
 
@@ -1184,7 +1184,8 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testInitVerifyColumnNames_aclSql() throws Exception {
+  public void testInitVerifyColumnNames_aclSql_uniqueKeyNotInSelect()
+      throws Exception {
     executeUpdate("create table data(id int, other varchar)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -1195,9 +1196,6 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
-
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("[id] not found in query");
     getObjectUnderTest(moreEntries);
   }
 
@@ -1208,12 +1206,14 @@ public class DatabaseAdaptorTest {
     // Value of unique key cannot contain repeated key name.
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "productid:int");
+    moreEntries.put("db.aclSql",
+        "select productid, other from data where productid = ?");
+    moreEntries.put("db.aclSqlParameters", "PRODUCTID");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.everyDocIdSql", "select productid from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where productid = ?");
-    moreEntries.put("db.aclSqlParameters", "PRODUCTID");
     getObjectUnderTest(moreEntries);
   }
 
@@ -1271,6 +1271,41 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitVerifyColumnNames_metadataColumnAlias() throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSql",
+        "select id, other as col1 from data where id = ?");
+    moreEntries.put("db.metadataColumns", "col1:col1");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.aclSql", "select * from data where id = ?");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitVerifyColumnNames_metadataColumnAliasBad()
+      throws Exception {
+    executeUpdate("create table data(id int, other varchar)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSql",
+        "select id, other as col1 from data where id = ?");
+    moreEntries.put("db.metadataColumns", "other:other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("[other] not found in query");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
   public void testInitVerifyColumnNames_modeOfOperation() throws Exception {
     executeUpdate("create table data(id int, other varchar)");
 
@@ -1316,6 +1351,35 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "select id from data order by id");
+    moreEntries.put("db.metadataColumns", "other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    adaptor.getDocIds(pusher);
+
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("1")).setMetadata(null).build(),
+            new Record.Builder(new DocId("2")).setMetadata(null).build(),
+            new Record.Builder(new DocId("3")).setMetadata(null).build(),
+            new Record.Builder(new DocId("4")).setMetadata(null).build()),
+        pusher.getRecords());
+   }
+
+  @Test
+  public void testGetDocIds_columnAlias() throws Exception {
+    executeUpdate("create table data(id integer, other varchar)");
+    executeUpdate("insert into data(id, other) values(1, 'hello world'),"
+        + "(2, 'hello world'), (3, 'hello world'), (4, 'hello world')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "foo:int");
+    moreEntries.put("db.everyDocIdSql",
+        "select id as foo from data order by id");
     moreEntries.put("db.metadataColumns", "other");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.singleDocContentSql",
@@ -1917,6 +1981,51 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testGetDocContent_noUniqueKeyFieldsInSelect() throws Exception {
+    executeUpdate("create table data(id integer, content varchar)");
+    executeUpdate("insert into data(id, content) values('1', 'Hello World')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select id from data");
+    configEntries.put("db.singleDocContentSql",
+        "select content from data where id = ?");
+    configEntries.put("db.modeOfOperation", "contentColumn");
+    configEntries.put("db.modeOfOperation.contentColumn.columnName", "content");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
+    adaptor.getDocContent(request, response);
+    assertEquals("Hello World", baos.toString(UTF_8.toString()));
+  }
+
+  @Test
+  public void testGetDocContent_wrongParameterColumnInQuery() throws Exception {
+    executeUpdate("create table data(id integer, notId integer)");
+    executeUpdate("insert into data(id, notId) values(1, 0), (2, 1)");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select id from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where notId = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "id:id, notId:notId");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata metadata = new Metadata();
+    metadata.add("id", "2");
+    metadata.add("notId", "1");
+    assertEquals(metadata, response.getMetadata());
+  }
+
+  @Test
   public void testGetDocContent_modeOfOperationConfig() throws Exception {
     executeUpdate("create table data(id integer, content varchar, "
         + "contentType varchar, url varchar)");
@@ -1939,12 +2048,12 @@ public class DatabaseAdaptorTest {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     RecordingResponse response = new RecordingResponse(baos);
     adaptor.getDocContent(request, response);
-
+    
     assertEquals("Hello World!", baos.toString(UTF_8.toString()));
     assertEquals("text/rtf", response.getContentType());
     assertEquals("http://foo/bar", response.getDisplayUrl().toString());
   }
-
+  
   @Test
   public void testGetDocContent_lister() throws Exception {
     executeUpdate("create table data(url varchar, name varchar)");
@@ -2375,20 +2484,57 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testMetadataColumns_columnAlias() throws Exception {
+    String content = "Who is number 1?";
+    executeUpdate("create table data(id int, content varchar)");
+    String sql = "insert into data(id, content) values (6, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, content);
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select id, content as quote from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "id, quote");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("6"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata expected = new Metadata();
+    expected.add("id", "6");
+    expected.add("quote", content);
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
   public void testGetDocContentAcl() throws Exception {
     executeUpdate("create table data(id integer)");
     executeUpdate("insert into data(id) values (1001), (1002)");
-    executeUpdate("create table acl(id int, gsa_permit_groups varchar,"
-        + " gsa_permit_users varchar)");
-    executeUpdate("insert into acl(id, gsa_permit_groups, gsa_permit_users) "
+    executeUpdate("create table acl(id int, allowed_groups varchar,"
+        + " allowed_users varchar)");
+    executeUpdate("insert into acl(id, allowed_groups, allowed_users) "
         + "values (1001, 'pgroup1', 'puser1'), (1002, 'pgroup2', 'puser2')");
+
+    String aclSql = "select id, allowed_groups as gsa_permit_groups, "
+        + "allowed_users as gsa_permit_users from acl where id = ?";
+
+    ResultSet rs = executeQuery(aclSql.replace("?", "'1001'"));
+    ResultSetMetaData rsmd = rs.getMetaData();
+    assertEquals("allowed_groups", rsmd.getColumnName(2).toLowerCase(US));
+    assertEquals("gsa_permit_groups", rsmd.getColumnLabel(2).toLowerCase(US));
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "select * from data");
     moreEntries.put("db.singleDocContentSql",
-        "select * from data where ID = ?");
-    moreEntries.put("db.aclSql", "select * from acl where id = ?");
+        "select * from data where id = ?");
+    moreEntries.put("db.aclSql", aclSql);
     moreEntries.put("db.modeOfOperation", "rowToText");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
