@@ -157,7 +157,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testRowToText_multipleTypes() throws Exception {
     executeUpdate("create table data ("
-        + "intcol integer, booleancol boolean, charcol varchar,"
+        + "intcol integer, booleancol boolean, charcol varchar(20),"
         + " datecol date, timecol time, timestampcol timestamp,"
         + " clobcol clob, blobcol blob, arraycol array)");
     String sql = "insert into data values (1, true, ?,"
@@ -191,7 +191,8 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToText_null() throws Exception {
-    executeUpdate("create table data (id integer, this varchar, that clob)");
+    executeUpdate(
+        "create table data (id integer, this varchar(20), that clob)");
     executeUpdate("insert into data (id) values (1)");
 
     MockResponse bar = new MockResponse();
@@ -208,7 +209,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testRowToText_specialCharacters() throws Exception {
     executeUpdate(
-        "create table data (id integer, name varchar, quote varchar)");
+        "create table data (id integer, name varchar(20), quote varchar(200))");
     String sql = "insert into data (id, name, quote) values (1, ?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
         ps.setString(1, "Rhett Butler");
@@ -231,7 +232,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testContentColumn_varchar() throws Exception {
     String content = "hello world";
-    executeUpdate("create table data(id int, content varchar)");
+    executeUpdate("create table data(id int, content varchar(20))");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setString(1, content);
@@ -251,7 +252,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_nullVarchar() throws Exception {
-    executeUpdate("create table data(id int, content varchar)");
+    executeUpdate("create table data(id int, content varchar(20))");
     executeUpdate("insert into data(id) values (1)");
 
     MockResponse bar = new MockResponse();
@@ -268,7 +269,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testContentColumn_incorrectColumnName() throws Exception {
     String content = "hello world";
-    executeUpdate("create table data(id int, content varchar)");
+    executeUpdate("create table data(id int, content varchar(20))");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setString(1, content);
@@ -442,7 +443,7 @@ public class ResponseGeneratorTest {
     String content = "we live inside a file\nwe do\nyes";
     File testFile = writeTempFile(content);
 
-    executeUpdate("create table data(filepath varchar)");
+    executeUpdate("create table data(filepath varchar(200))");
     executeUpdate("insert into data(filepath) values ('"
         + testFile.getAbsolutePath() + "')");
 
@@ -461,7 +462,7 @@ public class ResponseGeneratorTest {
     String content = "we live inside a file\nwe do\nyes";
     File testFile = writeTempFile(content);
 
-    executeUpdate("create table data(filepath varchar)");
+    executeUpdate("create table data(filepath varchar(200))");
     executeUpdate("insert into data(filepath) values ('"
         + testFile.getAbsolutePath() + "')");
 
@@ -484,7 +485,7 @@ public class ResponseGeneratorTest {
     testUri = new URI(testUri.getScheme(), "localhost", testUri.getPath(),
                       null);
 
-    executeUpdate("create table data(url varchar)");
+    executeUpdate("create table data(url varchar(200))");
     executeUpdate("insert into data(url) values ('" + testUri + "')");
 
     ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
@@ -502,7 +503,7 @@ public class ResponseGeneratorTest {
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "wrongcolumn");
 
-    executeUpdate("create table data(url varchar)");
+    executeUpdate("create table data(url varchar(20))");
     executeUpdate("insert into data(url) values ('some URL')");
 
     ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
@@ -520,7 +521,7 @@ public class ResponseGeneratorTest {
     testUri = new URI(testUri.getScheme(), "localhost", testUri.getPath(),
                       null);
 
-    executeUpdate("create table data(url varchar, col1 varchar)");
+    executeUpdate("create table data(url varchar(200), col1 varchar(20))");
     String sql = "insert into data(url, col1) values (?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setString(1, testUri.toString());
@@ -543,7 +544,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testUrlAndMetadataLister_ignoresColumnName() throws Exception {
-    executeUpdate("create table data(url varchar)");
+    executeUpdate("create table data(url varchar(200))");
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "anycolumn");
     List<String> messages = new ArrayList<String>();
@@ -555,7 +556,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testUrlAndMetadataLister_nullUrl() throws Exception {
-    executeUpdate("create table data(url varchar)");
+    executeUpdate("create table data(url varchar(200))");
     executeUpdate("insert into data() values ()");
 
     MockResponse uar = new MockResponse();
@@ -611,7 +612,7 @@ public class ResponseGeneratorTest {
   public void testContentColumn_contentTypeCol() throws Exception {
     String content = "hello world";
     executeUpdate(
-        "create table data(id int, content blob, contentType varchar)");
+        "create table data(id int, content blob, contentType varchar(20))");
     String sql =
         "insert into data(id, content, contentType) values (1, ?, 'text/rtf')";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
@@ -637,7 +638,7 @@ public class ResponseGeneratorTest {
   public void testContentColumn_contentTypeCol_nullValue() throws Exception {
     String content = "hello world";
     executeUpdate(
-        "create table data(id int, content blob, contentType varchar)");
+        "create table data(id int, content blob, contentType varchar(20))");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setBytes(1, content.getBytes(UTF_8));
@@ -666,7 +667,7 @@ public class ResponseGeneratorTest {
   public void testContentColumn_displayUrlCol() throws Exception {
     String content = "hello world";
     String url = "http://host/hard-coded-blob-display-url";
-    executeUpdate("create table data(id int, content blob, url varchar)");
+    executeUpdate("create table data(id int, content blob, url varchar(200))");
     String sql = "insert into data(id, content, url) values (1, ?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setBytes(1, content.getBytes(UTF_8));
@@ -690,7 +691,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testContentColumn_displayUrlCol_nullValue() throws Exception {
     String content = "hello world";
-    executeUpdate("create table data(id int, content blob, url varchar)");
+    executeUpdate("create table data(id int, content blob, url varchar(200))");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setBytes(1, content.getBytes(UTF_8));
@@ -718,7 +719,7 @@ public class ResponseGeneratorTest {
   public void testContentColumn_displayUrlCol_invalidUrl() throws Exception {
     String content = "hello world";
     String url = "invalid-display-url";
-    executeUpdate("create table data(id int, content blob, url varchar)");
+    executeUpdate("create table data(id int, content blob, url varchar(200))");
     String sql = "insert into data(id, content, url) values (1, ?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setBytes(1, content.getBytes(UTF_8));
@@ -746,7 +747,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testUrlColumn_invalidUrl() throws Exception {
     String url = "invalid-url";
-    executeUpdate("create table data(id int, url varchar)");
+    executeUpdate("create table data(id int, url varchar(200))");
     String sql = "insert into data(id, url) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setString(1, url);
@@ -777,7 +778,7 @@ public class ResponseGeneratorTest {
     URL testUrl = testFile.toURI().toURL();
 
     String url = "http://host/hard-coded-disp-url";
-    executeUpdate("create table data(fetchUrl varchar, url varchar)");
+    executeUpdate("create table data(fetchUrl varchar(200), url varchar(200))");
     executeUpdate("insert into data(fetchUrl, url) values ('" + testUrl
         + "', '" + url + "')");
 
@@ -803,7 +804,8 @@ public class ResponseGeneratorTest {
     testUri = new URI(testUri.getScheme(), "localhost", testUri.getPath(),
         null);
 
-    executeUpdate("create table data(url varchar, contentType varchar)");
+    executeUpdate(
+        "create table data(url varchar(200), contentType varchar(200))");
     executeUpdate("insert into data(url, contentType) values ('" + testUri
         + "', 'text/rtf')");
 
@@ -816,7 +818,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToHtml() throws Exception {
-    executeUpdate("create table data(id int, xyggy_col varchar)");
+    executeUpdate("create table data(id int, xyggy_col varchar(20))");
     executeUpdate(
         "insert into data(id, xyggy_col) values (1, 'xyggy value')");
 
@@ -837,7 +839,7 @@ public class ResponseGeneratorTest {
   /** Tests column names with spaces. */
   @Test
   public void testRowToHtml_spacesInColumnNames() throws Exception {
-    executeUpdate("create table data(id int, \"xyggy col\" varchar)");
+    executeUpdate("create table data(id int, \"xyggy col\" varchar(20))");
     executeUpdate(
         "insert into data(id, \"xyggy col\") values (1, 'xyggy value')");
 
@@ -857,7 +859,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToHtml_stylesheet() throws Exception {
-    executeUpdate("create table data(id int, xyggy_col varchar)");
+    executeUpdate("create table data(id int, xyggy_col varchar(20))");
     executeUpdate(
         "insert into data(id, xyggy_col) values (1, 'xyggy value')");
 
