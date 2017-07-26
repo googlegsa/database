@@ -14,30 +14,47 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Locale.US;
 import static org.junit.Assert.assertTrue;
 
-import org.h2.jdbcx.JdbcDataSource;
+import com.google.common.base.Strings;
 
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayDeque;
+import java.util.Properties;
 
-/** Manages an in-memory H2 database for test purposes. */
+/**
+ * Manages a JDBC accessed database for test purposes.
+ * By default, these tests use an in-memory H2 database,
+ * however other database drivers may be used by configuring
+ * test.jdbc.* properties in build.properties.
+ */
 class JdbcFixture {
-  public static final String DRIVER_CLASS = "org.h2.Driver";
-  public static final String URL =
-      "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DEFAULT_ESCAPE=";
-  public static final String USER = "sa";
-  public static final String PASSWORD = "";
+  public static final Database DATABASE;
+  public static final String DRIVER_CLASS;
+  public static final String URL;
+  public static final String USER;
+  public static final String PASSWORD;
 
   private static ArrayDeque<AutoCloseable> openObjects = new ArrayDeque<>();
 
-  /**
-   * Gets a JDBC connection to a named in-memory database.
-   * <p>
-   * Connection options:
+  public static enum Database { H2, MYSQL, ORACLE, SQLSERVER };
+
+  /*
+   * Initializes the database connection parameters from build.properties file.
+   * Defaults to H2 database.
+   *
+   *  Connection options for default H2 database:
    *
    * <pre>DB_CLOSE_DELAY=-1</pre>
    * The database will remain open until the JVM exits, rather than
@@ -47,14 +64,57 @@ class JdbcFixture {
    * The default escape character is disabled, to match the DQL
    * behavior (and standard SQL).
    */
+  static {
+    Database dbname = Database.H2;
+    String dbdriver = "org.h2.Driver";
+    String dburl = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DEFAULT_ESCAPE=";
+    String dbuser = "sa";
+    String dbpassword = "";
+
+    String propertiesFile = System.getProperty("build.properties");
+    if (!Strings.isNullOrEmpty(propertiesFile)) {
+      try (BufferedReader br =
+          Files.newBufferedReader(Paths.get(propertiesFile), UTF_8)) {
+        Properties properties = new Properties();
+        properties.load(br);
+        String name = properties.getProperty("test.jdbc.database");
+        if (!Strings.isNullOrEmpty(name)) {
+          dbname = Database.valueOf(name.toUpperCase(US));
+          dbdriver = properties.getProperty("test.jdbc.driver");
+          dburl = properties.getProperty("test.jdbc.url");
+          dbuser = properties.getProperty("test.jdbc.user");
+          dbpassword = properties.getProperty("test.jdbc.password");
+        }
+      } catch (FileNotFoundException | IllegalArgumentException e) {
+        // use default values.
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    // TODO(SV): Log JDBC config.
+    DATABASE = dbname;
+    DRIVER_CLASS = dbdriver;
+    URL = dburl;
+    USER = dbuser;
+    PASSWORD = dbpassword;
+  }
+
+  /**
+   * Returns {@code true} if the Database is of the supplied type.
+   */
+  public static boolean is(Database database) {
+    return DATABASE == database;
+  }
+
+  /**
+   * Gets a JDBC connection to the database.
+   */
   public static Connection getConnection() {
     try {
-      JdbcDataSource ds = new JdbcDataSource();
-      ds.setURL(URL);
-      ds.setUser(USER);
-      ds.setPassword(PASSWORD);
-      return ds.getConnection();
-    } catch (SQLException e) {
+      Class.forName(DRIVER_CLASS);
+      return DriverManager.getConnection(URL, USER, PASSWORD);
+    } catch (SQLException | ClassNotFoundException e) {
       throw new RuntimeException(e);
     }
   }
@@ -71,7 +131,34 @@ class JdbcFixture {
         throw new AssertionError(e);
       }
     }
-    executeUpdate("drop all objects");
+
+    switch (DATABASE) {
+      case H2:
+        executeUpdate("drop all objects");
+        break;
+      case MYSQL:
+        dropDatabaseTables("select table_name from information_schema.tables "
+            + "where table_schema = (select database())", "table_name");
+        break;
+      case ORACLE:
+        // TODO (srinivas): drop tables for Oracle database.
+        break;
+      case SQLSERVER:
+        dropDatabaseTables("select name from sys.tables", "name");
+        break;
+    }
+  }
+
+  private static void dropDatabaseTables(String query, String column)
+      throws SQLException {
+    ResultSet rs = executeQuery(query);
+    while (rs.next()) {
+      String dropQuery = "drop table " + rs.getString(column);
+      try (Connection connection = getConnection();
+          Statement stmt = connection.createStatement()) {
+        stmt.execute(dropQuery);
+      }
+    }
   }
 
   public static ResultSet executeQuery(String sql) throws SQLException {
