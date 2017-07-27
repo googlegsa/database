@@ -806,8 +806,8 @@ public class DatabaseAdaptorTest {
   @Test
   public void testInitMetadataColumns_trueBlank() throws Exception {
     executeUpdate(
-        "create table data(id int, foo varchar(20), bar varchar(20))");
-    executeUpdate("insert into data(id, foo, bar) "
+        "create table data(ID int, FOO varchar(20), BAR varchar(20))");
+    executeUpdate("insert into data(ID, FOO, BAR) "
                   + "values(1, 'fooVal', 'barVal')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -815,10 +815,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.metadataColumns", "");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.uniqueKey", "ID:int");
+    moreEntries.put("db.everyDocIdSql", "select ID from data");
     moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
+        "select * from data where ID = ?");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     ResultSet resultSet = executeQueryAndNext("select * from data");
@@ -826,9 +826,9 @@ public class DatabaseAdaptorTest {
     adaptor.addMetadataToRecordBuilder(builder, resultSet);
 
     Metadata golden = new Metadata();
-    golden.add((is(MYSQL) ? "id" : "ID"), "1");
-    golden.add((is(MYSQL) ? "foo" : "FOO"), "fooVal");
-    golden.add((is(MYSQL) ? "bar" : "BAR"), "barVal");
+    golden.add("ID", "1");
+    golden.add("FOO", "fooVal");
+    golden.add("BAR", "barVal");
     assertEquals(golden, builder.build().getMetadata());
   }
 
