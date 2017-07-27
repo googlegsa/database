@@ -103,16 +103,16 @@ public class DatabaseAdaptorTest {
     JdbcFixture.dropAllObjects();
   }
 
-  private String dateAdd(String datePart, int number, String date) {
+  private String nowPlus(int minutes) {
     switch (JdbcFixture.DATABASE) {
       case H2:
-        return "dateadd('" + datePart + "', " + number + ", " + date + ")";
+        return "dateadd('minute', " + minutes + ", now())";
       case MYSQL:
-        return "date_add(" + date + ", interval " + number + " " + datePart + ")";
-      case SQLSERVER:
-        return "dateadd(" + datePart + ", " + number + ", " + date + ")";
+        return "date_add(now(), interval " + minutes + " minute)";
       case ORACLE:
         // TODO(sv): minute_add???
+      case SQLSERVER:
+        return "dateadd(minute, " + minutes + ", now())";
     }
     return null;
   }
@@ -1647,10 +1647,10 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(id integer, "
         + "other varchar(20) default 'hello, world', ts timestamp)");
     executeUpdate("insert into data(id, ts) values "
-        + "(1, " + dateAdd("minute", 1, "now()") + "),"
-        + "(2, " + dateAdd("minute", 2, "now()") + "),"
-        + "(3, " + dateAdd("minute", 1, "now()") + "),"
-        + "(4, " + dateAdd("minute", -1, "now()") + ")");
+        + "(1, " + nowPlus(1) + "),"
+        + "(2, " + nowPlus(2) + "),"
+        + "(3, " + nowPlus(1) + "),"
+        + "(4, " + nowPlus(-1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1689,17 +1689,17 @@ public class DatabaseAdaptorTest {
         + "other varchar(20) default 'hello, world', ts timestamp)");
     executeUpdate("insert into data(url, action, ts) values"
         + "('http://localhost/0', 'add', "
-            + "" + dateAdd("minute", -1, "now()") + "),"
+            + "" + nowPlus(-1) + "),"
         + "('http://localhost/1', 'add', "
-            + "" + dateAdd("minute", 1, "now()") + "),"
+            + "" + nowPlus(1) + "),"
         + "('http://localhost/2', 'delete', "
-            + "" + dateAdd("minute", 1, "now()") + "),"
+            + "" + nowPlus(1) + "),"
         + "('http://localhost/3', 'DELETE', "
-            + "" + dateAdd("minute", 1, "now()") + "),"
+            + "" + nowPlus(1) + "),"
         + "('http://localhost/4', 'foo', "
-            + "" + dateAdd("minute", 1, "now()") + "),"
+            + "" + nowPlus(1) + "),"
         + "('http://localhost/5', null, "
-            + "" + dateAdd("minute", 1, "now()") + ")");
+            + "" + nowPlus(1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
@@ -1738,10 +1738,10 @@ public class DatabaseAdaptorTest {
     // Add time to show the records as modified.
     executeUpdate("create table data(id integer, ts timestamp)");
     executeUpdate("insert into data(id, ts) values "
-        + "(1, " + dateAdd("minute", 1, "now()") + "),"
-        + "(2, " + dateAdd("minute", 2, "now()") + "),"
-        + "(3, " + dateAdd("minute", 1, "now()") + "),"
-        + "(4, " + dateAdd("minute", -1, "now()") + ")");
+        + "(1, " + nowPlus(1) + "),"
+        + "(2, " + nowPlus(2) + "),"
+        + "(3, " + nowPlus(1) + "),"
+        + "(4, " + nowPlus(-1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1782,10 +1782,10 @@ public class DatabaseAdaptorTest {
     // Add time to show the records as modified.
     executeUpdate("create table data(id integer, ts timestamp)");
     executeUpdate("insert into data(id, ts) values "
-        + "(1, " + dateAdd("minute", 1, "now()") + "),"
-        + "(2, " + dateAdd("minute", 2, "now()") + "),"
-        + "(3, " + dateAdd("minute", 1, "now()") + "),"
-        + "(4, " + dateAdd("minute", -1, "now()") + ")");
+        + "(1, " + nowPlus(1) + "),"
+        + "(2, " + nowPlus(2) + "),"
+        + "(3, " + nowPlus(1) + "),"
+        + "(4, " + nowPlus(-1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1822,7 +1822,7 @@ public class DatabaseAdaptorTest {
     // Add time to show the records as modified.
     executeUpdate("create table data(id integer, ts timestamp)");
     executeUpdate("insert into data(id, ts) values "
-        + "(1, " + dateAdd("minute", 1, "now()") + ")");
+        + "(1, " + nowPlus(1) + ")");
 
     // Get the (possibly fictional or impossible) time zone to the east of us.
     long offset = TimeZone.getDefault().getOffset(new Date().getTime());
@@ -1851,10 +1851,10 @@ public class DatabaseAdaptorTest {
     // Add time to show the records as modified.
     executeUpdate("create table data(url varchar(20), ts timestamp)");
     executeUpdate("insert into data(url, ts) values "
-        + "('http://host/foo', " + dateAdd("minute", 1, "now()") + "),"
-        + "('foo/bar', " + dateAdd("minute", 1, "now()") + "),"
-        + "('http://host/bar', " + dateAdd("minute", 1, "now()") + "),"
-        + "('http://host/foo bar', " + dateAdd("minute", 1, "now()") + ")");
+        + "('http://host/foo', " + nowPlus(1) + "),"
+        + "('foo/bar', " + nowPlus(1) + "),"
+        + "('http://host/bar', " + nowPlus(1) + "),"
+        + "('http://host/foo bar', " + nowPlus(1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
@@ -1890,7 +1890,7 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(url varchar(20),"
         + " other varchar(20), ts timestamp)");
     executeUpdate("insert into data(url, other, ts) values ('http://localhost',"
-        + " 'hello world', " + dateAdd("minute", 1, "now()") + ")");
+        + " 'hello world', " + nowPlus(1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
@@ -1924,10 +1924,10 @@ public class DatabaseAdaptorTest {
     // Add time to show the records as modified.
     executeUpdate("create table data(id integer, ts timestamp)");
     executeUpdate("insert into data(id, ts) values "
-        + "(1, " + dateAdd("minute", 1, "now()") + "),"
-        + "(2, " + dateAdd("minute", 2, "now()") + "),"
-        + "(3, " + dateAdd("minute", 1, "now()") + "),"
-        + "(4, " + dateAdd("minute", -1, "now()") + ")");
+        + "(1, " + nowPlus(1) + "),"
+        + "(2, " + nowPlus(2) + "),"
+        + "(3, " + nowPlus(1) + "),"
+        + "(4, " + nowPlus(-1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1960,7 +1960,7 @@ public class DatabaseAdaptorTest {
     // Add time to show the records as modified.
     executeUpdate("create table data(id integer, ts timestamp)");
     executeUpdate("insert into data(id, ts) values "
-        + "(1, " + dateAdd("minute", 1, "now()") + ")");
+        + "(1, " + nowPlus(1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
