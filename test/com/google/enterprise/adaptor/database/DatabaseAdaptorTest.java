@@ -105,14 +105,14 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testVerifyColumnNames_found() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
     DatabaseAdaptor.verifyColumnNames(getConnection(),
         "found", "select * from data", "found", Arrays.asList("id", "other"));
   }
 
   @Test
   public void testVerifyColumnNames_missing() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[foo] not found in query");
     DatabaseAdaptor.verifyColumnNames(getConnection(),
@@ -121,14 +121,14 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testVerifyColumnNames_lowercase() throws Exception {
-    executeUpdate("create table data(id int, \"lower\" varchar)");
+    executeUpdate("create table data(id int, \"lower\" varchar(20))");
     DatabaseAdaptor.verifyColumnNames(getConnection(),
         "found", "select * from data", "found", Arrays.asList("LOWER"));
   }
 
   @Test
   public void testVerifyColumnNames_sqlException() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
     Connection conn = getConnection();
     conn.close();
     DatabaseAdaptor.verifyColumnNames(conn,
@@ -137,7 +137,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testVerifyColumnNames_syntaxError() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("Syntax error in query");
     DatabaseAdaptor.verifyColumnNames(getConnection(),
@@ -146,7 +146,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testVerifyColumnNames_nullMetaData() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
     DatabaseAdaptor.verifyColumnNames(getConnection(),
         "found", "insert into data(id) values(42)",
         "found", Arrays.asList("id", "other"));
@@ -316,8 +316,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testHasColumn() throws Exception {
-    executeUpdate("create table acl(id int, col1 varchar, col2 varchar, "
-        + "col3 timestamp)");
+    executeUpdate("create table acl(id int, col1 varchar(20), "
+        + "col2 varchar(20), col3 timestamp)");
     String query = "select id, col1 as GSA_PERMIT_GROUPS, "
         + "col2 as \"gsa_permit_users\", col3 as \"GSA_TimeStamp\" from acl";
     ResultSet rs = executeQuery(query);
@@ -349,7 +349,7 @@ public class DatabaseAdaptorTest {
   public void testAclSqlResultSetHasNoRecord() throws SQLException {
     Acl golden = Acl.EMPTY;
 
-    executeUpdate("create table acl");
+    executeUpdate("create table acl(id integer)");
     ResultSet rs = executeQuery("select * from acl");
     Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
@@ -358,10 +358,10 @@ public class DatabaseAdaptorTest {
   @Test
   public void testAclSqlResultSetHasOneRecord() throws SQLException {
     executeUpdate("create table acl("
-        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar(20))");
     executeUpdate("insert into acl("
         + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
         + GsaSpecialColumns.GSA_PERMIT_USERS + ","
@@ -392,10 +392,10 @@ public class DatabaseAdaptorTest {
   public void testAclSqlResultSetHasNonOverlappingTwoRecord()
       throws SQLException {
     executeUpdate("create table acl("
-        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar(20))");
     executeUpdate("insert into acl("
         + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
         + GsaSpecialColumns.GSA_PERMIT_USERS + ","
@@ -436,10 +436,10 @@ public class DatabaseAdaptorTest {
   public void testAclSqlResultSetHasOverlappingTwoRecord()
       throws SQLException {
     executeUpdate("create table acl("
-        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar(20))");
     executeUpdate("insert into acl("
         + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
         + GsaSpecialColumns.GSA_PERMIT_USERS + ","
@@ -471,10 +471,10 @@ public class DatabaseAdaptorTest {
   @Test
   public void testAclSqlResultSetOneColumnPerRow() throws SQLException {
     executeUpdate("create table acl("
-        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar(20))");
     executeUpdate("insert into acl(" + GsaSpecialColumns.GSA_PERMIT_GROUPS + ")"
         + " values ('pgroup1, pgroup2')");
     executeUpdate("insert into acl(" + GsaSpecialColumns.GSA_PERMIT_USERS + ")"
@@ -505,8 +505,8 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetPrincipalsWithEmptyDelim() throws SQLException {
     executeUpdate("create table acl("
-        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar(20))");
     executeUpdate("insert into acl("
         + GsaSpecialColumns.GSA_DENY_GROUPS + ","
         + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
@@ -529,8 +529,8 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetPrincipalsWithUserDefinedDelim() throws SQLException {
     executeUpdate("create table acl("
-        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar(20))");
     executeUpdate("insert into acl("
         + GsaSpecialColumns.GSA_DENY_GROUPS + ","
         + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
@@ -555,8 +555,8 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetPrincipals_nullOrEmpty() throws SQLException {
     executeUpdate("create table acl("
-        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar,"
-        + GsaSpecialColumns.GSA_DENY_USERS + " varchar)");
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar(20))");
     executeUpdate("insert into acl("
         + GsaSpecialColumns.GSA_DENY_GROUPS + ") values ('')");
     List<GroupPrincipal> goldenGroups = Arrays.asList();
@@ -652,7 +652,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUniqueKeyInvalidType() throws Exception {
-    executeUpdate("create table data(productid int, other varchar)");
+    executeUpdate("create table data(productid int, other varchar(20))");
     // Type of unique key id value cannot be "notvalid", since it's invalid.
     // That cat be int, string, timestamp, date, time, and long.
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -669,7 +669,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUniqueKeyContainsRepeatedKeyName() throws Exception {
-    executeUpdate("create table data(productid int, other varchar)");
+    executeUpdate("create table data(productid int, other varchar(20))");
     // Value of unique key cannot contain repeated key name.
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "productid:int,productid:string");
@@ -686,7 +686,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testInitUniqueKeyContainsRepeatedKeyNameDifferentCase()
       throws Exception {
-    executeUpdate("create table data(productid int, other varchar)");
+    executeUpdate("create table data(productid int, other varchar(20))");
     // Value of unique key cannot contain repeated key name.
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "productid:int,PRODUCTID:string");
@@ -702,7 +702,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUniqueKeyEmpty() throws Exception {
-    executeUpdate("create table data(id int, url varchar)");
+    executeUpdate("create table data(id int, url varchar(200))");
     // Value of unique id cannot be empty.
     // The value has to be something like "keyname:type"
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -718,7 +718,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUniqueKeyOptionalTypes() throws Exception {
-    executeUpdate("create table data(id int, name varchar, ordered timestamp)");
+    executeUpdate(
+        "create table data(id int, name varchar(20), ordered timestamp)");
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "id, name, ordered:timestamp");
     moreEntries.put("db.everyDocIdSql", "select id, name, ordered from data");
@@ -738,7 +739,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUniqueKeyUrl() throws Exception {
-    executeUpdate("create table data(id int, url varchar)");
+    executeUpdate("create table data(id int, url varchar(200))");
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("docId.isUrl", "true");
@@ -752,7 +753,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitMetadataColumns_defaults() throws Exception {
-    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate(
+        "create table data(id int, foo varchar(20), bar varchar(20))");
     executeUpdate("insert into data(id, foo, bar) "
                   + "values(1, 'fooVal', 'barVal')");
 
@@ -774,7 +776,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitMetadataColumns_falseBlank() throws Exception {
-    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate(
+        "create table data(id int, foo varchar(20), bar varchar(20))");
     executeUpdate("insert into data(id, foo, bar) "
                   + "values(1, 'fooVal', 'barVal')");
 
@@ -799,7 +802,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitMetadataColumns_trueBlank() throws Exception {
-    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate(
+        "create table data(id int, foo varchar(20), bar varchar(20))");
     executeUpdate("insert into data(id, foo, bar) "
                   + "values(1, 'fooVal', 'barVal')");
 
@@ -827,7 +831,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitMetadataColumns_falseSet() throws Exception {
-    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
+    executeUpdate(
+        "create table data(id int, db_col1 varchar(20), col2 varchar(20))");
     executeUpdate("insert into data(id, db_col1, col2) "
                   + "values(1, 'col1Val', 'col2Val')");
 
@@ -853,7 +858,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitMetadataColumns_trueSet() throws Exception {
-    executeUpdate("create table data(id int, db_col1 varchar, col2 varchar)");
+    executeUpdate(
+        "create table data(id int, db_col1 varchar(20), col2 varchar(20))");
     executeUpdate("insert into data(id, db_col1, col2) "
                   + "values(1, 'col1Val', 'col2Val')");
 
@@ -888,8 +894,8 @@ public class DatabaseAdaptorTest {
   public void testInitMetadataColumns_columnNotFound() throws Exception {
     // Simulate a skipped column verification by creating the missing
     // column for init but removing it for addMetadataToRecordBuilder.
-    executeUpdate(
-        "create table data(id int, \"fake column\" varchar, col2 varchar)");
+    executeUpdate("create table data(id int, \"fake column\" varchar(20), "
+        + "col2 varchar(20))");
     executeUpdate("insert into data(id, col2) values(1, 'col2Val')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -916,7 +922,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitMetadataColumns_caseInsensitive() throws Exception {
-    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate(
+        "create table data(id int, foo varchar(20), bar varchar(20))");
     executeUpdate("insert into data(id, foo, bar) "
                   + "values(1, 'fooVal', 'barVal')");
 
@@ -942,7 +949,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitMetadataColumns_emptyColumnName() throws Exception {
-    executeUpdate("create table data(id int, foo varchar, bar varchar)");
+    executeUpdate(
+        "create table data(id int, foo varchar(20), bar varchar(20))");
     executeUpdate("insert into data(id, foo, bar) "
                   + "values(1, 'fooVal', 'barVal')");
 
@@ -962,7 +970,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUrlMetadataLister_noDocIdIsUrl() throws Exception {
-    executeUpdate("create table data(id integer, url varchar)");
+    executeUpdate("create table data(id integer, url varchar(200))");
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("db.uniqueKey", "url:string");
@@ -976,7 +984,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitUrlMetadataLister_docIdIsUrlFalse() throws Exception {
-    executeUpdate("create table data(id integer, url varchar)");
+    executeUpdate("create table data(id integer, url varchar(200))");
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("docId.isUrl", "false");
@@ -996,7 +1004,7 @@ public class DatabaseAdaptorTest {
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "url:string");
     // Required for validation, but not specific to this test.
-    executeUpdate("create table data(url varchar)");
+    executeUpdate("create table data(url varchar(200))");
     moreEntries.put("db.everyDocIdSql", "select url from data");
     getObjectUnderTest(moreEntries);
   }
@@ -1004,7 +1012,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testInitLister_ignoredProperties_metadataColumns()
       throws Exception {
-    executeUpdate("create table data(url varchar, other varchar)");
+    executeUpdate("create table data(url varchar(200), other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1027,7 +1035,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitLister_ignoredProperties_allColumns() throws Exception {
-    executeUpdate("create table data(url varchar, other varchar)");
+    executeUpdate("create table data(url varchar(200), other varchar(200))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1048,7 +1056,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitEmptyQuery_singleDocContentSql() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
     executeUpdate("insert into data(id) values(1001)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -1065,7 +1073,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitEmptyQuery_singleDocContentSql_lister() throws Exception {
-    executeUpdate("create table data(url varchar, other varchar)");
+    executeUpdate("create table data(url varchar(200), other varchar(20))");
     executeUpdate("insert into data(url) values('http://')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -1081,7 +1089,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitEmptyQuery_everyDocIdSql() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
     executeUpdate("insert into data(id) values(1001)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -1118,7 +1126,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitVerifyColumnNames_uniqueKey() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1135,7 +1143,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitVerifyColumnNames_uniqueKey_updateSql() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1155,7 +1163,7 @@ public class DatabaseAdaptorTest {
   public void
       testInitVerifyColumnNames_singleDocContentSql_uniqueKeyNotInSelect()
           throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1170,7 +1178,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testInitVerifyColumnNames_singleDocContentSql_differentCase()
       throws Exception {
-    executeUpdate("create table data(productid int, other varchar)");
+    executeUpdate("create table data(productid int, other varchar(20))");
     // Value of unique key cannot contain repeated key name.
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "productid:int");
@@ -1186,7 +1194,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testInitVerifyColumnNames_aclSql_uniqueKeyNotInSelect()
       throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1202,7 +1210,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testInitVerifyColumnNames_aclSql_differentCase()
       throws Exception {
-    executeUpdate("create table data(productid int, other varchar)");
+    executeUpdate("create table data(productid int, other varchar(20))");
     // Value of unique key cannot contain repeated key name.
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "productid:int");
@@ -1219,7 +1227,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitVerifyColumnNames_urlAndMetadata() throws Exception {
-    executeUpdate("create table data(url varchar, other varchar)");
+    executeUpdate("create table data(url varchar(200), other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
@@ -1236,7 +1244,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testInitVerifyColumnNames_urlAndMetadata_updateSql()
       throws Exception {
-    executeUpdate("create table data(url varchar, other varchar)");
+    executeUpdate("create table data(url varchar(200), other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
@@ -1254,7 +1262,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitVerifyColumnNames_metadataColumns() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1272,7 +1280,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitVerifyColumnNames_metadataColumnAlias() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1289,7 +1297,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testInitVerifyColumnNames_metadataColumnAliasBad()
       throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1307,7 +1315,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitVerifyColumnNames_modeOfOperation() throws Exception {
-    executeUpdate("create table data(id int, other varchar)");
+    executeUpdate("create table data(id int, other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "contentColumn");
@@ -1343,7 +1351,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocIds() throws Exception {
-    executeUpdate("create table data(id integer, other varchar)");
+    executeUpdate("create table data(id integer, other varchar(20))");
     executeUpdate("insert into data(id, other) values(1, 'hello world'),"
         + "(2, 'hello world'), (3, 'hello world'), (4, 'hello world')");
 
@@ -1371,7 +1379,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocIds_columnAlias() throws Exception {
-    executeUpdate("create table data(id integer, other varchar)");
+    executeUpdate("create table data(id integer, other varchar(20))");
     executeUpdate("insert into data(id, other) values(1, 'hello world'),"
         + "(2, 'hello world'), (3, 'hello world'), (4, 'hello world')");
 
@@ -1400,7 +1408,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocIds_urlAndMetadataLister() throws Exception {
-    executeUpdate("create table data(url varchar, name varchar)");
+    executeUpdate("create table data(url varchar(200), name varchar(20))");
     executeUpdate(
         "insert into data(url, name) values('http://localhost/','John')");
 
@@ -1427,7 +1435,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetDocIds_docIdIsUrl() throws Exception {
     // Add time to show the records as modified.
-    executeUpdate("create table data(url varchar)");
+    executeUpdate("create table data(url varchar(200))");
     executeUpdate("insert into data(url) values "
         + "('http://host/foo'), ('foo/bar'), ('http://host/bar'), "
         + "('http://host/foo bar')");
@@ -1459,7 +1467,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocIds_gsaAction() throws Exception {
-    executeUpdate("create table data(id integer, url varchar, action varchar)");
+    executeUpdate(
+        "create table data(id integer, url varchar(200), action varchar(20))");
     executeUpdate("insert into data(id, url, action) values"
         + "('1001', 'http://localhost/?q=1001', 'add'),"
         + "('1002', 'http://localhost/?q=1002', 'delete'),"
@@ -1528,7 +1537,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocIds_feedMaxUrls() throws Exception {
-    executeUpdate("create table data(id varchar)");
+    executeUpdate("create table data(id varchar(20))");
     executeUpdate("insert into data(id) values(1), (2), (3), ('hello')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -1622,7 +1631,7 @@ public class DatabaseAdaptorTest {
     // Subtract time to show the records as unchanged.
     // Add time to show the records as modified.
     executeUpdate("create table data(id integer, "
-        + "other varchar default 'hello, world', ts timestamp)");
+        + "other varchar(20) default 'hello, world', ts timestamp)");
     executeUpdate("insert into data(id, ts) values "
         + "(1, dateadd('minute', 1, current_timestamp())),"
         + "(2, dateadd('minute', 2, current_timestamp())),"
@@ -1662,8 +1671,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetModifiedDocIds_gsaAction() throws Exception {
-    executeUpdate("create table data(url varchar, action varchar, "
-        + "other varchar default 'hello, world', ts timestamp)");
+    executeUpdate("create table data(url varchar(20), action varchar(20), "
+        + "other varchar(20) default 'hello, world', ts timestamp)");
     executeUpdate("insert into data(url, action, ts) values"
         + "('http://localhost/0', 'add', "
             + "dateadd('minute', -1, current_timestamp())),"
@@ -1826,7 +1835,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetModifiedDocIds_docIdIsUrl() throws Exception {
     // Add time to show the records as modified.
-    executeUpdate("create table data(url varchar, ts timestamp)");
+    executeUpdate("create table data(url varchar(20), ts timestamp)");
     executeUpdate("insert into data(url, ts) values "
         + "('http://host/foo', dateadd('minute', 1, current_timestamp())),"
         + "('foo/bar', dateadd('minute', 1, current_timestamp())),"
@@ -1864,8 +1873,8 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetModifiedDocIds_urlAndMetadataLister() throws Exception {
     // Add time to show the records as modified.
-    executeUpdate("create table data(url varchar,"
-        + " other varchar, ts timestamp)");
+    executeUpdate("create table data(url varchar(20),"
+        + " other varchar(20), ts timestamp)");
     executeUpdate("insert into data(url, other, ts) values ('http://localhost',"
         + " 'hello world', dateadd('minute', 1, current_timestamp()))");
 
@@ -1958,7 +1967,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocContent() throws Exception {
-    executeUpdate("create table data(ID  integer, NAME  varchar)");
+    executeUpdate("create table data(ID  integer, NAME  varchar(20))");
     executeUpdate("insert into data(ID, NAME) values('1001', 'John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
@@ -1982,7 +1991,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocContent_noUniqueKeyFieldsInSelect() throws Exception {
-    executeUpdate("create table data(id integer, content varchar)");
+    executeUpdate("create table data(id integer, content varchar(20))");
     executeUpdate("insert into data(id, content) values('1', 'Hello World')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
@@ -2027,8 +2036,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocContent_modeOfOperationConfig() throws Exception {
-    executeUpdate("create table data(id integer, content varchar, "
-        + "contentType varchar, url varchar)");
+    executeUpdate("create table data(id integer, content varchar(20), "
+        + "contentType varchar(20), url varchar(200))");
     executeUpdate("insert into data(id, content, contentType, url) "
         + "values('1', 'Hello World!', 'text/rtf', 'http://foo/bar')");
 
@@ -2056,7 +2065,7 @@ public class DatabaseAdaptorTest {
   
   @Test
   public void testGetDocContent_lister() throws Exception {
-    executeUpdate("create table data(url varchar, name varchar)");
+    executeUpdate("create table data(url varchar(200), name varchar(20))");
     executeUpdate("insert into data(url, name) values('http://', 'John')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -2074,7 +2083,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testGetDocContent_noResults() throws Exception {
-    executeUpdate("create table data(id integer, name varchar)");
+    executeUpdate("create table data(id integer, name varchar(20))");
     executeUpdate("insert into data(id, name) values(1001, 'John')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
@@ -2095,7 +2104,7 @@ public class DatabaseAdaptorTest {
   public void testGetDocContent_sqlException() throws Exception {
     // Simulate a SQLException by creating a table for init
     // but removing it for getDocContent.
-    executeUpdate("create table data(id integer, name varchar)");
+    executeUpdate("create table data(id integer, name varchar(20))");
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "ID:int");
@@ -2457,7 +2466,7 @@ public class DatabaseAdaptorTest {
   public void testMetadataColumns_varchar() throws Exception {
     // LONGVARCHAR, LONGNVARCHAR show up as VARCHAR in H2.
     String content = "Hello World";
-    executeUpdate("create table data(id int, content varchar)");
+    executeUpdate("create table data(id int, content varchar(200))");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setString(1, content);
@@ -2486,7 +2495,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testMetadataColumns_columnAlias() throws Exception {
     String content = "Who is number 1?";
-    executeUpdate("create table data(id int, content varchar)");
+    executeUpdate("create table data(id int, content varchar(200))");
     String sql = "insert into data(id, content) values (6, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setString(1, content);
@@ -2516,8 +2525,8 @@ public class DatabaseAdaptorTest {
   public void testGetDocContentAcl() throws Exception {
     executeUpdate("create table data(id integer)");
     executeUpdate("insert into data(id) values (1001), (1002)");
-    executeUpdate("create table acl(id int, allowed_groups varchar,"
-        + " allowed_users varchar)");
+    executeUpdate("create table acl(id int, allowed_groups varchar(20),"
+        + " allowed_users varchar(20))");
     executeUpdate("insert into acl(id, allowed_groups, allowed_users) "
         + "values (1001, 'pgroup1', 'puser1'), (1002, 'pgroup2', 'puser2')");
 
@@ -2721,7 +2730,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testAuthzAuthorityAcl_permit() throws Exception {
-    executeUpdate("create table acl(id integer, gsa_permit_users varchar)");
+    executeUpdate("create table acl(id integer, gsa_permit_users varchar(20))");
     executeUpdate("insert into acl(id, gsa_permit_users) values "
         + "(2, 'alice')");
 
