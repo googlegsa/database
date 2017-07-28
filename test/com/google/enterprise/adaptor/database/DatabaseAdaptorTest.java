@@ -805,9 +805,10 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitMetadataColumns_trueBlank() throws Exception {
+    // Note: MySQL is case-preserving in column names on table creation.
     executeUpdate(
         "create table data(ID int, FOO varchar(20), BAR varchar(20))");
-    executeUpdate("insert into data(ID, FOO, BAR) "
+    executeUpdate("insert into data(id, foo, bar) "
                   + "values(1, 'fooVal', 'barVal')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -815,10 +816,10 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.metadataColumns", "");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "ID:int");
+    moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "select ID from data");
     moreEntries.put("db.singleDocContentSql",
-        "select * from data where ID = ?");
+        "select * from data where id = ?");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     ResultSet resultSet = executeQueryAndNext("select * from data");
