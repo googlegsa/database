@@ -1688,18 +1688,13 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(url varchar(20), action varchar(20), "
         + "other varchar(20) default 'hello, world', ts timestamp)");
     executeUpdate("insert into data(url, action, ts) values"
-        + "('http://localhost/0', 'add', "
-            + "" + nowPlus(-1) + "),"
-        + "('http://localhost/1', 'add', "
-            + "" + nowPlus(1) + "),"
-        + "('http://localhost/2', 'delete', "
-            + "" + nowPlus(1) + "),"
-        + "('http://localhost/3', 'DELETE', "
-            + "" + nowPlus(1) + "),"
-        + "('http://localhost/4', 'foo', "
-            + "" + nowPlus(1) + "),"
-        + "('http://localhost/5', null, "
-            + "" + nowPlus(1) + ")");
+        + "('http://localhost/0', 'add', " + nowPlus(-1) + "),"
+        + "('http://localhost/1', 'add', " + nowPlus(1) + "),"
+        + "('http://localhost/2', 'delete', " + nowPlus(1) + "),"
+        + "('http://localhost/3', 'DELETE', " + nowPlus(1) + "),"
+        + "('http://localhost/4', 'foo', " + nowPlus(1) + "),"
+        + "('http://localhost/5', null, " + nowPlus(1) + ")");
+
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
