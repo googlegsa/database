@@ -805,7 +805,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitMetadataColumns_trueBlank() throws Exception {
-    // Note: MySQL is case-preserving in column names on table creation.
+    // Note: MySQL is case-preserving in column names on table creation
+    // and Metadata.equals() is case-sensitive.
     executeUpdate(
         "create table data(ID int, FOO varchar(20), BAR varchar(20))");
     executeUpdate("insert into data(id, foo, bar) "
@@ -817,7 +818,7 @@ public class DatabaseAdaptorTest {
     // Required for validation, but not specific to this test.
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "select ID from data");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
 
