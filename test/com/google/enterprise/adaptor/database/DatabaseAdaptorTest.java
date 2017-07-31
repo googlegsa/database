@@ -106,13 +106,13 @@ public class DatabaseAdaptorTest {
   private String nowPlus(int minutes) {
     switch (JdbcFixture.DATABASE) {
       case H2:
-        return "dateadd('minute', " + minutes + ", now())";
+        return "dateadd('minute', " + minutes + ", current_timestamp())";
       case MYSQL:
-        return "date_add(now(), interval " + minutes + " minute)";
+        return "date_add(current_timestamp(), interval " + minutes + " minute)";
       case ORACLE:
         // TODO(sv): minute_add???
       case SQLSERVER:
-        return "dateadd(minute, " + minutes + ", now())";
+        return "dateadd(minute, " + minutes + ", current_timestamp())";
     }
     return null;
   }
