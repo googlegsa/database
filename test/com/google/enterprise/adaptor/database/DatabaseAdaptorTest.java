@@ -16,10 +16,12 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.DocIdPusher.Record;
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
+import static com.google.enterprise.adaptor.database.JdbcFixture.is;
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Locale.US;
@@ -34,6 +36,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
 
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.AuthnIdentity;
@@ -802,8 +805,10 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testInitMetadataColumns_trueBlank() throws Exception {
+    // Note: MySQL is case-preserving in column names on table creation
+    // and Metadata.equals() is case-sensitive.
     executeUpdate(
-        "create table data(id int, foo varchar(20), bar varchar(20))");
+        "create table data(ID int, FOO varchar(20), BAR varchar(20))");
     executeUpdate("insert into data(id, foo, bar) "
                   + "values(1, 'fooVal', 'barVal')");
 
@@ -2221,7 +2226,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_timestamp() throws Exception {
-    executeUpdate("create table data(id integer, col timestamp)");
+    executeUpdate("create table data(id integer, col timestamp(3))");
     executeUpdate("insert into data(id, col) values(1001, "
         + "{ts '2009-10-05 09:20:49.512'})");
 
@@ -2246,7 +2251,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_timestampNull() throws Exception {
-    executeUpdate("create table data(id integer, col timestamp)");
+    executeUpdate("create table data(id integer, col timestamp default null)");
     executeUpdate("insert into data(id) values(1001)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -2269,6 +2274,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_clob() throws Exception {
+    assumeFalse("MySQL does not support clobs", is(MYSQL));
     // NCLOB shows up as CLOB in H2
     String content = "Hello World";
     executeUpdate("create table data(id int, content clob)");
@@ -2299,6 +2305,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_clobNull() throws Exception {
+    assumeFalse("MySQL does not support clobs", is(MYSQL));
     executeUpdate("create table data(id int, content clob)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -2381,6 +2388,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_array() throws Exception {
+    assumeFalse("MySQL does not support arrays", is(MYSQL));
     String[] content = { "hello", "world" };
     executeUpdate("create table data(id int, content array)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -2413,6 +2421,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_arrayNull() throws Exception {
+    assumeFalse("MySQL does not support arrays", is(MYSQL));
     executeUpdate("create table data(id int, content array)");
     executeUpdate("insert into data(id) values (1)");
 

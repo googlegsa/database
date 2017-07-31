@@ -11,7 +11,7 @@ build.bootclasspath = ${jdk7.home}/jre/lib/rt.jar\
     :${jdk7.home}/jre/lib/jce.jar
 
 # Classpath of JDBC drivers for "ant run" and "ant test".
-# jdbc.classpath = path/to/JDBC/driver
+# jdbc.classpath =
 
 # By default, the unit tests use an in-memory H2 database.
 # However, you can configure a different database to use for the
@@ -20,7 +20,7 @@ build.bootclasspath = ${jdk7.home}/jre/lib/rt.jar\
 # Supported databases: H2, MySQL, Oracle, SQLServer
 # test.jdbc.database = MySQL
 # test.jdbc.driver = com.mysql.jdbc.Driver
-# test.jdbc.url = jdbc:mysql://address=(useSSL=false)(protocol=tcp)(host=localhost)(port=3306)/test
+# test.jdbc.url = jdbc:mysql://address=(useSSL=false)(protocol=tcp)(host=localhost)(port=3306)/test?sessionVariables=sql_mode='ANSI_QUOTES'
 # test.jdbc.user =
 # test.jdbc.password =
 #
