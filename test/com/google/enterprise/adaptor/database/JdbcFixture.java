@@ -121,8 +121,11 @@ class JdbcFixture {
 
   public static void dropAllObjects() throws SQLException {
     try {
-      for (AutoCloseable object : openObjects) {
-        object.close();
+      synchronized (openObjects) {
+        AutoCloseable object;
+        while ((object = openObjects.poll()) != null) {
+          object.close();
+        }
       }
     } catch (Exception e) {
       if (e instanceof SQLException) {
@@ -162,10 +165,14 @@ class JdbcFixture {
   }
 
   public static ResultSet executeQuery(String sql) throws SQLException {
-    Statement stmt = getConnection().createStatement();
-    openObjects.addFirst(stmt);
+    Connection conn = getConnection();
+    Statement stmt = conn.createStatement();
     ResultSet rs = stmt.executeQuery(sql);
-    openObjects.addFirst(rs);
+    synchronized (openObjects) {
+      openObjects.addFirst(conn);
+      openObjects.addFirst(stmt);
+      openObjects.addFirst(rs);
+    }
     return rs;
   }
 
@@ -179,6 +186,14 @@ class JdbcFixture {
     try (Connection connection = getConnection();
          Statement stmt = connection.createStatement()) {
       for (String sql : sqls) {
+        switch (DATABASE) {
+          case MYSQL:
+            if (sql.startsWith("create table")) {
+              sql = sql.replaceAll("(timestamp(\\(\\d\\))?)", "$0 null")
+                  .replace("longvarbinary", "long varbinary");
+            }
+            break;
+        }
         stmt.executeUpdate(sql);
       }
     }

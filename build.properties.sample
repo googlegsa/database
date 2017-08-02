@@ -20,7 +20,8 @@ build.bootclasspath = ${jdk7.home}/jre/lib/rt.jar\
 # Supported databases: H2, MySQL, Oracle, SQLServer
 # test.jdbc.database = MySQL
 # test.jdbc.driver = com.mysql.jdbc.Driver
-# test.jdbc.url = jdbc:mysql://address=(useSSL=false)(protocol=tcp)(host=localhost)(port=3306)/test?sessionVariables=sql_mode='ANSI_QUOTES'
+# test.jdbc.url = jdbc:mysql://address=(useSSL=false)(protocol=tcp)(host=localhost)(port=3306)/test\
+  ?sessionVariables=sql_mode='ANSI_QUOTES'&useLegacyDatetimeCode=false&serverTimezone=US/Pacific
 # test.jdbc.user =
 # test.jdbc.password =
 #

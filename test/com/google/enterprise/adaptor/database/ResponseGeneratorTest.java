@@ -14,15 +14,19 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
+import static com.google.enterprise.adaptor.database.JdbcFixture.is;
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
@@ -49,6 +53,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -156,6 +161,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToText_multipleTypes() throws Exception {
+    assumeFalse("MySQL does not support arrays or clobs", is(MYSQL));
     executeUpdate("create table data ("
         + "intcol integer, booleancol boolean, charcol varchar(20),"
         + " datecol date, timecol time, timestampcol timestamp,"
@@ -190,9 +196,41 @@ public class ResponseGeneratorTest {
   }
 
   @Test
+  public void testRowToText_multipleTypes_MySQL() throws Exception {
+    assumeTrue("Not MySQL", is(MYSQL));
+    executeUpdate("create table data ("
+        + "intcol integer, booleancol boolean, charcol varchar(20),"
+        + " datecol date, timecol time, tymestampcol timestamp(3),"
+        + " blobcol blob)");
+    String sql = "insert into data values (1, true, ?,"
+        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56.7'}, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+        ps.setString(1, "hello, world");
+        ps.setBytes(2, "A big, bad world".getBytes(UTF_8));
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(ResponseGenerator.class,
+        "Column type not supported for text", messages);
+    resgen.generateResponse(rs, response);
+    String golden = "data,data,data,data,data,data\n"
+        + "intcol,booleancol,charcol,datecol,timecol,tymestampcol\n"
+        + "1,true,\"hello, world\",2007-08-09,12:34:56,2007-08-09 12:34:56.7\n";
+    assertEquals(golden, bar.baos.toString(UTF_8.name()));
+    assertEquals(messages.toString(), 1, messages.size());
+  }
+
+  @Test
   public void testRowToText_null() throws Exception {
     executeUpdate(
-        "create table data (id integer, this varchar(20), that clob)");
+        "create table data (id integer, this varchar(20), that timestamp)");
     executeUpdate("insert into data (id) values (1)");
 
     MockResponse bar = new MockResponse();
@@ -202,7 +240,10 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String golden = "DATA,DATA,DATA\nID,THIS,THAT\n1,,\n";
+    String golden =
+        (is(MYSQL) ? "data,data,data\nid,this,that\n"
+                   : "DATA,DATA,DATA\nID,THIS,THAT\n")
+        + "1,,\n";
     assertEquals(golden, bar.baos.toString(UTF_8.name()));
   }
 
@@ -224,7 +265,9 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String golden = "DATA,DATA,DATA\nID,NAME,QUOTE\n"
+    String golden =
+        (is(MYSQL) ? "data,data,data\nid,name,quote\n"
+                   :  "DATA,DATA,DATA\nID,NAME,QUOTE\n")
         + "1,Rhett Butler,\"\"\"Frankly Scarlett, I don't give a damn!\"\"\"\n";
     assertEquals(golden, bar.baos.toString(UTF_8.name()));
   }
@@ -290,7 +333,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testContentColumn_varbinary() throws Exception {
     String content = "hello world";
-    executeUpdate("create table data(id int, content varbinary)");
+    executeUpdate("create table data(id int, content varbinary(20))");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setBytes(1, content.getBytes(UTF_8));
@@ -310,7 +353,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_nullVarbinary() throws Exception {
-    executeUpdate("create table data(id int, content varbinary)");
+    executeUpdate("create table data(id int, content varbinary(20))");
     executeUpdate("insert into data(id) values (1)");
 
     MockResponse bar = new MockResponse();
@@ -326,6 +369,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_clob() throws Exception {
+    assumeFalse("MySQL does not support clobs", is(MYSQL));
     String content = "hello world";
     executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -347,6 +391,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_nullClob() throws Exception {
+    assumeFalse("MySQL does not support clobs", is(MYSQL));
     executeUpdate("create table data(id int, content clob)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -415,7 +460,7 @@ public class ResponseGeneratorTest {
     executeUpdate("create table data(id int, content timestamp)");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setTimestamp(1, new Timestamp(0L));
+      ps.setTimestamp(1, new Timestamp(new Date().getTime()));
       assertEquals(1, ps.executeUpdate());
     }
 
@@ -818,7 +863,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToHtml() throws Exception {
-    executeUpdate("create table data(id int, xyggy_col varchar(20))");
+    executeUpdate("create table data(id int, XYGGY_COL varchar(20))");
     executeUpdate(
         "insert into data(id, xyggy_col) values (1, 'xyggy value')");
 
@@ -859,7 +904,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToHtml_stylesheet() throws Exception {
-    executeUpdate("create table data(id int, xyggy_col varchar(20))");
+    executeUpdate("create table data(id int, XYGGY_COL varchar(20))");
     executeUpdate(
         "insert into data(id, xyggy_col) values (1, 'xyggy value')");
 
