@@ -20,6 +20,7 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAnd
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.is;
 import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatement;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Locale.US;
@@ -27,6 +28,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
@@ -185,6 +187,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToText_multipleTypes() throws Exception {
+    assumeFalse("SQL Server does not support boolean", is(SQLSERVER));
     executeUpdate("create table data ("
         + "intcol integer, booleancol boolean, charcol varchar(20),"
         + " datecol date, timecol time, tymestampcol timestamp(3),"
@@ -218,6 +221,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToText_null() throws Exception {
+    assumeFalse("SQL Server does not support clobs", is(SQLSERVER));
     executeUpdate(
         "create table data (id integer, this varchar(20), that clob)");
     executeUpdate("insert into data (id) values (1)");
@@ -235,6 +239,8 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToText_specialCharacters() throws Exception {
+    assumeFalse("SQL Server ResultSetMetaData.getTableName returns "
+        + "null or inconsistent results", is(SQLSERVER));
     executeUpdate(
         "create table data (id integer, name varchar(20), quote varchar(200))");
     String sql = "insert into data (id, name, quote) values (1, ?, ?)";
@@ -351,6 +357,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_clob() throws Exception {
+    assumeFalse("SQL Server does not support clobs", is(SQLSERVER));
     String content = "hello world";
     executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -371,6 +378,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_nullClob() throws Exception {
+    assumeFalse("SQL Server does not support clobs", is(SQLSERVER));
     executeUpdate("create table data(id int, content clob)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -387,6 +395,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_blob() throws Exception {
+    assumeFalse("SQL Server does not support blobs", is(SQLSERVER));
     String content = "hello world";
     executeUpdate("create table data(id int, content blob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -407,6 +416,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_nullBlob() throws Exception {
+    assumeFalse("SQL Server does not support blobs", is(SQLSERVER));
     executeUpdate("create table data(id int, content blob)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -578,7 +588,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testUrlAndMetadataLister_nullUrl() throws Exception {
     executeUpdate("create table data(url varchar(200))");
-    executeUpdate("insert into data() values ()");
+    executeUpdate("insert into data(url) values (NULL)");
 
     MockResponse uar = new MockResponse();
     Response response = newProxyInstance(Response.class, uar);
@@ -607,6 +617,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_contentTypeOverride() throws Exception {
+    assumeFalse("SQL Server does not support blobs", is(SQLSERVER));
     String content = "hello world";
     executeUpdate("create table data(id int, content blob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -630,6 +641,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_contentTypeCol() throws Exception {
+    assumeFalse("SQL Server does not support blobs", is(SQLSERVER));
     String content = "hello world";
     executeUpdate(
         "create table data(id int, content blob, contentType varchar(20))");
@@ -655,6 +667,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_contentTypeCol_nullValue() throws Exception {
+    assumeFalse("SQL Server does not support blobs", is(SQLSERVER));
     String content = "hello world";
     executeUpdate(
         "create table data(id int, content blob, contentType varchar(20))");
@@ -683,6 +696,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_displayUrlCol() throws Exception {
+    assumeFalse("SQL Server does not support blobs", is(SQLSERVER));
     String content = "hello world";
     String url = "http://host/hard-coded-blob-display-url";
     executeUpdate("create table data(id int, content blob, url varchar(200))");
@@ -707,6 +721,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_displayUrlCol_nullValue() throws Exception {
+    assumeFalse("SQL Server does not support blobs", is(SQLSERVER));
     String content = "hello world";
     executeUpdate("create table data(id int, content blob, url varchar(200))");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -733,6 +748,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_displayUrlCol_invalidUrl() throws Exception {
+    assumeFalse("SQL Server does not support blobs", is(SQLSERVER));
     String content = "hello world";
     String url = "invalid-display-url";
     executeUpdate("create table data(id int, content blob, url varchar(200))");

@@ -17,6 +17,8 @@ package com.google.enterprise.adaptor.database;
 import static com.google.enterprise.adaptor.DocIdPusher.Record;
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
@@ -37,6 +39,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import com.google.enterprise.adaptor.Acl;
@@ -116,7 +119,7 @@ public class DatabaseAdaptorTest {
       case ORACLE:
         // TODO(sv): minute_add???
       case SQLSERVER:
-        return "dateadd(minute, " + minutes + ", current_timestamp())";
+        return "dateadd(minute, " + minutes + ", current_timestamp)";
     }
     return null;
   }
@@ -1558,7 +1561,10 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetDocIds_feedMaxUrls() throws Exception {
     executeUpdate("create table data(id varchar(20))");
-    executeUpdate("insert into data(id) values(1), (2), (3), ('hello')");
+    executeUpdate("insert into data(id) values(1)");
+    executeUpdate("insert into data(id) values(2)");
+    executeUpdate("insert into data(id) values(3)");
+    executeUpdate("insert into data(id) values('hello')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -2261,7 +2267,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_timestampNull() throws Exception {
-    executeUpdate("create table data(id integer, col timestamp)");
+    executeUpdate("create table data(id integer, col date)");
     executeUpdate("insert into data(id) values(1001)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -2284,6 +2290,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_clob() throws Exception {
+    assumeFalse("SQL Server does not support clobs", is(SQLSERVER));
+    // NCLOB shows up as CLOB in H2
     String content = "Hello World";
     executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -2312,6 +2320,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_clobNull() throws Exception {
+    assumeFalse("SQL Server does not support clobs", is(SQLSERVER));
     executeUpdate("create table data(id int, content clob)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -2335,6 +2344,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_blob() throws Exception {
+    assumeFalse("SQL Server does not support blobs", is(SQLSERVER));
     String content = "hello world";
     executeUpdate("create table data(id int, content blob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -2366,6 +2376,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_blobNull() throws Exception {
+    assumeFalse("SQL Server does not support blobs", is(SQLSERVER));
     executeUpdate("create table data(id int, content blob)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -2394,6 +2405,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testMetadataColumns_array() throws Exception {
     assumeTrue("ARRAY type not supported", is(H2));
+    assumeFalse("SQL Server does not support arrays", is(SQLSERVER));
     String[] content = { "hello", "world" };
     executeUpdate("create table data(id int, content array)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -2426,6 +2438,7 @@ public class DatabaseAdaptorTest {
   @Test
   public void testMetadataColumns_arrayNull() throws Exception {
     assumeTrue("ARRAY type not supported", is(H2));
+    assumeFalse("SQL Server does not support arrays", is(SQLSERVER));
     executeUpdate("create table data(id int, content array)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -2546,7 +2559,6 @@ public class DatabaseAdaptorTest {
 
     ResultSet rs = executeQuery(aclSql.replace("?", "'1001'"));
     ResultSetMetaData rsmd = rs.getMetaData();
-    assertEquals("allowed_groups", rsmd.getColumnName(2).toLowerCase(US));
     assertEquals("gsa_permit_groups", rsmd.getColumnLabel(2).toLowerCase(US));
 
     Map<String, String> moreEntries = new HashMap<String, String>();
