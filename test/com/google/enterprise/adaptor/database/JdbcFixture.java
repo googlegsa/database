@@ -45,6 +45,7 @@ class JdbcFixture {
   public static final String URL;
   public static final String USER;
   public static final String PASSWORD;
+  public static final String BOOLEAN;
 
   private static ArrayDeque<AutoCloseable> openObjects = new ArrayDeque<>();
 
@@ -98,6 +99,7 @@ class JdbcFixture {
     URL = dburl;
     USER = dbuser;
     PASSWORD = dbpassword;
+    BOOLEAN = (DATABASE == Database.MYSQL) ? "BIT" : "BOOLEAN";
   }
 
   /**
@@ -189,8 +191,14 @@ class JdbcFixture {
         switch (DATABASE) {
           case MYSQL:
             if (sql.startsWith("create table")) {
-              sql = sql.replaceAll("(timestamp(\\(\\d\\))?)", "$0 null")
-                  .replace("longvarbinary", "long varbinary");
+              sql = sql.replaceAll("(timestamp(\\(\\d\\))?)", "datetime$2 null")
+                  .replace("longvarbinary", "long varbinary")
+                  .replace("clob", "text");
+            }
+            if (sql.startsWith("insert")) {
+              sql = sql.replaceAll(
+                  "(\\d\\d\\d\\d-\\d\\d-\\d\\d)T(\\d\\d:\\d\\d:\\d\\d)",
+                  "$1 $2");
             }
             break;
         }
