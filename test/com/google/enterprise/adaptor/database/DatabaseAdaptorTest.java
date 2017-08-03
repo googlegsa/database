@@ -17,6 +17,8 @@ package com.google.enterprise.adaptor.database;
 import static com.google.enterprise.adaptor.DocIdPusher.Record;
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
@@ -37,6 +39,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import com.google.enterprise.adaptor.Acl;
@@ -114,7 +117,7 @@ public class DatabaseAdaptorTest {
       case MYSQL:
         return "date_add(current_timestamp(), interval " + minutes + " minute)";
       case ORACLE:
-        // TODO(sv): minute_add???
+        return "(select sysdate + interval '" + minutes + "' minute from dual)";
       case SQLSERVER:
         return "dateadd(minute, " + minutes + ", current_timestamp())";
     }
@@ -420,7 +423,12 @@ public class DatabaseAdaptorTest {
         + GsaSpecialColumns.GSA_DENY_GROUPS + ","
         + GsaSpecialColumns.GSA_DENY_USERS + ") values "
         + "('pgroup1, pgroup2', 'puser1, puser2', "
-        + "'dgroup1, dgroup2', 'duser1, duser2'), "
+        + "'dgroup1, dgroup2', 'duser1, duser2')");
+    executeUpdate("insert into acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
+        + GsaSpecialColumns.GSA_PERMIT_USERS + ","
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values "
         + "('pgroup3, pgroup4', 'puser3, puser4', "
         + "'dgroup3, dgroup4', 'duser3, duser4')");
     Acl golden = new Acl.Builder()
@@ -464,7 +472,12 @@ public class DatabaseAdaptorTest {
         + GsaSpecialColumns.GSA_DENY_GROUPS + ","
         + GsaSpecialColumns.GSA_DENY_USERS + ") values "
         + "('pgroup1, pgroup1', 'puser1, puser2', "
-        + "'dgroup1, dgroup1', 'duser1, duser2'), "
+        + "'dgroup1, dgroup1', 'duser1, duser2')");
+    executeUpdate("insert into acl("
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
+        + GsaSpecialColumns.GSA_PERMIT_USERS + ","
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values "
         + "('pgroup1', 'puser2, puser1', "
         + "'dgroup2, dgroup2', 'duser4, duser2')");
     Acl golden = new Acl.Builder()
@@ -1372,8 +1385,10 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetDocIds() throws Exception {
     executeUpdate("create table data(id integer, other varchar(20))");
-    executeUpdate("insert into data(id, other) values(1, 'hello world'),"
-        + "(2, 'hello world'), (3, 'hello world'), (4, 'hello world')");
+    executeUpdate("insert into data(id, other) values(1, 'hello world')");
+    executeUpdate("insert into data(id, other) values(2, 'hello world')");
+    executeUpdate("insert into data(id, other) values(3, 'hello world')");
+    executeUpdate("insert into data(id, other) values(4, 'hello world')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1400,8 +1415,10 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetDocIds_columnAlias() throws Exception {
     executeUpdate("create table data(id integer, other varchar(20))");
-    executeUpdate("insert into data(id, other) values(1, 'hello world'),"
-        + "(2, 'hello world'), (3, 'hello world'), (4, 'hello world')");
+    executeUpdate("insert into data(id, other) values(1, 'hello world')");
+    executeUpdate("insert into data(id, other) values(2, 'hello world')");
+    executeUpdate("insert into data(id, other) values(3, 'hello world')");
+    executeUpdate("insert into data(id, other) values(4, 'hello world')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1456,9 +1473,10 @@ public class DatabaseAdaptorTest {
   public void testGetDocIds_docIdIsUrl() throws Exception {
     // Add time to show the records as modified.
     executeUpdate("create table data(url varchar(200))");
-    executeUpdate("insert into data(url) values "
-        + "('http://host/foo'), ('foo/bar'), ('http://host/bar'), "
-        + "('http://host/foo bar')");
+    executeUpdate("insert into data(url) values ('http://host/foo')");
+    executeUpdate("insert into data(url) values ('foo/bar')");
+    executeUpdate("insert into data(url) values ('http://host/bar')");
+    executeUpdate("insert into data(url) values ('http://host/foo bar')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
@@ -1490,10 +1508,14 @@ public class DatabaseAdaptorTest {
     executeUpdate(
         "create table data(id integer, url varchar(200), action varchar(20))");
     executeUpdate("insert into data(id, url, action) values"
-        + "('1001', 'http://localhost/?q=1001', 'add'),"
-        + "('1002', 'http://localhost/?q=1002', 'delete'),"
-        + "('1003', 'http://localhost/?q=1003', 'DELETE'),"
-        + "('1004', 'http://localhost/?q=1004', 'foo'),"
+        + "('1001', 'http://localhost/?q=1001', 'add')");
+    executeUpdate("insert into data(id, url, action) values"
+        + "('1002', 'http://localhost/?q=1002', 'delete')");
+    executeUpdate("insert into data(id, url, action) values"
+        + "('1003', 'http://localhost/?q=1003', 'DELETE')");
+    executeUpdate("insert into data(id, url, action) values"
+        + "('1004', 'http://localhost/?q=1004', 'foo')");
+    executeUpdate("insert into data(id, url, action) values"
         + "('1005', 'http://localhost/?q=1005', null)");
 
     Map<String, String> configEntries = new HashMap<String, String>();
@@ -1531,7 +1553,10 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetDocIds_disableStreaming() throws Exception {
     executeUpdate("create table data(id integer)");
-    executeUpdate("insert into data(id) values(1), (2), (3), (4)");
+    executeUpdate("insert into data(id) values(1)");
+    executeUpdate("insert into data(id) values(2)");
+    executeUpdate("insert into data(id) values(3)");
+    executeUpdate("insert into data(id) values(4)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1558,7 +1583,10 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetDocIds_feedMaxUrls() throws Exception {
     executeUpdate("create table data(id varchar(20))");
-    executeUpdate("insert into data(id) values(1), (2), (3), ('hello')");
+    executeUpdate("insert into data(id) values(1)");
+    executeUpdate("insert into data(id) values(2)");
+    executeUpdate("insert into data(id) values(3)");
+    executeUpdate("insert into data(id) values('hello')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1592,7 +1620,10 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetDocIds_feedMaxUrls_emptyOnClose() throws Exception {
     executeUpdate("create table data(id integer)");
-    executeUpdate("insert into data(id) values(1), (2), (3), (4)");
+    executeUpdate("insert into data(id) values(1)");
+    executeUpdate("insert into data(id) values(2)");
+    executeUpdate("insert into data(id) values(3)");
+    executeUpdate("insert into data(id) values(4)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1652,11 +1683,10 @@ public class DatabaseAdaptorTest {
     // Add time to show the records as modified.
     executeUpdate("create table data(id integer, "
         + "other varchar(20) default 'hello, world', ts timestamp)");
-    executeUpdate("insert into data(id, ts) values "
-        + "(1, " + nowPlus(1) + "),"
-        + "(2, " + nowPlus(2) + "),"
-        + "(3, " + nowPlus(1) + "),"
-        + "(4, " + nowPlus(-1) + ")");
+    executeUpdate("insert into data(id, ts) values (1, " + nowPlus(1) + ")");
+    executeUpdate("insert into data(id, ts) values (2, " + nowPlus(2) + ")");
+    executeUpdate("insert into data(id, ts) values (3, " + nowPlus(1) + ")");
+    executeUpdate("insert into data(id, ts) values (4, " + nowPlus(-1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1694,13 +1724,17 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(url varchar(20), action varchar(20), "
         + "other varchar(20) default 'hello, world', ts timestamp)");
     executeUpdate("insert into data(url, action, ts) values"
-        + "('http://localhost/0', 'add', " + nowPlus(-1) + "),"
-        + "('http://localhost/1', 'add', " + nowPlus(1) + "),"
-        + "('http://localhost/2', 'delete', " + nowPlus(1) + "),"
-        + "('http://localhost/3', 'DELETE', " + nowPlus(1) + "),"
-        + "('http://localhost/4', 'foo', " + nowPlus(1) + "),"
+        + "('http://localhost/0', 'add', " + nowPlus(-1) + ")");
+    executeUpdate("insert into data(url, action, ts) values"
+        + "('http://localhost/1', 'add', " + nowPlus(1) + ")");
+    executeUpdate("insert into data(url, action, ts) values"
+        + "('http://localhost/2', 'delete', " + nowPlus(1) + ")");
+    executeUpdate("insert into data(url, action, ts) values"
+        + "('http://localhost/3', 'DELETE', " + nowPlus(1) + ")");
+    executeUpdate("insert into data(url, action, ts) values"
+        + "('http://localhost/4', 'foo', " + nowPlus(1) + ")");
+    executeUpdate("insert into data(url, action, ts) values"
         + "('http://localhost/5', null, " + nowPlus(1) + ")");
-
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
@@ -1738,11 +1772,10 @@ public class DatabaseAdaptorTest {
     // Subtract time to show the records as unchanged.
     // Add time to show the records as modified.
     executeUpdate("create table data(id integer, ts timestamp)");
-    executeUpdate("insert into data(id, ts) values "
-        + "(1, " + nowPlus(1) + "),"
-        + "(2, " + nowPlus(2) + "),"
-        + "(3, " + nowPlus(1) + "),"
-        + "(4, " + nowPlus(-1) + ")");
+    executeUpdate("insert into data(id, ts) values (1, " + nowPlus(1) + ")");
+    executeUpdate("insert into data(id, ts) values (2, " + nowPlus(2) + ")");
+    executeUpdate("insert into data(id, ts) values (3, " + nowPlus(1) + ")");
+    executeUpdate("insert into data(id, ts) values (4, " + nowPlus(-1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1782,11 +1815,10 @@ public class DatabaseAdaptorTest {
     // Subtract time to show the records as unchanged.
     // Add time to show the records as modified.
     executeUpdate("create table data(id integer, ts timestamp)");
-    executeUpdate("insert into data(id, ts) values "
-        + "(1, " + nowPlus(1) + "),"
-        + "(2, " + nowPlus(2) + "),"
-        + "(3, " + nowPlus(1) + "),"
-        + "(4, " + nowPlus(-1) + ")");
+    executeUpdate("insert into data(id, ts) values (1, " + nowPlus(1) + ")");
+    executeUpdate("insert into data(id, ts) values (2, " + nowPlus(2) + ")");
+    executeUpdate("insert into data(id, ts) values (3, " + nowPlus(1) + ")");
+    executeUpdate("insert into data(id, ts) values (4, " + nowPlus(-1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -1852,9 +1884,12 @@ public class DatabaseAdaptorTest {
     // Add time to show the records as modified.
     executeUpdate("create table data(url varchar(20), ts timestamp)");
     executeUpdate("insert into data(url, ts) values "
-        + "('http://host/foo', " + nowPlus(1) + "),"
-        + "('foo/bar', " + nowPlus(1) + "),"
-        + "('http://host/bar', " + nowPlus(1) + "),"
+        + "('http://host/foo', " + nowPlus(1) + ")");
+    executeUpdate("insert into data(url, ts) values "
+        + "('foo/bar', " + nowPlus(1) + ")");
+    executeUpdate("insert into data(url, ts) values "
+        + "('http://host/bar', " + nowPlus(1) + ")");
+    executeUpdate("insert into data(url, ts) values "
         + "('http://host/foo bar', " + nowPlus(1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -1924,11 +1959,10 @@ public class DatabaseAdaptorTest {
     // Subtract time to show the records as unchanged.
     // Add time to show the records as modified.
     executeUpdate("create table data(id integer, ts timestamp)");
-    executeUpdate("insert into data(id, ts) values "
-        + "(1, " + nowPlus(1) + "),"
-        + "(2, " + nowPlus(2) + "),"
-        + "(3, " + nowPlus(1) + "),"
-        + "(4, " + nowPlus(-1) + ")");
+    executeUpdate("insert into data(id, ts) values (1, " + nowPlus(1) + ")");
+    executeUpdate("insert into data(id, ts) values (2, " + nowPlus(2) + ")");
+    executeUpdate("insert into data(id, ts) values (3, " + nowPlus(1) + ")");
+    executeUpdate("insert into data(id, ts) values (4, " + nowPlus(-1) + ")");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
@@ -2028,7 +2062,8 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetDocContent_wrongParameterColumnInQuery() throws Exception {
     executeUpdate("create table data(id integer, notId integer)");
-    executeUpdate("insert into data(id, notId) values(1, 0), (2, 1)");
+    executeUpdate("insert into data(id, notId) values(1, 0)");
+    executeUpdate("insert into data(id, notId) values(2, 1)");
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "id:int");
@@ -2160,7 +2195,11 @@ public class DatabaseAdaptorTest {
 
     Metadata metadata = new Metadata();
     metadata.add("col1", "1001");
-    metadata.add("col2", "2004-10-06");
+    if (is(ORACLE)) {
+      metadata.add("col2", "2004-10-06 00:00:00.0");
+    } else {
+      metadata.add("col2", "2004-10-06");
+    }
     assertEquals(metadata, response.getMetadata());
   }
 
@@ -2189,6 +2228,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_time() throws Exception {
+    assumeFalse("Oracle does not support time", is(ORACLE));
     executeUpdate("create table data(id integer, col time)");
     executeUpdate("insert into data(id, col) values(1001, {t '09:15:30'})");
 
@@ -2213,6 +2253,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_timeNull() throws Exception {
+    assumeFalse("Oracle does not support time", is(ORACLE));
     executeUpdate("create table data(id integer, col time)");
     executeUpdate("insert into data(id) values(1001)");
 
@@ -2391,15 +2432,23 @@ public class DatabaseAdaptorTest {
     assertEquals(expected, response.getMetadata());
   }
 
-  @Test
   public void testMetadataColumns_array() throws Exception {
     assumeTrue("ARRAY type not supported", is(H2));
-    String[] content = { "hello", "world" };
-    executeUpdate("create table data(id int, content array)");
-    String sql = "insert into data(id, content) values (1, ?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setObject(1, content);
-    assertEquals(1, ps.executeUpdate());
+    if (is(ORACLE)) {
+      executeUpdate(
+          "create or replace type vcarray as varray(2) of varchar2(20)");
+      executeUpdate("create table data(id int, content vcarray)");
+      executeUpdate("insert into data(id, content) "
+          + "values (1, vcarray('hello', 'world'))");
+    } else {
+      String[] content = {"hello", "world"};
+      executeUpdate("create table data(id int, content array)");
+      String sql = "insert into data(id, content) values (1, ?)";
+      try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+        ps.setObject(1, content);
+        assertEquals(1, ps.executeUpdate());
+      }
+    }
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "ID:int");
@@ -2423,11 +2472,17 @@ public class DatabaseAdaptorTest {
     assertEquals(expected, response.getMetadata());
   }
 
-  @Test
   public void testMetadataColumns_arrayNull() throws Exception {
     assumeTrue("ARRAY type not supported", is(H2));
-    executeUpdate("create table data(id int, content array)");
-    executeUpdate("insert into data(id) values (1)");
+    if (is(ORACLE)) {
+      executeUpdate(
+          "create or replace type vcarray as varray(2) of varchar2(20)");
+      executeUpdate("create table data(id int, content vcarray)");
+      executeUpdate("insert into data(id) values (1)");
+    } else {
+      executeUpdate("create table data(id int, content array)");
+      executeUpdate("insert into data(id) values (1)");
+    }
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "ID:int");
@@ -2535,11 +2590,14 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetDocContentAcl() throws Exception {
     executeUpdate("create table data(id integer)");
-    executeUpdate("insert into data(id) values (1001), (1002)");
+    executeUpdate("insert into data(id) values (1001)");
+    executeUpdate("insert into data(id) values (1002)");
     executeUpdate("create table acl(id int, allowed_groups varchar(20),"
         + " allowed_users varchar(20))");
     executeUpdate("insert into acl(id, allowed_groups, allowed_users) "
-        + "values (1001, 'pgroup1', 'puser1'), (1002, 'pgroup2', 'puser2')");
+        + "values (1001, 'pgroup1', 'puser1')");
+    executeUpdate("insert into acl(id, allowed_groups, allowed_users) "
+        + "values (1002, 'pgroup2', 'puser2')");
 
     String aclSql = "select id, allowed_groups as gsa_permit_groups, "
         + "allowed_users as gsa_permit_users from acl where id = ?";
