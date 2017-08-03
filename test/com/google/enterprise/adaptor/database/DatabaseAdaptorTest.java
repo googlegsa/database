@@ -2283,8 +2283,6 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_clob() throws Exception {
-    // CLOB is TEXT in MySQL
-    // NCLOB shows up as CLOB in H2
     String content = "Hello World";
     executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
