@@ -14,15 +14,20 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
+import static com.google.enterprise.adaptor.database.JdbcFixture.is;
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Locale.US;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assume.assumeTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
@@ -155,19 +160,12 @@ public class ResponseGeneratorTest {
   }
 
   @Test
-  public void testRowToText_multipleTypes() throws Exception {
-    executeUpdate("create table data ("
-        + "intcol integer, booleancol boolean, charcol varchar(20),"
-        + " datecol date, timecol time, timestampcol timestamp,"
-        + " clobcol clob, blobcol blob, arraycol array)");
-    String sql = "insert into data values (1, true, ?,"
-        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56.7'},"
-        + "?, ?, ?)";
+  public void testRowToText_array() throws Exception {
+    assumeTrue("ARRAY type not supported", is(H2));
+    executeUpdate("create table data (id int, arraycol array)");
+    String sql = "insert into data values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-        ps.setString(1, "hello, world");
-        ps.setString(2, "It's a big world");
-        ps.setBytes(3, "A big, bad world".getBytes(UTF_8));
-        ps.setObject(4, new String[] { "hello", "world" });
+      ps.setObject(1, new String[] { "hello", "world" });
       assertEquals(1, ps.executeUpdate());
     }
 
@@ -181,12 +179,43 @@ public class ResponseGeneratorTest {
     captureLogMessages(ResponseGenerator.class,
         "Column type not supported for text", messages);
     resgen.generateResponse(rs, response);
-    String golden = "DATA,DATA,DATA,DATA,DATA,DATA,DATA\n"
-        + "INTCOL,BOOLEANCOL,CHARCOL,DATECOL,TIMECOL,TIMESTAMPCOL,CLOBCOL\n"
-        + "1,true,\"hello, world\",2007-08-09,12:34:56,2007-08-09 12:34:56.7,"
-        + "It's a big world\n";
+    String golden = "DATA\nID\n1\n";
     assertEquals(golden, bar.baos.toString(UTF_8.name()));
-    assertEquals(messages.toString(), 2, messages.size());
+    assertEquals(messages.toString(), 1, messages.size());
+  }
+
+  @Test
+  public void testRowToText_multipleTypes() throws Exception {
+    executeUpdate("create table data ("
+        + "intcol integer, booleancol boolean, charcol varchar(20),"
+        + " datecol date, timecol time, tymestampcol timestamp(3),"
+        + " charlob clob, blobcol blob)");
+    String sql = "insert into data values (1, true, ?,"
+        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56.7'},"
+        + "?, ?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setString(1, "hello, world");
+      ps.setString(2, "it's a big world");
+      ps.setBytes(3, "a big, bad world".getBytes(UTF_8));
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(ResponseGenerator.class,
+        "Column type not supported for text", messages);
+    resgen.generateResponse(rs, response);
+    String golden = "data,data,data,data,data,data,data\n"
+        + "intcol,booleancol,charcol,datecol,timecol,tymestampcol,charlob\n"
+        + "1,true,\"hello, world\",2007-08-09,12:34:56,2007-08-09 12:34:56.7,"
+        + "it's a big world\n";
+    assertEquals(golden, bar.baos.toString(UTF_8.name()).toLowerCase(US));
+    assertEquals(messages.toString(), 1, messages.size());
   }
 
   @Test
@@ -203,7 +232,7 @@ public class ResponseGeneratorTest {
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
     String golden = "DATA,DATA,DATA\nID,THIS,THAT\n1,,\n";
-    assertEquals(golden, bar.baos.toString(UTF_8.name()));
+    assertEquals(golden, bar.baos.toString(UTF_8.name()).toUpperCase(US));
   }
 
   @Test
@@ -224,7 +253,9 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String golden = "DATA,DATA,DATA\nID,NAME,QUOTE\n"
+    String golden =
+        (is(MYSQL) ? "data,data,data\nid,name,quote\n"
+                   :  "DATA,DATA,DATA\nID,NAME,QUOTE\n")
         + "1,Rhett Butler,\"\"\"Frankly Scarlett, I don't give a damn!\"\"\"\n";
     assertEquals(golden, bar.baos.toString(UTF_8.name()));
   }
@@ -290,7 +321,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testContentColumn_varbinary() throws Exception {
     String content = "hello world";
-    executeUpdate("create table data(id int, content varbinary)");
+    executeUpdate("create table data(id int, content varbinary(20))");
     String sql = "insert into data(id, content) values (1, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setBytes(1, content.getBytes(UTF_8));
@@ -310,7 +341,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_nullVarbinary() throws Exception {
-    executeUpdate("create table data(id int, content varbinary)");
+    executeUpdate("create table data(id int, content varbinary(20))");
     executeUpdate("insert into data(id) values (1)");
 
     MockResponse bar = new MockResponse();
@@ -818,7 +849,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToHtml() throws Exception {
-    executeUpdate("create table data(id int, xyggy_col varchar(20))");
+    executeUpdate("create table data(id int, XYGGY_COL varchar(20))");
     executeUpdate(
         "insert into data(id, xyggy_col) values (1, 'xyggy value')");
 
@@ -859,7 +890,7 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToHtml_stylesheet() throws Exception {
-    executeUpdate("create table data(id int, xyggy_col varchar(20))");
+    executeUpdate("create table data(id int, XYGGY_COL varchar(20))");
     executeUpdate(
         "insert into data(id, xyggy_col) values (1, 'xyggy value')");
 

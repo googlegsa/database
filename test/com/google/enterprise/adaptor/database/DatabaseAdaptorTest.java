@@ -16,7 +16,7 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.DocIdPusher.Record;
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
-import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
@@ -36,7 +36,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeTrue;
 
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.AuthnIdentity;
@@ -2260,7 +2260,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_timestampNull() throws Exception {
-    executeUpdate("create table data(id integer, col timestamp default null)");
+    executeUpdate("create table data(id integer, col timestamp)");
     executeUpdate("insert into data(id) values(1001)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -2283,8 +2283,6 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_clob() throws Exception {
-    assumeFalse("MySQL does not support clobs", is(MYSQL));
-    // NCLOB shows up as CLOB in H2
     String content = "Hello World";
     executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -2314,7 +2312,6 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_clobNull() throws Exception {
-    assumeFalse("MySQL does not support clobs", is(MYSQL));
     executeUpdate("create table data(id int, content clob)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -2397,7 +2394,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_array() throws Exception {
-    assumeFalse("MySQL does not support arrays", is(MYSQL));
+    assumeTrue("ARRAY type not supported", is(H2));
     String[] content = { "hello", "world" };
     executeUpdate("create table data(id int, content array)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -2430,7 +2427,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_arrayNull() throws Exception {
-    assumeFalse("MySQL does not support arrays", is(MYSQL));
+    assumeTrue("ARRAY type not supported", is(H2));
     executeUpdate("create table data(id int, content array)");
     executeUpdate("insert into data(id) values (1)");
 

@@ -14,12 +14,17 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
+import static com.google.enterprise.adaptor.database.JdbcFixture.is;
 import static org.hamcrest.CoreMatchers.isA;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeTrue;
 
 import org.junit.After;
 import org.junit.Before;
@@ -103,17 +108,16 @@ public class TupleReaderTest {
 
   @Test
   public void testParse_emptyResultSet() throws Exception {
-    executeUpdate("create table data(colname varchar)");
+    executeUpdate("create table data(colname varchar(20))");
     ResultSet rs = executeQuery("select * from data");
     thrown.expect(TransformerException.class);
     thrown.expectCause(isA(SAXException.class));
-    thrown.expectMessage("No data is available");
     generateXml(rs);
   }
 
   @Test
   public void testInteger() throws Exception {
-    executeUpdate("create table data(colname integer)");
+    executeUpdate("create table data(COLNAME integer)");
     executeUpdate("insert into data(colname) values(17)");
     final String golden = ""
         + "<database>"
@@ -130,7 +134,7 @@ public class TupleReaderTest {
 
   @Test
   public void testInteger_null() throws Exception {
-    executeUpdate("create table data(colname integer)");
+    executeUpdate("create table data(COLNAME integer)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
         + "<database>"
@@ -147,13 +151,15 @@ public class TupleReaderTest {
 
   @Test
   public void testBoolean() throws Exception {
-    executeUpdate("create table data(colname boolean)");
+    executeUpdate("create table data(COLNAME boolean)");
     executeUpdate("insert into data(colname) values(true)");
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<COLNAME SQLType=\"BOOLEAN\">true</COLNAME>"
+        + "<COLNAME SQLType=\""
+        + JdbcFixture.BOOLEAN
+        + "\">true</COLNAME>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -164,13 +170,15 @@ public class TupleReaderTest {
 
   @Test
   public void testBoolean_null() throws Exception {
-    executeUpdate("create table data(colname boolean)");
+    executeUpdate("create table data(COLNAME boolean)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<COLNAME SQLType=\"BOOLEAN\" ISNULL=\"true\"/>"
+        + "<COLNAME SQLType=\""
+        + JdbcFixture.BOOLEAN
+        + "\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -181,7 +189,7 @@ public class TupleReaderTest {
 
   @Test
   public void testChar() throws Exception {
-    executeUpdate("create table data(colname char)");
+    executeUpdate("create table data(COLNAME char(20))");
     executeUpdate("insert into data(colname) values('onevalue')");
     final String golden = ""
         + "<database>"
@@ -198,7 +206,7 @@ public class TupleReaderTest {
 
   @Test
   public void testChar_null() throws Exception {
-    executeUpdate("create table data(colname char)");
+    executeUpdate("create table data(COLNAME char)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
         + "<database>"
@@ -215,7 +223,7 @@ public class TupleReaderTest {
 
   @Test
   public void testVarchar() throws Exception {
-    executeUpdate("create table data(colname varchar)");
+    executeUpdate("create table data(COLNAME varchar(20))");
     executeUpdate("insert into data(colname) values('onevalue')");
     final String golden = ""
         + "<database>"
@@ -241,7 +249,7 @@ public class TupleReaderTest {
         + "</table>"
         + "</database>";
     String xml = String.format(template, "onevalue");
-    executeUpdate("create table data(colname varchar)");
+    executeUpdate("create table data(COLNAME varchar(200))");
     executeUpdate("insert into data(colname) values('" + xml + "')");
     ResultSet rs = executeQueryAndNext("select * from data");
     String result = generateXml(rs);
@@ -252,7 +260,7 @@ public class TupleReaderTest {
 
   @Test
   public void testVarchar_null() throws Exception {
-    executeUpdate("create table data(colname varchar)");
+    executeUpdate("create table data(COLNAME varchar(20))");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
         + "<database>"
@@ -271,7 +279,7 @@ public class TupleReaderTest {
   public void testBinary() throws Exception {
     byte[] binaryData = new byte[123];
     new Random().nextBytes(binaryData);
-    executeUpdate("create table data(colname binary)");
+    executeUpdate("create table data(COLNAME varbinary(200))");
     String sql = "insert into data(colname) values (?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       ps.setBinaryStream(1, new ByteArrayInputStream(binaryData));
@@ -295,7 +303,7 @@ public class TupleReaderTest {
 
   @Test
   public void testBinary_empty() throws Exception {
-    executeUpdate("create table data(colname binary)");
+    executeUpdate("create table data(COLNAME varbinary(0))");
     executeUpdate("insert into data(colname) values('')");
     final String golden = ""
         + "<database>"
@@ -312,7 +320,7 @@ public class TupleReaderTest {
 
   @Test
   public void testBinary_null() throws Exception {
-    executeUpdate("create table data(colname binary)");
+    executeUpdate("create table data(COLNAME varbinary(20))");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
         + "<database>"
@@ -328,8 +336,72 @@ public class TupleReaderTest {
   }
 
   @Test
+  public void testLongvarbinary() throws Exception {
+    assumeFalse("H2 converts longvarbinary to varbinary", is(H2));
+    byte[] longvarbinaryData = new byte[12345];
+    new Random().nextBytes(longvarbinaryData);
+    executeUpdate("create table data(COLNAME longvarbinary)");
+    String sql = "insert into data(colname) values (?)";
+    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      ps.setBinaryStream(1, new ByteArrayInputStream(longvarbinaryData));
+      assertEquals(1, ps.executeUpdate());
+    }
+    String base64LongvarbinaryData =
+        DatatypeConverter.printBase64Binary(longvarbinaryData);
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"LONGVARBINARY\" encoding=\"base64binary\">"
+        + base64LongvarbinaryData
+        + "</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testLongvarbinary_empty() throws Exception {
+    assumeFalse("H2 converts longvarbinary to varbinary", is(H2));
+    executeUpdate("create table data(COLNAME longvarbinary)");
+    executeUpdate("insert into data(colname) values('')");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"LONGVARBINARY\" encoding=\"base64binary\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testLongvarbinary_null() throws Exception {
+    assumeFalse("H2 converts longvarbinary to varbinary", is(H2));
+    executeUpdate("create table data(COLNAME longvarbinary)");
+    executeUpdate("insert into data(colname) values(null)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"LONGVARBINARY\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
   public void testDate() throws Exception {
-    executeUpdate("create table data(colname date)");
+    executeUpdate("create table data(COLNAME date)");
     executeUpdate("insert into data(colname) values({d '2004-10-06'})");
     final String golden = ""
         + "<database>"
@@ -346,7 +418,7 @@ public class TupleReaderTest {
 
   @Test
   public void testDate_null() throws Exception {
-    executeUpdate("create table data(colname date)");
+    executeUpdate("create table data(COLNAME date)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
         + "<database>"
@@ -363,7 +435,7 @@ public class TupleReaderTest {
 
   @Test
   public void testTime() throws Exception {
-    executeUpdate("create table data(colname time)");
+    executeUpdate("create table data(COLNAME time)");
     executeUpdate("insert into data(colname) values({t '09:15:30'})");
     // H2 returns a java.sql.Date with the date set to 1970-01-01.
     final DateFormat timeZoneFmt = new SimpleDateFormat("X");
@@ -392,7 +464,7 @@ public class TupleReaderTest {
 
   @Test
   public void testTime_null() throws Exception {
-    executeUpdate("create table data(colname time)");
+    executeUpdate("create table data(COLNAME time)");
     executeUpdate("insert into data(colname) values(null)");
     // H2 returns a java.sql.Date with the date set to 1970-01-01.
     Calendar cal = Calendar.getInstance(TimeZone.getDefault());
@@ -417,7 +489,7 @@ public class TupleReaderTest {
 
   @Test
   public void testTimestamp() throws Exception {
-    executeUpdate("create table data(colname timestamp)");
+    executeUpdate("create table data(COLNAME timestamp)");
     executeUpdate(
         "insert into data(colname) values ({ts '2004-10-06T09:15:30'})");
     DateFormat timeZoneFmt = new SimpleDateFormat("X");
@@ -461,7 +533,7 @@ public class TupleReaderTest {
     Thread[] threads = new Thread[threadCount];
     final Throwable[] errors = new Throwable[threadCount];
 
-    executeUpdate("create table data(thread int, colname timestamp)");
+    executeUpdate("create table data(thread int, COLNAME timestamp(3))");
 
     // Start the threads.
     for (int t = 0; t < threadCount; t++) {
@@ -496,7 +568,7 @@ public class TupleReaderTest {
           @Override public void run() {
             try {
               ResultSet rs = executeQueryAndNext(
-                  "select colname from data where thread = " + tt);
+                  "select COLNAME from data where thread = " + tt);
               for (int i = 0; i < iterations; i++) {
                 String result = generateXml(perThreadTransformer, rs);
                 assertEquals("Thread " + tt + "; iteration " + i,
@@ -523,7 +595,7 @@ public class TupleReaderTest {
 
   @Test
   public void testTimestamp_null() throws Exception {
-    executeUpdate("create table data(colname timestamp)");
+    executeUpdate("create table data(COLNAME timestamp)");
     executeUpdate("insert into data(colname) values(null)");
     Calendar cal = Calendar.getInstance(TimeZone.getDefault());
     cal.set(Calendar.YEAR, 2004);
@@ -547,6 +619,7 @@ public class TupleReaderTest {
 
   @Test
   public void testClob() throws Exception {
+    assumeFalse("MySQL does not support type clob", is(MYSQL));
     String clobData =
         " Google's indices consist of information that has been"
             + " identified, indexed and compiled through an automated"
@@ -588,6 +661,7 @@ public class TupleReaderTest {
 
   @Test
   public void testClob_null() throws Exception {
+    assumeFalse("MySQL does not support type clob", is(MYSQL));
     executeUpdate("create table data(colname clob)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
@@ -605,6 +679,7 @@ public class TupleReaderTest {
 
   @Test
   public void testBlob() throws Exception {
+    assumeFalse("MySQL converts blob to longvarbinary", is(MYSQL));
     byte[] blobData = new byte[12345];
     new Random().nextBytes(blobData);
     executeUpdate("create table data(colname blob)");
@@ -631,6 +706,7 @@ public class TupleReaderTest {
 
   @Test
   public void testBlob_empty() throws Exception {
+    assumeFalse("MySQL converts blob to longvarbinary", is(MYSQL));
     executeUpdate("create table data(colname blob)");
     executeUpdate("insert into data(colname) values('')");
     final String golden = ""
@@ -648,6 +724,7 @@ public class TupleReaderTest {
 
   @Test
   public void testBlob_null() throws Exception {
+    assumeFalse("MySQL converts blob to longvarbinary", is(MYSQL));
     executeUpdate("create table data(colname blob)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
@@ -665,6 +742,7 @@ public class TupleReaderTest {
 
   @Test
   public void testArray() throws Exception {
+    assumeTrue("ARRAY type not supported", is(H2));
     String[] array = { "hello", "world" };
     executeUpdate("create table data(colname array)");
     String sql = "insert into data(colname) values (?)";
@@ -685,6 +763,7 @@ public class TupleReaderTest {
 
   @Test
   public void testArray_null() throws Exception {
+    assumeTrue("ARRAY type not supported", is(H2));
     executeUpdate("create table data(other array)");
     executeUpdate("insert into data(other) values(null)");
     final String golden = ""
@@ -700,6 +779,7 @@ public class TupleReaderTest {
 
   @Test
   public void testOther() throws Exception {
+    assumeTrue("OTHER type not supported", is(H2));
     // H2's OTHER type requires a serialized Java object.
     String serializable = "hello world";
     ByteArrayOutputStream buffer = new ByteArrayOutputStream();
@@ -730,6 +810,7 @@ public class TupleReaderTest {
 
   @Test
   public void testOther_invalidXmlChars() throws Exception {
+    assumeTrue("OTHER type not supported", is(H2));
     // H2's OTHER type requires a serialized Java object.
     StringBuilder input = new StringBuilder();
     StringBuilder output = new StringBuilder();
@@ -770,6 +851,7 @@ public class TupleReaderTest {
 
   @Test
   public void testOther_null() throws Exception {
+    assumeTrue("OTHER type not supported", is(H2));
     executeUpdate("create table data(other other)");
     executeUpdate("insert into data(other) values(null)");
     final String golden = ""
@@ -787,7 +869,8 @@ public class TupleReaderTest {
 
   @Test
   public void testMultipleTypes() throws Exception {
-    executeUpdate("create table data(id integer, name varchar, modified date)");
+    executeUpdate(
+        "create table data(ID integer, NAME varchar(20), MODIFIED date)");
     executeUpdate(
         "insert into data(id, name, modified) values(1, 'file.txt', null)");
     final String golden = ""
@@ -807,6 +890,7 @@ public class TupleReaderTest {
 
   @Test
   public void testInvalidXmlChars() throws Exception {
+    assumeTrue("Only test XML encoding on H2", is(H2));
     StringBuilder input = new StringBuilder();
     StringBuilder output = new StringBuilder();
     for (char i = '\0'; i <= '\u001F'; i++) {
@@ -843,6 +927,7 @@ public class TupleReaderTest {
   /** Test all Unicode BMP characters, plus some surrogate pairs. */
   @Test
   public void testValidXmlChars() throws Exception {
+    assumeTrue("Only test XML encoding on H2", is(H2));
     StringBuilder buf = new StringBuilder(10000000);
     for (int i = 0x20; i <= 0xD7FF; i++) {
       buf.append(Character.toChars(i));

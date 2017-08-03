@@ -20,6 +20,7 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.UniqueKey.ColumnType;
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 
@@ -29,6 +30,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.net.URISyntaxException;
+import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -234,7 +236,7 @@ public class UniqueKeyTest {
 
   @Test
   public void testProcessingDocId() throws Exception {
-    executeUpdate("create table data(numnum int, strstr varchar)");
+    executeUpdate("create table data(numnum int, strstr varchar(20))");
     executeUpdate("insert into data(numnum, strstr) values(345, 'abc')");
 
     ResultSet rs = executeQueryAndNext("select * from data");
@@ -244,7 +246,7 @@ public class UniqueKeyTest {
 
   @Test
   public void testProcessingDocId_allTypes() throws Exception {
-    executeUpdate("create table data(c1 integer, c2 bigint, c3 varchar, "
+    executeUpdate("create table data(c1 integer, c2 bigint, c3 varchar(20), "
         + "c4 date, c5 time, c6 timestamp)");
     executeUpdate("insert into data(c1, c2, c3, c4, c5, c6) "
         + "values (123, 4567890, 'foo', "
@@ -260,7 +262,7 @@ public class UniqueKeyTest {
 
   @Test
   public void testProcessingDocId_docIdIsUrl() throws Exception {
-    executeUpdate("create table data(url varchar)");
+    executeUpdate("create table data(url varchar(200))");
     executeUpdate("insert into data(url) values('http://localhost/foo/bar')");
 
     ResultSet rs = executeQueryAndNext("select * from data");
@@ -271,7 +273,7 @@ public class UniqueKeyTest {
 
   @Test
   public void testProcessingDocId_docIdIsInvalidUrl() throws Exception {
-    executeUpdate("create table data(url varchar)");
+    executeUpdate("create table data(url varchar(200))");
     executeUpdate("insert into data(url) values('foo/bar')");
 
     ResultSet rs = executeQueryAndNext("select * from data");
@@ -283,7 +285,7 @@ public class UniqueKeyTest {
 
   @Test
   public void testProcessingDocIdWithSlash() throws Exception {
-    executeUpdate("create table data(a varchar, b varchar)");
+    executeUpdate("create table data(a varchar(20), b varchar(20))");
     executeUpdate("insert into data(a, b) values('5/5', '6/6')");
 
     ResultSet rs = executeQueryAndNext("select * from data");
@@ -293,7 +295,7 @@ public class UniqueKeyTest {
 
   @Test
   public void testProcessingDocIdWithMoreSlashes() throws Exception {
-    executeUpdate("create table data(a varchar, b varchar)");
+    executeUpdate("create table data(a varchar(20), b varchar(20))");
     executeUpdate("insert into data(a, b) values('5/5//', '//6/6')");
 
     ResultSet rs = executeQueryAndNext("select * from data");
@@ -303,7 +305,7 @@ public class UniqueKeyTest {
 
   @Test
   public void testPreparingRetrieval_wrongColumnCount() throws SQLException {
-    executeUpdate("create table data(id integer, other varchar)");
+    executeUpdate("create table data(id integer, other varchar(20))");
 
     String sql = "insert into data(id, other) values (?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
@@ -317,15 +319,15 @@ public class UniqueKeyTest {
   @Test
   public void testPreparingRetrieval() throws SQLException {
     executeUpdate("create table data("
-        + "numnum int, strstr varchar, timestamp timestamp, date date, "
-        + "time time, long bigint)");
+        + "numnum int, strstr varchar(20), tymestamp timestamp(3), date date, "
+        + "time time, longint bigint)");
 
     String sql = "insert into data("
-        + "numnum, strstr, timestamp, date, time, long)"
+        + "numnum, strstr, tymestamp, date, time, longint)"
         + " values (?, ?, ?, ?, ?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
       UniqueKey uk = newUniqueKey("numnum:int,strstr:string,"
-          + "timestamp:timestamp,date:date,time:time,long:long");
+          + "tymestamp:timestamp,date:date,time:time,longint:long");
       uk.setContentSqlValues(ps,
           "888/bluesky/1414701070212/2014-01-01/02:03:04/123");
       assertEquals(1, ps.executeUpdate());
@@ -334,16 +336,16 @@ public class UniqueKeyTest {
     ResultSet rs = executeQueryAndNext("select * from data");
     assertEquals(888, rs.getInt("numnum"));
     assertEquals("bluesky", rs.getString("strstr"));
-    assertEquals(new Timestamp(1414701070212L), rs.getTimestamp("timestamp"));
+    assertEquals(new Timestamp(1414701070212L), rs.getTimestamp("tymestamp"));
     assertEquals(Date.valueOf("2014-01-01"), rs.getDate("date"));
     assertEquals(Time.valueOf("02:03:04"), rs.getTime("time"));
-    assertEquals(123L, rs.getLong("long"));
+    assertEquals(123L, rs.getLong("longint"));
   }
 
   @Test
   public void testPreparingRetrievalCaseInsensitiveColumnNames()
       throws SQLException {
-    executeUpdate("create table data(numnum int, strstr varchar)");
+    executeUpdate("create table data(numnum int, strstr varchar(20))");
 
     String sql = "insert into data(numnum, strstr) values (?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
@@ -361,8 +363,8 @@ public class UniqueKeyTest {
   @Test
   public void testPreparingRetrievalPerDocCols() throws SQLException {
     executeUpdate("create table data("
-        + "col1 int, col2 int, col3 varchar, col4 int, col5 varchar, "
-        + "col6 varchar, col7 int)");
+        + "col1 int, col2 int, col3 varchar(20), col4 int, col5 varchar(20), "
+        + "col6 varchar(20), col7 int)");
 
     String sql = "insert into data(col1, col2, col3, col4, col5, col6, col7)"
         + " values (?, ?, ?, ?, ?, ?, ?)";
@@ -386,7 +388,7 @@ public class UniqueKeyTest {
   @Test
   public void testPreparingAclRetrievalCaseInsensitiveColumnNames()
       throws SQLException {
-    executeUpdate("create table data(numnum int, strstr varchar)");
+    executeUpdate("create table data(numnum int, strstr varchar(20))");
 
     String sql = "insert into data(numnum, strstr) values (?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
@@ -403,7 +405,7 @@ public class UniqueKeyTest {
 
   @Test
   public void testPreserveSlashesInColumnValues() throws SQLException {
-    executeUpdate("create table data(a varchar, b varchar, c varchar)");
+    executeUpdate("create table data(a varchar(20), b varchar(20), c varchar(20))");
 
     String sql = "insert into data(a, b, c) values (?, ?, ?)";
     try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
@@ -440,7 +442,7 @@ public class UniqueKeyTest {
   private void testUniqueElementsRoundTrip(String elem1, String elem2)
       throws Exception {
     try {
-      executeUpdate("create table data(a varchar, b varchar)");
+      executeUpdate("create table data(a varchar(200), b varchar(200))");
       executeUpdate(
           "insert into data(a, b) values('" + elem1 + "', '" + elem2 + "')");
 
@@ -449,11 +451,14 @@ public class UniqueKeyTest {
       String id = uk.makeUniqueId(rs);
 
       String sql = "select * from data where a = ? and b = ?";
-      try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+      try (Connection connection = getConnection();
+           PreparedStatement ps = connection.prepareStatement(sql)) {
         uk.setContentSqlValues(ps, id);
-        rs = executeQueryAndNext("select * from data");
-        assertEquals(elem1, rs.getString(1));
-        assertEquals(elem2, rs.getString(2));
+        try (ResultSet result = ps.executeQuery()) {
+          assertTrue("ResultSet is empty", result.next());
+          assertEquals(elem1, result.getString(1));
+          assertEquals(elem2, result.getString(2));
+        }
       } catch (Exception e) {
         throw new RuntimeException("elem1: " + elem1 + ", elem2: " + elem2 
             + ", id: " + id, e);
