@@ -19,8 +19,8 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
-import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.JdbcFixture.is;
+import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatement;
 import static org.hamcrest.CoreMatchers.isA;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assume.assumeFalse;
@@ -281,10 +281,10 @@ public class TupleReaderTest {
     new Random().nextBytes(binaryData);
     executeUpdate("create table data(COLNAME varbinary(200))");
     String sql = "insert into data(colname) values (?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBinaryStream(1, new ByteArrayInputStream(binaryData));
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBinaryStream(1, new ByteArrayInputStream(binaryData));
+    assertEquals(1, ps.executeUpdate());
+
     String base64BinaryData = DatatypeConverter.printBase64Binary(binaryData);
     final String golden = ""
         + "<database>"
@@ -342,10 +342,10 @@ public class TupleReaderTest {
     new Random().nextBytes(longvarbinaryData);
     executeUpdate("create table data(COLNAME longvarbinary)");
     String sql = "insert into data(colname) values (?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBinaryStream(1, new ByteArrayInputStream(longvarbinaryData));
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBinaryStream(1, new ByteArrayInputStream(longvarbinaryData));
+    assertEquals(1, ps.executeUpdate());
+
     String base64LongvarbinaryData =
         DatatypeConverter.printBase64Binary(longvarbinaryData);
     final String golden = ""
@@ -640,10 +640,10 @@ public class TupleReaderTest {
             + " again in a relatively short amount of time.";
     executeUpdate("create table data(colname clob)");
     String sql = "insert into data(colname) values (?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, clobData);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, clobData);
+    assertEquals(1, ps.executeUpdate());
+
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -684,10 +684,10 @@ public class TupleReaderTest {
     new Random().nextBytes(blobData);
     executeUpdate("create table data(colname blob)");
     String sql = "insert into data(colname) values (?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBinaryStream(1, new ByteArrayInputStream(blobData));
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBinaryStream(1, new ByteArrayInputStream(blobData));
+    assertEquals(1, ps.executeUpdate());
+
     String base64BlobData = DatatypeConverter.printBase64Binary(blobData);
     final String golden = ""
         + "<database>"
@@ -746,10 +746,10 @@ public class TupleReaderTest {
     String[] array = { "hello", "world" };
     executeUpdate("create table data(colname array)");
     String sql = "insert into data(colname) values (?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setObject(1, array);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setObject(1, array);
+    assertEquals(1, ps.executeUpdate());
+
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -789,10 +789,10 @@ public class TupleReaderTest {
 
     executeUpdate("create table data(colname other)");
     String sql = "insert into data(colname) values (?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setObject(1, buffer.toByteArray());
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setObject(1, buffer.toByteArray());
+    assertEquals(1, ps.executeUpdate());
+
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -830,10 +830,10 @@ public class TupleReaderTest {
 
     executeUpdate("create table data(colname other)");
     String sql = "insert into data(colname) values (?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setObject(1, buffer.toByteArray());
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setObject(1, buffer.toByteArray());
+    assertEquals(1, ps.executeUpdate());
+
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -905,10 +905,10 @@ public class TupleReaderTest {
 
     executeUpdate("create table data(colname varchar)");
     String sql = "insert into data(colname) values (?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, input.toString());
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, input.toString());
+    assertEquals(1, ps.executeUpdate());
+
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -946,10 +946,10 @@ public class TupleReaderTest {
 
     executeUpdate("create table data(colname varchar)");
     String sql = "insert into data(colname) values (?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, content);
+    assertEquals(1, ps.executeUpdate());
+
     final String golden = ""
         + "<database>"
         + "<table>"

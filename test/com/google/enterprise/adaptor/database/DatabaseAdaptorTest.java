@@ -22,6 +22,7 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAnd
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.JdbcFixture.is;
+import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatement;
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Locale.US;
@@ -123,8 +124,10 @@ public class DatabaseAdaptorTest {
   @Test
   public void testVerifyColumnNames_found() throws Exception {
     executeUpdate("create table data(id int, other varchar(20))");
-    DatabaseAdaptor.verifyColumnNames(getConnection(),
-        "found", "select * from data", "found", Arrays.asList("id", "other"));
+    try (Connection conn = getConnection()) {
+      DatabaseAdaptor.verifyColumnNames(conn,
+          "found", "select * from data", "found", Arrays.asList("id", "other"));
+    }
   }
 
   @Test
@@ -132,15 +135,19 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(id int, other varchar(20))");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[foo] not found in query");
-    DatabaseAdaptor.verifyColumnNames(getConnection(),
-        "found", "select * from data", "found", Arrays.asList("id", "foo"));
+    try (Connection conn = getConnection()) {
+      DatabaseAdaptor.verifyColumnNames(conn,
+          "found", "select * from data", "found", Arrays.asList("id", "foo"));
+    }
   }
 
   @Test
   public void testVerifyColumnNames_lowercase() throws Exception {
     executeUpdate("create table data(id int, \"lower\" varchar(20))");
-    DatabaseAdaptor.verifyColumnNames(getConnection(),
-        "found", "select * from data", "found", Arrays.asList("LOWER"));
+    try (Connection conn = getConnection()) {
+      DatabaseAdaptor.verifyColumnNames(conn,
+          "found", "select * from data", "found", Arrays.asList("LOWER"));
+    }
   }
 
   @Test
@@ -157,16 +164,20 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(id int, other varchar(20))");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("Syntax error in query");
-    DatabaseAdaptor.verifyColumnNames(getConnection(),
-        "found", "select from data", "found", Arrays.asList("id", "other"));
+    try (Connection conn = getConnection()) {
+      DatabaseAdaptor.verifyColumnNames(conn,
+          "found", "select from data", "found", Arrays.asList("id", "other"));
+    }
   }
 
   @Test
   public void testVerifyColumnNames_nullMetaData() throws Exception {
     executeUpdate("create table data(id int, other varchar(20))");
-    DatabaseAdaptor.verifyColumnNames(getConnection(),
-        "found", "insert into data(id) values(42)",
-        "found", Arrays.asList("id", "other"));
+    try (Connection conn = getConnection()) {
+      DatabaseAdaptor.verifyColumnNames(conn,
+          "found", "insert into data(id) values(42)",
+          "found", Arrays.asList("id", "other"));
+    }
   }
 
   @Test
@@ -2286,10 +2297,9 @@ public class DatabaseAdaptorTest {
     String content = "Hello World";
     executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, content);
+    assertEquals(1, ps.executeUpdate());
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "ID:int");
@@ -2338,10 +2348,9 @@ public class DatabaseAdaptorTest {
     String content = "hello world";
     executeUpdate("create table data(id int, content blob)");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBytes(1, content.getBytes(UTF_8));
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBytes(1, content.getBytes(UTF_8));
+    assertEquals(1, ps.executeUpdate());
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "ID:int");
@@ -2398,10 +2407,9 @@ public class DatabaseAdaptorTest {
     String[] content = { "hello", "world" };
     executeUpdate("create table data(id int, content array)");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setObject(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setObject(1, content);
+    assertEquals(1, ps.executeUpdate());
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "ID:int");
@@ -2483,10 +2491,9 @@ public class DatabaseAdaptorTest {
     String content = "Hello World";
     executeUpdate("create table data(id int, content varchar(200))");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, content);
+    assertEquals(1, ps.executeUpdate());
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "ID:int");
@@ -2512,10 +2519,9 @@ public class DatabaseAdaptorTest {
     String content = "Who is number 1?";
     executeUpdate("create table data(id int, content varchar(200))");
     String sql = "insert into data(id, content) values (6, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, content);
+    assertEquals(1, ps.executeUpdate());
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "id:int");

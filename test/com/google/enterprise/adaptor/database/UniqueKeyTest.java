@@ -16,7 +16,7 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
-import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
+import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatement;
 import static com.google.enterprise.adaptor.database.UniqueKey.ColumnType;
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
@@ -30,7 +30,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.net.URISyntaxException;
-import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -308,12 +307,11 @@ public class UniqueKeyTest {
     executeUpdate("create table data(id integer, other varchar(20))");
 
     String sql = "insert into data(id, other) values (?, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      UniqueKey uk = newUniqueKey("id:int, other:string");
-      thrown.expect(IllegalStateException.class);
-      thrown.expectMessage("Wrong number of values for primary key");
-      uk.setContentSqlValues(ps, "123/foo/bar");
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    UniqueKey uk = newUniqueKey("id:int, other:string");
+    thrown.expect(IllegalStateException.class);
+    thrown.expectMessage("Wrong number of values for primary key");
+    uk.setContentSqlValues(ps, "123/foo/bar");
   }
 
   @Test
@@ -325,13 +323,12 @@ public class UniqueKeyTest {
     String sql = "insert into data("
         + "numnum, strstr, tymestamp, date, time, longint)"
         + " values (?, ?, ?, ?, ?, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      UniqueKey uk = newUniqueKey("numnum:int,strstr:string,"
-          + "tymestamp:timestamp,date:date,time:time,longint:long");
-      uk.setContentSqlValues(ps,
-          "888/bluesky/1414701070212/2014-01-01/02:03:04/123");
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    UniqueKey uk = newUniqueKey("numnum:int,strstr:string,"
+        + "tymestamp:timestamp,date:date,time:time,longint:long");
+    uk.setContentSqlValues(ps,
+        "888/bluesky/1414701070212/2014-01-01/02:03:04/123");
+    assertEquals(1, ps.executeUpdate());
 
     ResultSet rs = executeQueryAndNext("select * from data");
     assertEquals(888, rs.getInt("numnum"));
@@ -348,12 +345,11 @@ public class UniqueKeyTest {
     executeUpdate("create table data(numnum int, strstr varchar(20))");
 
     String sql = "insert into data(numnum, strstr) values (?, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      UniqueKey uk =
-          newUniqueKey("numnum:int, strstr:string", "NUMNUM, StrStr", "");
-      uk.setContentSqlValues(ps, "888/bluesky");
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    UniqueKey uk =
+        newUniqueKey("numnum:int, strstr:string", "NUMNUM, StrStr", "");
+    uk.setContentSqlValues(ps, "888/bluesky");
+    assertEquals(1, ps.executeUpdate());
 
     ResultSet rs = executeQueryAndNext("select * from data");
     assertEquals(888, rs.getInt("numnum"));
@@ -368,12 +364,11 @@ public class UniqueKeyTest {
 
     String sql = "insert into data(col1, col2, col3, col4, col5, col6, col7)"
         + " values (?, ?, ?, ?, ?, ?, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      UniqueKey uk = newUniqueKey("numnum:int,strstr:string",
-          "numnum,numnum,strstr,numnum,strstr,strstr,numnum", "");
-      uk.setContentSqlValues(ps, "888/bluesky");
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    UniqueKey uk = newUniqueKey("numnum:int,strstr:string",
+        "numnum,numnum,strstr,numnum,strstr,strstr,numnum", "");
+    uk.setContentSqlValues(ps, "888/bluesky");
+    assertEquals(1, ps.executeUpdate());
 
     ResultSet rs = executeQueryAndNext("select * from data");
     assertEquals(888, rs.getInt(1));
@@ -391,12 +386,11 @@ public class UniqueKeyTest {
     executeUpdate("create table data(numnum int, strstr varchar(20))");
 
     String sql = "insert into data(numnum, strstr) values (?, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      UniqueKey uk =
-          newUniqueKey("numnum:int, strstr:string", "", "NUMNUM, StrStr");
-      uk.setAclSqlValues(ps, "888/bluesky");
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    UniqueKey uk =
+        newUniqueKey("numnum:int, strstr:string", "", "NUMNUM, StrStr");
+    uk.setAclSqlValues(ps, "888/bluesky");
+    assertEquals(1, ps.executeUpdate());
 
     ResultSet rs = executeQueryAndNext("select * from data");
     assertEquals(888, rs.getInt("numnum"));
@@ -408,11 +402,10 @@ public class UniqueKeyTest {
     executeUpdate("create table data(a varchar(20), b varchar(20), c varchar(20))");
 
     String sql = "insert into data(a, b, c) values (?, ?, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      UniqueKey uk = newUniqueKey("a:string,b:string", "a,b,a", "");
-      uk.setContentSqlValues(ps, "5_/5/6_/6");
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    UniqueKey uk = newUniqueKey("a:string,b:string", "a,b,a", "");
+    uk.setContentSqlValues(ps, "5_/5/6_/6");
+    assertEquals(1, ps.executeUpdate());
 
     ResultSet rs = executeQueryAndNext("select * from data");
     assertEquals("5/5", rs.getString(1));
@@ -450,9 +443,9 @@ public class UniqueKeyTest {
       ResultSet rs = executeQueryAndNext("select * from data");
       String id = uk.makeUniqueId(rs);
 
-      String sql = "select * from data where a = ? and b = ?";
-      try (Connection connection = getConnection();
-           PreparedStatement ps = connection.prepareStatement(sql)) {
+      try {
+        String sql = "select * from data where a = ? and b = ?";
+        PreparedStatement ps = prepareStatement(sql);
         uk.setContentSqlValues(ps, id);
         try (ResultSet result = ps.executeQuery()) {
           assertTrue("ResultSet is empty", result.next());

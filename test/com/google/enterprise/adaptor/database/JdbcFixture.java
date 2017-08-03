@@ -27,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -205,6 +206,17 @@ class JdbcFixture {
         stmt.executeUpdate(sql);
       }
     }
+  }
+
+  public static PreparedStatement prepareStatement(String sql)
+      throws SQLException {
+    Connection conn = getConnection();
+    PreparedStatement stmt = conn.prepareStatement(sql);
+    synchronized (openObjects) {
+      openObjects.addFirst(conn);
+      openObjects.addFirst(stmt);
+    }
+    return stmt;
   }
 
   private JdbcFixture() {
