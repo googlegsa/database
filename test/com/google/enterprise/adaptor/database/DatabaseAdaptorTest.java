@@ -124,10 +124,8 @@ public class DatabaseAdaptorTest {
   @Test
   public void testVerifyColumnNames_found() throws Exception {
     executeUpdate("create table data(id int, other varchar(20))");
-    try (Connection conn = getConnection()) {
-      DatabaseAdaptor.verifyColumnNames(conn,
-          "found", "select * from data", "found", Arrays.asList("id", "other"));
-    }
+    DatabaseAdaptor.verifyColumnNames(getConnection(),
+        "found", "select * from data", "found", Arrays.asList("id", "other"));
   }
 
   @Test
@@ -135,19 +133,15 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(id int, other varchar(20))");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("[foo] not found in query");
-    try (Connection conn = getConnection()) {
-      DatabaseAdaptor.verifyColumnNames(conn,
-          "found", "select * from data", "found", Arrays.asList("id", "foo"));
-    }
+    DatabaseAdaptor.verifyColumnNames(getConnection(),
+        "found", "select * from data", "found", Arrays.asList("id", "foo"));
   }
 
   @Test
   public void testVerifyColumnNames_lowercase() throws Exception {
     executeUpdate("create table data(id int, \"lower\" varchar(20))");
-    try (Connection conn = getConnection()) {
-      DatabaseAdaptor.verifyColumnNames(conn,
-          "found", "select * from data", "found", Arrays.asList("LOWER"));
-    }
+    DatabaseAdaptor.verifyColumnNames(getConnection(),
+        "found", "select * from data", "found", Arrays.asList("LOWER"));
   }
 
   @Test
@@ -164,20 +158,16 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(id int, other varchar(20))");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("Syntax error in query");
-    try (Connection conn = getConnection()) {
-      DatabaseAdaptor.verifyColumnNames(conn,
-          "found", "select from data", "found", Arrays.asList("id", "other"));
-    }
+    DatabaseAdaptor.verifyColumnNames(getConnection(),
+        "found", "select from data", "found", Arrays.asList("id", "other"));
   }
 
   @Test
   public void testVerifyColumnNames_nullMetaData() throws Exception {
     executeUpdate("create table data(id int, other varchar(20))");
-    try (Connection conn = getConnection()) {
-      DatabaseAdaptor.verifyColumnNames(conn,
-          "found", "insert into data(id) values(42)",
-          "found", Arrays.asList("id", "other"));
-    }
+    DatabaseAdaptor.verifyColumnNames(getConnection(),
+        "found", "insert into data(id) values(42)",
+        "found", Arrays.asList("id", "other"));
   }
 
   @Test

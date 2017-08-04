@@ -31,8 +31,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayDeque;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
  * Manages a JDBC accessed database for test purposes.
@@ -48,7 +48,8 @@ class JdbcFixture {
   public static final String PASSWORD;
   public static final String BOOLEAN;
 
-  private static ArrayDeque<AutoCloseable> openObjects = new ArrayDeque<>();
+  private static ConcurrentLinkedDeque<AutoCloseable> openObjects =
+      new ConcurrentLinkedDeque<>();
 
   public static enum Database { H2, MYSQL, ORACLE, SQLSERVER };
 
@@ -116,28 +117,16 @@ class JdbcFixture {
   public static Connection getConnection() {
     try {
       Class.forName(DRIVER_CLASS);
-      return DriverManager.getConnection(URL, USER, PASSWORD);
+      Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
+      openObjects.addFirst(conn);
+      return conn;
     } catch (SQLException | ClassNotFoundException e) {
       throw new RuntimeException(e);
     }
   }
 
   public static void dropAllObjects() throws SQLException {
-    try {
-      synchronized (openObjects) {
-        AutoCloseable object;
-        while ((object = openObjects.poll()) != null) {
-          object.close();
-        }
-      }
-    } catch (Exception e) {
-      if (e instanceof SQLException) {
-        throw (SQLException) e;
-      } else {
-        throw new AssertionError(e);
-      }
-    }
-
+    closeOpenObjects();
     switch (DATABASE) {
       case H2:
         executeUpdate("drop all objects");
@@ -153,29 +142,41 @@ class JdbcFixture {
         dropDatabaseTables("select name from sys.tables", "name");
         break;
     }
+    closeOpenObjects();
+  }
+
+  private static void closeOpenObjects() throws SQLException {
+    try {
+      AutoCloseable object;
+      while ((object = openObjects.poll()) != null) {
+        object.close();
+      }
+    } catch (Exception e) {
+      if (e instanceof SQLException) {
+        throw (SQLException) e;
+      } else {
+        throw new AssertionError(e);
+      }
+    }
   }
 
   private static void dropDatabaseTables(String query, String column)
       throws SQLException {
     ResultSet rs = executeQuery(query);
+    Connection connection = getConnection();
     while (rs.next()) {
       String dropQuery = "drop table " + rs.getString(column);
-      try (Connection connection = getConnection();
-          Statement stmt = connection.createStatement()) {
+      try (Statement stmt = connection.createStatement()) {
         stmt.execute(dropQuery);
       }
     }
   }
 
   public static ResultSet executeQuery(String sql) throws SQLException {
-    Connection conn = getConnection();
-    Statement stmt = conn.createStatement();
+    Statement stmt = getConnection().createStatement();
+    openObjects.addFirst(stmt);
     ResultSet rs = stmt.executeQuery(sql);
-    synchronized (openObjects) {
-      openObjects.addFirst(conn);
-      openObjects.addFirst(stmt);
-      openObjects.addFirst(rs);
-    }
+    openObjects.addFirst(rs);
     return rs;
   }
 
@@ -186,8 +187,8 @@ class JdbcFixture {
   }
 
   public static void executeUpdate(String... sqls) throws SQLException {
-    try (Connection connection = getConnection();
-         Statement stmt = connection.createStatement()) {
+    Connection connection = getConnection();
+    try (Statement stmt = connection.createStatement()) {
       for (String sql : sqls) {
         switch (DATABASE) {
           case MYSQL:
@@ -210,12 +211,8 @@ class JdbcFixture {
 
   public static PreparedStatement prepareStatement(String sql)
       throws SQLException {
-    Connection conn = getConnection();
-    PreparedStatement stmt = conn.prepareStatement(sql);
-    synchronized (openObjects) {
-      openObjects.addFirst(conn);
-      openObjects.addFirst(stmt);
-    }
+    PreparedStatement stmt = getConnection().prepareStatement(sql);
+    openObjects.addFirst(stmt);
     return stmt;
   }
 
