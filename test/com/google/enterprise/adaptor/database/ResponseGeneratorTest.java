@@ -18,8 +18,8 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
-import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.JdbcFixture.is;
+import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatement;
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Locale.US;
@@ -164,10 +164,9 @@ public class ResponseGeneratorTest {
     assumeTrue("ARRAY type not supported", is(H2));
     executeUpdate("create table data (id int, arraycol array)");
     String sql = "insert into data values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setObject(1, new String[] { "hello", "world" });
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setObject(1, new String[] { "hello", "world" });
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -193,12 +192,11 @@ public class ResponseGeneratorTest {
     String sql = "insert into data values (1, true, ?,"
         + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56.7'},"
         + "?, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, "hello, world");
-      ps.setString(2, "it's a big world");
-      ps.setBytes(3, "a big, bad world".getBytes(UTF_8));
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, "hello, world");
+    ps.setString(2, "it's a big world");
+    ps.setBytes(3, "a big, bad world".getBytes(UTF_8));
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -240,11 +238,10 @@ public class ResponseGeneratorTest {
     executeUpdate(
         "create table data (id integer, name varchar(20), quote varchar(200))");
     String sql = "insert into data (id, name, quote) values (1, ?, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-        ps.setString(1, "Rhett Butler");
-        ps.setString(2, "\"Frankly Scarlett, I don't give a damn!\"");
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, "Rhett Butler");
+    ps.setString(2, "\"Frankly Scarlett, I don't give a damn!\"");
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -265,10 +262,9 @@ public class ResponseGeneratorTest {
     String content = "hello world";
     executeUpdate("create table data(id int, content varchar(20))");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, content);
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -302,10 +298,9 @@ public class ResponseGeneratorTest {
     String content = "hello world";
     executeUpdate("create table data(id int, content varchar(20))");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, content);
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -323,10 +318,9 @@ public class ResponseGeneratorTest {
     String content = "hello world";
     executeUpdate("create table data(id int, content varbinary(20))");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBytes(1, content.getBytes(UTF_8));
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBytes(1, content.getBytes(UTF_8));
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -360,10 +354,9 @@ public class ResponseGeneratorTest {
     String content = "hello world";
     executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, content);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, content);
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -397,10 +390,9 @@ public class ResponseGeneratorTest {
     String content = "hello world";
     executeUpdate("create table data(id int, content blob)");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBytes(1, content.getBytes(UTF_8));
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBytes(1, content.getBytes(UTF_8));
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -445,10 +437,9 @@ public class ResponseGeneratorTest {
   public void testContentColumn_invalidType() throws Exception {
     executeUpdate("create table data(id int, content timestamp)");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setTimestamp(1, new Timestamp(0L));
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setTimestamp(1, new Timestamp(0L));
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -554,11 +545,10 @@ public class ResponseGeneratorTest {
 
     executeUpdate("create table data(url varchar(200), col1 varchar(20))");
     String sql = "insert into data(url, col1) values (?, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, testUri.toString());
-      ps.setString(2, "some metadata");
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, testUri.toString());
+    ps.setString(2, "some metadata");
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse uar = new MockResponse();
     Response response = newProxyInstance(Response.class, uar);
@@ -620,10 +610,9 @@ public class ResponseGeneratorTest {
     String content = "hello world";
     executeUpdate("create table data(id int, content blob)");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBytes(1, content.getBytes(UTF_8));
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBytes(1, content.getBytes(UTF_8));
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -646,10 +635,9 @@ public class ResponseGeneratorTest {
         "create table data(id int, content blob, contentType varchar(20))");
     String sql =
         "insert into data(id, content, contentType) values (1, ?, 'text/rtf')";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBytes(1, content.getBytes(UTF_8));
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBytes(1, content.getBytes(UTF_8));
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -671,10 +659,9 @@ public class ResponseGeneratorTest {
     executeUpdate(
         "create table data(id int, content blob, contentType varchar(20))");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBytes(1, content.getBytes(UTF_8));
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBytes(1, content.getBytes(UTF_8));
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -700,11 +687,10 @@ public class ResponseGeneratorTest {
     String url = "http://host/hard-coded-blob-display-url";
     executeUpdate("create table data(id int, content blob, url varchar(200))");
     String sql = "insert into data(id, content, url) values (1, ?, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBytes(1, content.getBytes(UTF_8));
-      ps.setString(2, url);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBytes(1, content.getBytes(UTF_8));
+    ps.setString(2, url);
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -724,10 +710,9 @@ public class ResponseGeneratorTest {
     String content = "hello world";
     executeUpdate("create table data(id int, content blob, url varchar(200))");
     String sql = "insert into data(id, content) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBytes(1, content.getBytes(UTF_8));
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBytes(1, content.getBytes(UTF_8));
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -752,11 +737,10 @@ public class ResponseGeneratorTest {
     String url = "invalid-display-url";
     executeUpdate("create table data(id int, content blob, url varchar(200))");
     String sql = "insert into data(id, content, url) values (1, ?, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setBytes(1, content.getBytes(UTF_8));
-      ps.setString(2, url);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBytes(1, content.getBytes(UTF_8));
+    ps.setString(2, url);
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -780,10 +764,9 @@ public class ResponseGeneratorTest {
     String url = "invalid-url";
     executeUpdate("create table data(id int, url varchar(200))");
     String sql = "insert into data(id, url) values (1, ?)";
-    try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-      ps.setString(1, url);
-      assertEquals(1, ps.executeUpdate());
-    }
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, url);
+    assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
