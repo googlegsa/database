@@ -16,7 +16,6 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
-import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.is;
@@ -28,7 +27,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
@@ -317,7 +315,6 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testContentColumn_varbinary() throws Exception {
-    assumeFalse("Oracle does not support varbinary", is(ORACLE));
     String content = "hello world";
     executeUpdate("create table data(id int, content varbinary(20))");
     String sql = "insert into data(id, content) values (1, ?)";

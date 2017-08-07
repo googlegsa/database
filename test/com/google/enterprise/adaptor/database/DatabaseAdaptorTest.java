@@ -117,7 +117,7 @@ public class DatabaseAdaptorTest {
       case MYSQL:
         return "date_add(current_timestamp(), interval " + minutes + " minute)";
       case ORACLE:
-        return "(select sysdate + interval '" + minutes + "' minute from dual)";
+        return "(CURRENT_TIMESTAMP + interval '" + minutes + "' minute)";
       case SQLSERVER:
         return "dateadd(minute, " + minutes + ", current_timestamp())";
     }
@@ -2195,11 +2195,7 @@ public class DatabaseAdaptorTest {
 
     Metadata metadata = new Metadata();
     metadata.add("col1", "1001");
-    if (is(ORACLE)) {
-      metadata.add("col2", "2004-10-06 00:00:00.0");
-    } else {
-      metadata.add("col2", "2004-10-06");
-    }
+    metadata.add("col2", is(ORACLE) ? "2004-10-06 00:00:00.0" : "2004-10-06");
     assertEquals(metadata, response.getMetadata());
   }
 
@@ -2432,6 +2428,7 @@ public class DatabaseAdaptorTest {
     assertEquals(expected, response.getMetadata());
   }
 
+  @Test
   public void testMetadataColumns_array() throws Exception {
     assumeTrue("ARRAY type not supported", is(H2));
     if (is(ORACLE)) {
@@ -2472,6 +2469,7 @@ public class DatabaseAdaptorTest {
     assertEquals(expected, response.getMetadata());
   }
 
+  @Test
   public void testMetadataColumns_arrayNull() throws Exception {
     assumeTrue("ARRAY type not supported", is(H2));
     if (is(ORACLE)) {
@@ -2603,9 +2601,11 @@ public class DatabaseAdaptorTest {
         + "allowed_users as gsa_permit_users from acl where id = ?";
 
     ResultSet rs = executeQuery(aclSql.replace("?", "'1001'"));
-    ResultSetMetaData rsmd = rs.getMetaData();
-    assertEquals("allowed_groups", rsmd.getColumnName(2).toLowerCase(US));
-    assertEquals("gsa_permit_groups", rsmd.getColumnLabel(2).toLowerCase(US));
+    if (is(H2)) {
+      ResultSetMetaData rsmd = rs.getMetaData();
+      assertEquals("allowed_groups", rsmd.getColumnName(2).toLowerCase(US));
+      assertEquals("gsa_permit_groups", rsmd.getColumnLabel(2).toLowerCase(US));
+    }
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "id:int");
