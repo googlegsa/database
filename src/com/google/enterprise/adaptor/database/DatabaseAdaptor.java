@@ -372,8 +372,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     } catch (SQLException e) {
       // Throw if this is a SQL syntax error (SQL state 42xxx).
       String sqlState = e.getSQLState();
-      if ((sqlState != null && sqlState.startsWith("42"))
-          || e.toString().contains("Incorrect syntax")) {
+      if (sqlState != null && sqlState.startsWith("42")) {
         throw new InvalidConfigurationException(
             "Syntax error in query " + sqlConfig, e);
       }

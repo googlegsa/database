@@ -158,9 +158,18 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testVerifyColumnNames_syntaxError() throws Exception {
+    assumeFalse("Skip test on SQL Server", is(SQLSERVER));
     executeUpdate("create table data(id int, other varchar(20))");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("Syntax error in query");
+    DatabaseAdaptor.verifyColumnNames(getConnection(),
+        "found", "select from data", "found", Arrays.asList("id", "other"));
+  }
+
+  @Test
+  public void testVerifyColumnNames_syntaxError_SQLSERVER() throws Exception {
+    assumeTrue("Run test on SQL Server", is(SQLSERVER));
+    executeUpdate("create table data(id int, other varchar(20))");
     DatabaseAdaptor.verifyColumnNames(getConnection(),
         "found", "select from data", "found", Arrays.asList("id", "other"));
   }
