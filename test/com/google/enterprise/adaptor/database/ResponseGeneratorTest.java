@@ -250,11 +250,12 @@ public class ResponseGeneratorTest {
     Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
+
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
     String golden =
         (is(MYSQL) ? "id,name,quote\n"
-                   :  "ID,NAME,QUOTE\n")
+                   : "ID,NAME,QUOTE\n")
         + "1,Rhett Butler,\"\"\"Frankly Scarlett, I don't give a damn!\"\"\"\n";
     assertThat(bar.baos.toString(UTF_8.name()), endsWith(golden));
   }

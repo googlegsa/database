@@ -2352,7 +2352,6 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_blob() throws Exception {
-    assumeFalse("SQL Server does not support blobs", is(SQLSERVER));
     String content = "hello world";
     executeUpdate("create table data(id int, content blob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -2384,7 +2383,6 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_blobNull() throws Exception {
-    assumeFalse("SQL Server does not support blobs", is(SQLSERVER));
     executeUpdate("create table data(id int, content blob)");
     executeUpdate("insert into data(id) values (1)");
 
