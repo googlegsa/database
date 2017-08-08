@@ -169,7 +169,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testVerifyColumnNames_syntaxError_sqlServer() throws Exception {
-    assumeTrue("Run test on SQL Server", is(SQLSERVER));
+    assumeTrue("SQL Server syntax error does not return SQL state.",
+        is(SQLSERVER));
     executeUpdate("create table data(id int, other varchar(20))");
     DatabaseAdaptor.verifyColumnNames(getConnection(),
         "found", "select from data", "found", Arrays.asList("id", "other"));
@@ -2277,7 +2278,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_timestampNull() throws Exception {
-    executeUpdate("create table data(id integer, col date)");
+    executeUpdate("create table data(id integer, col timestamp)");
     executeUpdate("insert into data(id) values(1001)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -2300,7 +2301,6 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_clob() throws Exception {
-    assumeFalse("SQL Server does not support clobs", is(SQLSERVER));
     String content = "Hello World";
     executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -2329,7 +2329,6 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_clobNull() throws Exception {
-    assumeFalse("SQL Server does not support clobs", is(SQLSERVER));
     executeUpdate("create table data(id int, content clob)");
     executeUpdate("insert into data(id) values (1)");
 
