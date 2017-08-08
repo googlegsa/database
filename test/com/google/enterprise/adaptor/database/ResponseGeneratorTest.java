@@ -241,7 +241,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testRowToText_specialCharacters() throws Exception {
     executeUpdate(
-        "create table data (ID integer, NAME varchar(20), QUOTE varchar(200))");
+        "create table data (id integer, name varchar(20), quote varchar(200))");
     String sql = "insert into data (id, name, quote) values (1, ?, ?)";
     PreparedStatement ps = prepareStatement(sql);
     ps.setString(1, "Rhett Butler");
@@ -252,14 +252,9 @@ public class ResponseGeneratorTest {
     Response response = newProxyInstance(Response.class, bar);
     Map<String, String> cfg = new TreeMap<String, String>();
     ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
-
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-
-    String golden =
-        (is(MYSQL) ? "data,data,data\nid,name,quote\n"
-                   :  (is(SQLSERVER) ? "id,name,quote\n"
-                       : "DATA,DATA,DATA\nID,NAME,QUOTE\n"))
+    String golden = "id,name,quote\n"
         + "1,Rhett Butler,\"\"\"Frankly Scarlett, I don't give a damn!\"\"\"\n";
     assertThat(bar.baos.toString(UTF_8.name()), endsWith(golden));
   }

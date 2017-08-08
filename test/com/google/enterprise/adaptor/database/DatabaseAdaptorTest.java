@@ -158,7 +158,8 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testVerifyColumnNames_syntaxError() throws Exception {
-    assumeFalse("Skip test on SQL Server", is(SQLSERVER));
+    assumeFalse("SQL Server syntax error does not return SQL state.",
+        is(SQLSERVER));
     executeUpdate("create table data(id int, other varchar(20))");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("Syntax error in query");
@@ -167,7 +168,7 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testVerifyColumnNames_syntaxError_SQLSERVER() throws Exception {
+  public void testVerifyColumnNames_syntaxError_sqlServer() throws Exception {
     assumeTrue("Run test on SQL Server", is(SQLSERVER));
     executeUpdate("create table data(id int, other varchar(20))");
     DatabaseAdaptor.verifyColumnNames(getConnection(),
@@ -2300,7 +2301,6 @@ public class DatabaseAdaptorTest {
   @Test
   public void testMetadataColumns_clob() throws Exception {
     assumeFalse("SQL Server does not support clobs", is(SQLSERVER));
-    // NCLOB shows up as CLOB in H2
     String content = "Hello World";
     executeUpdate("create table data(id int, content clob)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -2414,7 +2414,6 @@ public class DatabaseAdaptorTest {
   @Test
   public void testMetadataColumns_array() throws Exception {
     assumeTrue("ARRAY type not supported", is(H2));
-    assumeFalse("SQL Server does not support arrays", is(SQLSERVER));
     String[] content = { "hello", "world" };
     executeUpdate("create table data(id int, content array)");
     String sql = "insert into data(id, content) values (1, ?)";
@@ -2447,7 +2446,6 @@ public class DatabaseAdaptorTest {
   @Test
   public void testMetadataColumns_arrayNull() throws Exception {
     assumeTrue("ARRAY type not supported", is(H2));
-    assumeFalse("SQL Server does not support arrays", is(SQLSERVER));
     executeUpdate("create table data(id int, content array)");
     executeUpdate("insert into data(id) values (1)");
 
@@ -2568,6 +2566,7 @@ public class DatabaseAdaptorTest {
 
     ResultSet rs = executeQuery(aclSql.replace("?", "'1001'"));
     ResultSetMetaData rsmd = rs.getMetaData();
+    assertEquals("allowed_groups", rsmd.getColumnName(2).toLowerCase(US));
     assertEquals("gsa_permit_groups", rsmd.getColumnLabel(2).toLowerCase(US));
 
     Map<String, String> moreEntries = new HashMap<String, String>();
