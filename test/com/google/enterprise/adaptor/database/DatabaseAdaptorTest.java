@@ -2446,7 +2446,7 @@ public class DatabaseAdaptorTest {
       String[] content = {"hello", "world"};
       executeUpdate("create table data(id int, content array)");
       String sql = "insert into data(id, content) values (1, ?)";
-      PreparedStatement ps = getConnection().prepareStatement(sql);
+      PreparedStatement ps = prepareStatement(sql);
       ps.setObject(1, content);
       assertEquals(1, ps.executeUpdate());
     } else if (is(ORACLE)) {
