@@ -101,7 +101,8 @@ class JdbcFixture {
     URL = dburl;
     USER = dbuser;
     PASSWORD = dbpassword;
-    BOOLEAN = (DATABASE == Database.MYSQL) ? "BIT" : "BOOLEAN";
+    BOOLEAN = (DATABASE == Database.MYSQL || DATABASE == Database.SQLSERVER)
+        ? "BIT" : "BOOLEAN";
   }
 
   /**
@@ -201,6 +202,12 @@ class JdbcFixture {
           case ORACLE:
             if (sql.startsWith("create table")) {
               sql = sql.replaceAll("varbinary", "raw(1024)");
+            }
+            break;
+          case SQLSERVER:
+            if (sql.startsWith("create table")) {
+              sql = sql.replace("blob", "varbinary(max)")
+                  .replace("clob", "varchar(max)");
             }
             break;
         }
