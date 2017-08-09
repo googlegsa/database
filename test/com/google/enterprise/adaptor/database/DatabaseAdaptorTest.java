@@ -2446,10 +2446,9 @@ public class DatabaseAdaptorTest {
       String[] content = {"hello", "world"};
       executeUpdate("create table data(id int, content array)");
       String sql = "insert into data(id, content) values (1, ?)";
-      try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
-        ps.setObject(1, content);
-        assertEquals(1, ps.executeUpdate());
-      }
+      PreparedStatement ps = getConnection().prepareStatement(sql);
+      ps.setObject(1, content);
+      assertEquals(1, ps.executeUpdate());
     } else if (is(ORACLE)) {
       executeUpdate(
           "create or replace type vcarray as varray(2) of varchar2(20)");
