@@ -2484,7 +2484,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_arrayNull() throws Exception {
-    if(is(H2)) {
+    if (is(H2)) {
       executeUpdate("create table data(id int, content array)");
       executeUpdate("insert into data(id) values (1)");
     } else if (is(ORACLE)) {

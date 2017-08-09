@@ -198,6 +198,11 @@ class JdbcFixture {
                   .replace("longvarbinary", "long varbinary")
                   .replace("clob", "text");
             }
+            if (sql.startsWith("insert")) {
+              sql = sql.replaceAll(
+                  "(\\d\\d\\d\\d-\\d\\d-\\d\\d)T(\\d\\d:\\d\\d:\\d\\d)",
+                  "$1 $2");
+            }
             break;
           case ORACLE:
             if (sql.startsWith("create table")) {
@@ -210,11 +215,6 @@ class JdbcFixture {
                   .replace("clob", "varchar(max)");
             }
             break;
-        }
-        if (sql.startsWith("insert")) {
-          sql = sql.replaceAll(
-              "(\\d\\d\\d\\d-\\d\\d-\\d\\d)T(\\d\\d:\\d\\d:\\d\\d)",
-              "$1 $2");
         }
         stmt.executeUpdate(sql);
       }
