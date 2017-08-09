@@ -2430,14 +2430,7 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_array() throws Exception {
-    assumeTrue("ARRAY type not supported", is(H2));
-    if (is(ORACLE)) {
-      executeUpdate(
-          "create or replace type vcarray as varray(2) of varchar2(20)");
-      executeUpdate("create table data(id int, content vcarray)");
-      executeUpdate("insert into data(id, content) "
-          + "values (1, vcarray('hello', 'world'))");
-    } else {
+    if (is(H2)) {
       String[] content = {"hello", "world"};
       executeUpdate("create table data(id int, content array)");
       String sql = "insert into data(id, content) values (1, ?)";
@@ -2445,6 +2438,14 @@ public class DatabaseAdaptorTest {
         ps.setObject(1, content);
         assertEquals(1, ps.executeUpdate());
       }
+    } else if (is(ORACLE)) {
+      executeUpdate(
+          "create or replace type vcarray as varray(2) of varchar2(20)");
+      executeUpdate("create table data(id int, content vcarray)");
+      executeUpdate("insert into data(id, content) "
+          + "values (1, vcarray('hello', 'world'))");
+    } else {
+      assumeTrue("ARRAY type not supported", false);
     }
 
     Map<String, String> configEntries = new HashMap<String, String>();
@@ -2471,15 +2472,16 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testMetadataColumns_arrayNull() throws Exception {
-    assumeTrue("ARRAY type not supported", is(H2));
-    if (is(ORACLE)) {
+    if(is(H2)) {
+      executeUpdate("create table data(id int, content array)");
+      executeUpdate("insert into data(id) values (1)");
+    } else if (is(ORACLE)) {
       executeUpdate(
           "create or replace type vcarray as varray(2) of varchar2(20)");
       executeUpdate("create table data(id int, content vcarray)");
       executeUpdate("insert into data(id) values (1)");
     } else {
-      executeUpdate("create table data(id int, content array)");
-      executeUpdate("insert into data(id) values (1)");
+      assumeTrue("ARRAY type not supported", false);
     }
 
     Map<String, String> configEntries = new HashMap<String, String>();

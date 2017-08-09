@@ -578,7 +578,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testUrlAndMetadataLister_nullUrl() throws Exception {
     executeUpdate("create table data(url varchar(200))");
-    executeUpdate("insert into data(url) values (NULL)");
+    executeUpdate("insert into data(url) values (null)");
 
     MockResponse uar = new MockResponse();
     Response response = newProxyInstance(Response.class, uar);
