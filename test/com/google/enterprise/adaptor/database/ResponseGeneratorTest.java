@@ -16,6 +16,7 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.is;
@@ -23,10 +24,12 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatemen
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Locale.US;
+import static org.hamcrest.core.StringEndsWith.endsWith;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
@@ -251,10 +254,10 @@ public class ResponseGeneratorTest {
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
     String golden =
-        (is(MYSQL) ? "data,data,data\nid,name,quote\n"
-                   :  "DATA,DATA,DATA\nID,NAME,QUOTE\n")
+        (is(MYSQL) ? "id,name,quote\n"
+                   : "ID,NAME,QUOTE\n")
         + "1,Rhett Butler,\"\"\"Frankly Scarlett, I don't give a damn!\"\"\"\n";
-    assertEquals(golden, bar.baos.toString(UTF_8.name()));
+    assertThat(bar.baos.toString(UTF_8.name()), endsWith(golden));
   }
 
   @Test
@@ -578,7 +581,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testUrlAndMetadataLister_nullUrl() throws Exception {
     executeUpdate("create table data(url varchar(200))");
-    executeUpdate("insert into data() values ()");
+    executeUpdate("insert into data(url) values (null)");
 
     MockResponse uar = new MockResponse();
     Response response = newProxyInstance(Response.class, uar);

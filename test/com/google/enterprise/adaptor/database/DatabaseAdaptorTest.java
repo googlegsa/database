@@ -17,6 +17,8 @@ package com.google.enterprise.adaptor.database;
 import static com.google.enterprise.adaptor.DocIdPusher.Record;
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
@@ -37,6 +39,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import com.google.enterprise.adaptor.Acl;
@@ -116,7 +119,7 @@ public class DatabaseAdaptorTest {
       case ORACLE:
         // TODO(sv): minute_add???
       case SQLSERVER:
-        return "dateadd(minute, " + minutes + ", current_timestamp())";
+        return "dateadd(minute, " + minutes + ", current_timestamp)";
     }
     return null;
   }
@@ -155,9 +158,20 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testVerifyColumnNames_syntaxError() throws Exception {
+    assumeFalse("SQL Server syntax error does not return SQL state.",
+        is(SQLSERVER));
     executeUpdate("create table data(id int, other varchar(20))");
     thrown.expect(InvalidConfigurationException.class);
     thrown.expectMessage("Syntax error in query");
+    DatabaseAdaptor.verifyColumnNames(getConnection(),
+        "found", "select from data", "found", Arrays.asList("id", "other"));
+  }
+
+  @Test
+  public void testVerifyColumnNames_syntaxError_sqlServer() throws Exception {
+    assumeTrue("SQL Server syntax error does not return SQL state.",
+        is(SQLSERVER));
+    executeUpdate("create table data(id int, other varchar(20))");
     DatabaseAdaptor.verifyColumnNames(getConnection(),
         "found", "select from data", "found", Arrays.asList("id", "other"));
   }
@@ -1558,7 +1572,10 @@ public class DatabaseAdaptorTest {
   @Test
   public void testGetDocIds_feedMaxUrls() throws Exception {
     executeUpdate("create table data(id varchar(20))");
-    executeUpdate("insert into data(id) values(1), (2), (3), ('hello')");
+    executeUpdate("insert into data(id) values(1)");
+    executeUpdate("insert into data(id) values(2)");
+    executeUpdate("insert into data(id) values(3)");
+    executeUpdate("insert into data(id) values('hello')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
