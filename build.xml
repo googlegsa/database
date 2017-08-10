@@ -257,8 +257,10 @@ lib/plexi submodule or add the the command line argument
     description="Run instrumented tests and generate coverage report"/>
 
   <target name="test" depends="build" description="Run JUnit tests">
-    <junit printsummary="yes" haltonfailure="yes" forkmode="once" fork="true"
-      dir="${basedir}" maxmemory="512m">
+    <property name="build.haltonfailure" value="off"/>
+    <junit printsummary="yes"
+      haltonfailure="${build.haltonfailure}" failureproperty="build.failure"
+      forkmode="once" fork="true" dir="${basedir}" maxmemory="512m">
       <sysproperty key="net.sourceforge.cobertura.datafile"
         file="${build-instrument.dir}/cobertura.ser"/>
       <sysproperty key="build.properties" file="build.properties"/>
@@ -277,6 +279,7 @@ lib/plexi submodule or add the the command line argument
         </fileset>
       </batchtest>
     </junit>
+    <fail if="build.failure" message="Test failure"/>
   </target>
 
   <target name="instrument" depends="build" description="Instrument classes">
