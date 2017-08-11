@@ -14,9 +14,11 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
+import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.JdbcFixture.is;
 import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatement;
 import static com.google.enterprise.adaptor.database.UniqueKey.ColumnType;
@@ -32,6 +34,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.math.BigDecimal;
 import java.net.URISyntaxException;
 import java.sql.Date;
 import java.sql.PreparedStatement;
@@ -188,6 +191,7 @@ public class UniqueKeyTest {
     sqlTypes.put("SMALLINT", Types.SMALLINT);
     sqlTypes.put("INTEGER", Types.INTEGER);
     sqlTypes.put("BIGINT", Types.BIGINT);
+    sqlTypes.put("NUMERIC", Types.NUMERIC);
     sqlTypes.put("CHAR", Types.CHAR);
     sqlTypes.put("VARCHAR", Types.VARCHAR);
     sqlTypes.put("LONGVARCHAR", Types.LONGVARCHAR);
@@ -207,6 +211,7 @@ public class UniqueKeyTest {
     golden.put("SMALLINT", ColumnType.INT);
     golden.put("INTEGER", ColumnType.INT);
     golden.put("BIGINT", ColumnType.LONG);
+    golden.put("NUMERIC", ColumnType.BIGDECIMAL);
     golden.put("CHAR", ColumnType.STRING);
     golden.put("VARCHAR", ColumnType.STRING);
     golden.put("LONGVARCHAR", ColumnType.STRING);
@@ -219,8 +224,8 @@ public class UniqueKeyTest {
     golden.put("TIMESTAMP", ColumnType.TIMESTAMP);
 
     UniqueKey.Builder builder = new UniqueKey.Builder("BIT, BOOLEAN, TINYINT, "
-        + "SMALLINT, INTEGER, BIGINT, CHAR, VARCHAR, LONGVARCHAR, NCHAR, "
-        + "NVARCHAR, LONGNVARCHAR, DATALINK, DATE, TIME, TIMESTAMP");
+        + "SMALLINT, INTEGER, BIGINT, NUMERIC, CHAR, VARCHAR, LONGVARCHAR, "
+        + "NCHAR, NVARCHAR, LONGNVARCHAR, DATALINK, DATE, TIME, TIMESTAMP");
     builder.addColumnTypes(sqlTypes);
     assertEquals(golden, builder.getColumnTypes());
   }
@@ -237,6 +242,65 @@ public class UniqueKeyTest {
   }
 
   @Test
+  public void testVerifyColumnNames_core() throws Exception {
+    executeUpdate("create table data(intcol int, longcol bigint, "
+        + "stringcol varchar(20), timestampcol timestamp)");
+
+    Map<String, ColumnType> golden
+        = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    golden.put("intcol", is(ORACLE) ? ColumnType.BIGDECIMAL : ColumnType.INT);
+    golden.put("longcol", is(ORACLE) ? ColumnType.BIGDECIMAL : ColumnType.LONG);
+    golden.put("stringcol", ColumnType.STRING);
+    golden.put("timestampcol", ColumnType.TIMESTAMP);
+
+    String config = "intcol,longcol,stringcol,timestampcol";
+    UniqueKey.Builder builder = new UniqueKey.Builder(config);
+    builder.addColumnTypes(
+        DatabaseAdaptor.verifyColumnNames(getConnection(),
+            "found", "select * from data", "found", asList(config.split(","))));
+    assertEquals(golden, builder.getColumnTypes());
+  }
+
+  @Test
+  public void testVerifyColumnNames_datetime() throws Exception {
+    assumeFalse("Oracle does not support DATE or TIME", is(ORACLE));
+    executeUpdate("create table data(datecol date, timecol time)");
+
+    Map<String, ColumnType> golden
+        = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    golden.put("datecol", ColumnType.DATE);
+    golden.put("timecol", ColumnType.TIME);
+
+    String config = "datecol,timecol";
+    UniqueKey.Builder builder = new UniqueKey.Builder(config);
+    builder.addColumnTypes(
+        DatabaseAdaptor.verifyColumnNames(getConnection(),
+            "found", "select * from data", "found", asList(config.split(","))));
+    assertEquals(golden, builder.getColumnTypes());
+  }
+
+  @Test
+  public void testVerifyColumnNames_numeric() throws Exception {
+    assumeFalse("NUMERIC type not supported", is(H2));
+    executeUpdate("create table data("
+        + (is(ORACLE) ? "intcol int, " : "") + "bigdecimalcol numeric(9,2))");
+
+    Map<String, ColumnType> golden
+        = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    if (is(ORACLE)) {
+      golden.put("intcol", ColumnType.BIGDECIMAL);
+    }
+    golden.put("bigdecimalcol", ColumnType.BIGDECIMAL);
+
+    String config = is(ORACLE) ? "intcol,bigdecimalcol" : "bigdecimalcol";
+    UniqueKey.Builder builder = new UniqueKey.Builder(config);
+    builder.addColumnTypes(
+        DatabaseAdaptor.verifyColumnNames(getConnection(),
+            "found", "select * from data", "found", asList(config.split(","))));
+    assertEquals(golden, builder.getColumnTypes());
+  }
+
+  @Test
   public void testProcessingDocId() throws Exception {
     executeUpdate("create table data(numnum int, strstr varchar(20))");
     executeUpdate("insert into data(numnum, strstr) values(345, 'abc')");
@@ -248,16 +312,18 @@ public class UniqueKeyTest {
 
   @Test
   public void testProcessingDocId_allTypes() throws Exception {
-    executeUpdate("create table data(c1 integer, c2 bigint, c3 varchar(20), "
-        + "c4 date, c5 time, c6 timestamp)");
-    executeUpdate("insert into data(c1, c2, c3, c4, c5, c6) "
-        + "values (123, 4567890, 'foo', "
+    executeUpdate("create table data(c1 integer, c2 bigint, c3 numeric(9,2), "
+        + "c4 varchar(20), c5 date, c6 time, c7 timestamp)");
+    executeUpdate("insert into data(c1, c2, c3, c4, c5, c6, c7) "
+        + "values (123, 4567890, 1234567.89, 'foo', "
         + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56'})");
 
     UniqueKey uk = new UniqueKey.Builder(
-        "c1:int, c2:long, c3:string, c4:date, c5:time, c6:timestamp").build();
+        "c1:int, c2:long, c3:bigdecimal, c4:string, c5:date, c6:time, "
+        + "c7:timestamp")
+        .build();
     ResultSet rs = executeQueryAndNext("select * from data");
-    assertEquals("123/4567890/foo/2007-08-09/12:34:56/"
+    assertEquals("123/4567890/1234567.89/foo/2007-08-09/12:34:56/"
                  + Timestamp.valueOf("2007-08-09 12:34:56").getTime(),
                  uk.makeUniqueId(rs));
   }
@@ -321,16 +387,16 @@ public class UniqueKeyTest {
   public void testPreparingRetrieval() throws SQLException {
     executeUpdate("create table data("
         + "numnum int, strstr varchar(20), tymestamp timestamp(3), dyte date, "
-        + "tyme time, longint bigint)");
+        + "tyme time, longint bigint, money numeric(38,2))");
 
     String sql = "insert into data("
-        + "numnum, strstr, tymestamp, dyte, tyme, longint)"
-        + " values (?, ?, ?, ?, ?, ?)";
+        + "numnum, strstr, tymestamp, dyte, tyme, longint, money)"
+        + " values (?, ?, ?, ?, ?, ?, ?)";
     PreparedStatement ps = prepareStatement(sql);
-    UniqueKey uk = newUniqueKey("numnum:int,strstr:string,"
-        + "tymestamp:timestamp,dyte:date,tyme:time,longint:long");
+    UniqueKey uk = newUniqueKey("numnum:int,strstr:string,tymestamp:timestamp,"
+        + "dyte:date,tyme:time,longint:long,money:bigdecimal");
     uk.setContentSqlValues(ps,
-        "888/bluesky/1414701070212/2014-01-01/02:03:04/123");
+        "888/bluesky/1414701070212/2014-01-01/02:03:04/123/1234567.89");
     assertEquals(1, ps.executeUpdate());
 
     ResultSet rs = executeQueryAndNext("select * from data");
@@ -340,6 +406,7 @@ public class UniqueKeyTest {
     assertEquals(Date.valueOf("2014-01-01"), rs.getDate("dyte"));
     assertEquals(Time.valueOf("02:03:04"), rs.getTime("tyme"));
     assertEquals(123L, rs.getLong("longint"));
+    assertEquals(new BigDecimal("1234567.89"), rs.getBigDecimal("money"));
   }
 
   @Test

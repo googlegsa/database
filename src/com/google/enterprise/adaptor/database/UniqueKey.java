@@ -19,6 +19,7 @@ import static java.util.Locale.US;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 
+import java.math.BigDecimal;
 import java.net.URISyntaxException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -40,11 +41,12 @@ class UniqueKey {
 
   static enum ColumnType {
     INT,
+    LONG,
+    BIGDECIMAL,
     STRING,
     TIMESTAMP,
     DATE,
-    TIME,
-    LONG
+    TIME
   }
 
   private final List<String> docIdSqlCols;  // columns used for DocId
@@ -77,6 +79,12 @@ class UniqueKey {
         case INT:
           part = "" + rs.getInt(name);
           break;
+        case LONG:
+          part = "" + rs.getLong(name);
+          break;
+        case BIGDECIMAL:
+          part = "" + rs.getBigDecimal(name);
+          break;
         case STRING:
           part = rs.getString(name);
           break;
@@ -88,9 +96,6 @@ class UniqueKey {
           break;
         case TIME:
           part = "" + rs.getTime(name);
-          break;
-        case LONG:
-          part = "" + rs.getLong(name);
           break;
         default:
           throw new AssertionError("Invalid type for column " + name
@@ -124,6 +129,12 @@ class UniqueKey {
         case INT:
           st.setInt(i + 1, Integer.parseInt(valueOfCol));
           break;
+        case LONG:
+          st.setLong(i + 1, Long.parseLong(valueOfCol));
+          break;
+        case BIGDECIMAL:
+          st.setBigDecimal(i + 1, new BigDecimal(valueOfCol));
+          break;
         case STRING:
           st.setString(i + 1, valueOfCol);
           break;
@@ -136,9 +147,6 @@ class UniqueKey {
           break;
         case TIME:
           st.setTime(i + 1, java.sql.Time.valueOf(valueOfCol));
-          break;
-        case LONG:
-          st.setLong(i + 1, Long.parseLong(valueOfCol));
           break;
         default:
           throw new AssertionError("Invalid type for column " + colName
@@ -371,6 +379,9 @@ class UniqueKey {
             break;
           case Types.BIGINT:
             type = ColumnType.LONG;
+            break;
+          case Types.NUMERIC:
+            type = ColumnType.BIGDECIMAL;
             break;
           case Types.CHAR:
           case Types.VARCHAR:

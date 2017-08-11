@@ -776,8 +776,9 @@ public class DatabaseAdaptorTest {
     getObjectUnderTest(moreEntries);
     assertEquals(messages.toString(), 1, messages.size());
     // Verify the unspecified types were correctly determined from the DB.
+    String intType = is(ORACLE) ? "bigdecimal" : "int";
     assertThat(messages.get(0).toLowerCase(US),
-        containsString("{id=int, name=string, ordered=timestamp}"));
+        containsString("{id=" + intType + ", name=string, ordered=timestamp}"));
   }
 
   @Test
