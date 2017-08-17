@@ -15,7 +15,6 @@
 package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
-import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
@@ -24,12 +23,10 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatemen
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Locale.US;
-import static org.hamcrest.core.StringEndsWith.endsWith;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
@@ -189,16 +186,18 @@ public class ResponseGeneratorTest {
   @Test
   public void testRowToText_multipleTypes() throws Exception {
     executeUpdate("create table data ("
-        + "intcol integer, booleancol boolean, charcol varchar(20),"
+        + "intcol integer, booleancol " + JdbcFixture.BOOLEAN
+        + ", charcol varchar(20),"
         + " datecol date, timecol time, tymestampcol timestamp(3),"
-        + " charlob clob, blobcol blob)");
-    String sql = "insert into data values (1, true, ?,"
+        + " clobcol clob, blobcol blob)");
+    String sql = "insert into data values (1, ?, ?,"
         + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56.7'},"
         + "?, ?)";
     PreparedStatement ps = prepareStatement(sql);
-    ps.setString(1, "hello, world");
-    ps.setString(2, "it's a big world");
-    ps.setBytes(3, "a big, bad world".getBytes(UTF_8));
+    ps.setBoolean(1, true);
+    ps.setString(2, "hello, world");
+    ps.setString(3, "it's a big world");
+    ps.setBytes(4, "a big, bad world".getBytes(UTF_8));
     assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
@@ -211,8 +210,10 @@ public class ResponseGeneratorTest {
     captureLogMessages(ResponseGenerator.class,
         "Column type not supported for text", messages);
     resgen.generateResponse(rs, response);
-    String golden = "data,data,data,data,data,data,data\n"
-        + "intcol,booleancol,charcol,datecol,timecol,tymestampcol,charlob\n"
+    String tables = is(SQLSERVER)
+        ? ",,,,,," : "data,data,data,data,data,data,data";
+    String golden = tables + "\n"
+        + "intcol,booleancol,charcol,datecol,timecol,tymestampcol,clobcol\n"
         + "1,true,\"hello, world\",2007-08-09,12:34:56,2007-08-09 12:34:56.7,"
         + "it's a big world\n";
     assertEquals(golden, bar.baos.toString(UTF_8.name()).toLowerCase(US));
@@ -232,14 +233,15 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String golden = "DATA,DATA,DATA\nID,THIS,THAT\n1,,\n";
+    String table = is(SQLSERVER) ? ",," : "DATA,DATA,DATA";
+    String golden = table + "\nID,THIS,THAT\n1,,\n";
     assertEquals(golden, bar.baos.toString(UTF_8.name()).toUpperCase(US));
   }
 
   @Test
   public void testRowToText_specialCharacters() throws Exception {
     executeUpdate(
-        "create table data (id integer, name varchar(20), quote varchar(200))");
+        "create table data (ID integer, NAME varchar(20), QUOTE varchar(200))");
     String sql = "insert into data (id, name, quote) values (1, ?, ?)";
     PreparedStatement ps = prepareStatement(sql);
     ps.setString(1, "Rhett Butler");
@@ -253,11 +255,10 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String golden =
-        (is(MYSQL) ? "id,name,quote\n"
-                   : "ID,NAME,QUOTE\n")
+    String table = is(SQLSERVER) ? ",," : "DATA,DATA,DATA";
+    String golden = table + "\nID,NAME,QUOTE\n"
         + "1,Rhett Butler,\"\"\"Frankly Scarlett, I don't give a damn!\"\"\"\n";
-    assertThat(bar.baos.toString(UTF_8.name()), endsWith(golden));
+    assertEquals(golden, bar.baos.toString(UTF_8.name()));
   }
 
   @Test
