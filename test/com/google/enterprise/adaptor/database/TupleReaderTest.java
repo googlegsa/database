@@ -16,6 +16,7 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
@@ -151,8 +152,11 @@ public class TupleReaderTest {
 
   @Test
   public void testBoolean() throws Exception {
-    executeUpdate("create table data(COLNAME boolean)");
-    executeUpdate("insert into data(colname) values(true)");
+    executeUpdate("create table data(COLNAME " + JdbcFixture.BOOLEAN + ")");
+    PreparedStatement ps =
+        prepareStatement("insert into data(colname) values(?)");
+    ps.setBoolean(1, true);
+    assertEquals(1, ps.executeUpdate());
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -170,7 +174,7 @@ public class TupleReaderTest {
 
   @Test
   public void testBoolean_null() throws Exception {
-    executeUpdate("create table data(COLNAME boolean)");
+    executeUpdate("create table data(COLNAME " + JdbcFixture.BOOLEAN + ")");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
         + "<database>"
@@ -195,7 +199,9 @@ public class TupleReaderTest {
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<COLNAME SQLType=\"CHAR\">onevalue</COLNAME>"
+        + "<COLNAME SQLType=\"CHAR\">"
+        + (is(SQLSERVER) ? "onevalue            " : "onevalue")
+        + "</COLNAME>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -303,8 +309,13 @@ public class TupleReaderTest {
 
   @Test
   public void testBinary_empty() throws Exception {
-    executeUpdate("create table data(COLNAME varbinary(0))");
-    executeUpdate("insert into data(colname) values('')");
+    byte[] binaryData = new byte[0];
+    executeUpdate("create table data(COLNAME varbinary(1))");
+    String sql = "insert into data(colname) values (?)";
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBinaryStream(1, new ByteArrayInputStream(binaryData));
+    assertEquals(1, ps.executeUpdate());
+
     final String golden = ""
         + "<database>"
         + "<table>"
@@ -337,7 +348,7 @@ public class TupleReaderTest {
 
   @Test
   public void testLongvarbinary() throws Exception {
-    assumeFalse("H2 converts longvarbinary to varbinary", is(H2));
+    assumeFalse("LONGVARBINARY type not supported", is(H2) || is(SQLSERVER));
     byte[] longvarbinaryData = new byte[12345];
     new Random().nextBytes(longvarbinaryData);
     executeUpdate("create table data(COLNAME longvarbinary)");
@@ -365,7 +376,7 @@ public class TupleReaderTest {
 
   @Test
   public void testLongvarbinary_empty() throws Exception {
-    assumeFalse("H2 converts longvarbinary to varbinary", is(H2));
+    assumeFalse("LONGVARBINARY type not supported", is(H2) || is(SQLSERVER));
     executeUpdate("create table data(COLNAME longvarbinary)");
     executeUpdate("insert into data(colname) values('')");
     final String golden = ""
@@ -383,7 +394,7 @@ public class TupleReaderTest {
 
   @Test
   public void testLongvarbinary_null() throws Exception {
-    assumeFalse("H2 converts longvarbinary to varbinary", is(H2));
+    assumeFalse("LONGVARBINARY type not supported", is(H2) || is(SQLSERVER));
     executeUpdate("create table data(COLNAME longvarbinary)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
@@ -491,7 +502,7 @@ public class TupleReaderTest {
   public void testTimestamp() throws Exception {
     executeUpdate("create table data(COLNAME timestamp)");
     executeUpdate(
-        "insert into data(colname) values ({ts '2004-10-06T09:15:30'})");
+        "insert into data(colname) values ({ts '2004-10-06 09:15:30'})");
     DateFormat timeZoneFmt = new SimpleDateFormat("X");
     Calendar cal = Calendar.getInstance(TimeZone.getDefault());
     cal.set(Calendar.YEAR, 2004);
@@ -619,7 +630,7 @@ public class TupleReaderTest {
 
   @Test
   public void testClob() throws Exception {
-    assumeFalse("MySQL does not support type clob", is(MYSQL));
+    assumeFalse("CLOB type not supported", is(MYSQL) || is(SQLSERVER));
     String clobData =
         " Google's indices consist of information that has been"
             + " identified, indexed and compiled through an automated"
@@ -661,7 +672,7 @@ public class TupleReaderTest {
 
   @Test
   public void testClob_null() throws Exception {
-    assumeFalse("MySQL does not support type clob", is(MYSQL));
+    assumeFalse("CLOB type not supported", is(MYSQL) || is(SQLSERVER));
     executeUpdate("create table data(colname clob)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
@@ -679,7 +690,7 @@ public class TupleReaderTest {
 
   @Test
   public void testBlob() throws Exception {
-    assumeFalse("MySQL converts blob to longvarbinary", is(MYSQL));
+    assumeFalse("BLOB type not supported", is(MYSQL) || is(SQLSERVER));
     byte[] blobData = new byte[12345];
     new Random().nextBytes(blobData);
     executeUpdate("create table data(colname blob)");
@@ -706,7 +717,7 @@ public class TupleReaderTest {
 
   @Test
   public void testBlob_empty() throws Exception {
-    assumeFalse("MySQL converts blob to longvarbinary", is(MYSQL));
+    assumeFalse("BLOB type not supported", is(MYSQL) || is(SQLSERVER));
     executeUpdate("create table data(colname blob)");
     executeUpdate("insert into data(colname) values('')");
     final String golden = ""
@@ -724,7 +735,7 @@ public class TupleReaderTest {
 
   @Test
   public void testBlob_null() throws Exception {
-    assumeFalse("MySQL converts blob to longvarbinary", is(MYSQL));
+    assumeFalse("BLOB type not supported", is(MYSQL) || is(SQLSERVER));
     executeUpdate("create table data(colname blob)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""

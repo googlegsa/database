@@ -1835,8 +1835,10 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.updateSql",
-        "select id, null as gsa_timestamp from data where ts >= ? order by id");
+    String nullTimestamp =
+        is(SQLSERVER) ? "cast(null as datetime2)" : "null";
+    moreEntries.put("db.updateSql", "select id, " + nullTimestamp
+        + " as gsa_timestamp from data where ts >= ? order by id");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",

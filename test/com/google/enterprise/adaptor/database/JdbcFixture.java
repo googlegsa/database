@@ -194,25 +194,27 @@ class JdbcFixture {
         switch (DATABASE) {
           case MYSQL:
             if (sql.startsWith("create table")) {
-              sql = sql.replaceAll("(timestamp(\\(\\d\\))?)", "datetime$2 null")
-                  .replace("longvarbinary", "long varbinary")
-                  .replace("clob", "text");
-            }
-            if (sql.startsWith("insert")) {
-              sql = sql.replaceAll(
-                  "(\\d\\d\\d\\d-\\d\\d-\\d\\d)T(\\d\\d:\\d\\d:\\d\\d)",
-                  "$1 $2");
+              sql = sql
+                  .replaceAll("\\bclob\\b", "text")
+                  .replaceAll("\\blongvarbinary\\b", "long varbinary")
+                  .replaceAll("\\btimestamp\\b(\\(\\d\\))?", "datetime$1 null");
             }
             break;
           case ORACLE:
             if (sql.startsWith("create table")) {
-              sql = sql.replaceAll("varbinary", "raw(1024)");
+              sql = sql.replaceAll("\\bvarbinary\\b", "raw(1024)");
             }
             break;
           case SQLSERVER:
             if (sql.startsWith("create table")) {
-              sql = sql.replace("blob", "varbinary(max)")
-                  .replace("clob", "varchar(max)");
+              sql = sql
+                  .replaceAll("\\bblob\\b", "varbinary(max)")
+                  .replaceAll("\\bclob\\b", "varchar(max)")
+                  .replaceAll("\\btimestamp\\b", "datetime2");
+            } else if (sql.startsWith("insert")) {
+              // A ts escape is treated as a datetime rather than a
+              // datetime2, and rounded incorrectly. Use a string literal.
+              sql = sql.replaceAll("\\{ts ('[^']*')\\}", "$1");
             }
             break;
         }
