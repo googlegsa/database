@@ -21,9 +21,9 @@ import static org.junit.Assert.assertTrue;
 import com.google.common.base.Strings;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -88,9 +88,11 @@ class JdbcFixture {
           dbuser = properties.getProperty("test.jdbc.user");
           dbpassword = properties.getProperty("test.jdbc.password");
         }
-      } catch (FileNotFoundException | IllegalArgumentException e) {
+      } catch (NoSuchFileException | IllegalArgumentException e) {
         // use default values.
       } catch (IOException e) {
+        // This exception is not displayed by JUnit, so print it, too.
+        System.err.println("Failed to load build.properties: " + e);
         throw new RuntimeException(e);
       }
     }
