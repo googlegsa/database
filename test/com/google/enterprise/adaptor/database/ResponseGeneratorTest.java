@@ -24,6 +24,7 @@ import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Locale.US;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.endsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
@@ -188,7 +189,7 @@ public class ResponseGeneratorTest {
     executeUpdate("create table data ("
         + "intcol integer, booleancol " + JdbcFixture.BOOLEAN
         + ", charcol varchar(20),"
-        + " datecol date, timecol time, tymestampcol timestamp(3),"
+        + " datecol date, timecol time, timestampcol timestamp(3),"
         + " clobcol clob, blobcol blob)");
     String sql = "insert into data values (1, ?, ?,"
         + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56.7'},"
@@ -213,7 +214,7 @@ public class ResponseGeneratorTest {
     String tables = is(SQLSERVER)
         ? ",,,,,," : "data,data,data,data,data,data,data";
     String golden = tables + "\n"
-        + "intcol,booleancol,charcol,datecol,timecol,tymestampcol,clobcol\n"
+        + "intcol,booleancol,charcol,datecol,timecol,timestampcol,clobcol\n"
         + "1,true,\"hello, world\",2007-08-09,12:34:56,2007-08-09 12:34:56.7,"
         + "it's a big world\n";
     assertEquals(golden, bar.baos.toString(UTF_8.name()).toLowerCase(US));
@@ -255,10 +256,9 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String table = is(SQLSERVER) ? ",," : "DATA,DATA,DATA";
-    String golden = table + "\nID,NAME,QUOTE\n"
+    String golden = "\nID,NAME,QUOTE\n"
         + "1,Rhett Butler,\"\"\"Frankly Scarlett, I don't give a damn!\"\"\"\n";
-    assertEquals(golden, bar.baos.toString(UTF_8.name()));
+    assertThat(bar.baos.toString(UTF_8.name()), endsWith(golden));
   }
 
   @Test
