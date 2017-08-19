@@ -15,6 +15,7 @@
 package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
@@ -285,7 +286,7 @@ public class UniqueKeyTest {
 
   @Test
   public void testVerifyColumnNames_numeric() throws Exception {
-    assumeFalse("NUMERIC type not supported", is(H2));
+    assumeFalse("NUMERIC type not supported", is(H2) || is(MYSQL));
     executeUpdate("create table data("
         + (is(ORACLE) ? "intcol int, " : "") + "bigdecimalcol numeric(9,2))");
 
