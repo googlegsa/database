@@ -47,6 +47,7 @@ class JdbcFixture {
   public static final String USER;
   public static final String PASSWORD;
   public static final String BOOLEAN;
+  public static final String INTEGER;
 
   private static ConcurrentLinkedDeque<AutoCloseable> openObjects =
       new ConcurrentLinkedDeque<>();
@@ -105,6 +106,7 @@ class JdbcFixture {
     PASSWORD = dbpassword;
     BOOLEAN = (DATABASE == Database.MYSQL || DATABASE == Database.SQLSERVER)
         ? "BIT" : "BOOLEAN";
+    INTEGER = (DATABASE == Database.ORACLE) ? "NUMERIC" : "INTEGER";
   }
 
   /**

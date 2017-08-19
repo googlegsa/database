@@ -126,7 +126,7 @@ public class TupleReaderTest {
         + "<table>"
         + "<table_rec>"
         + "<COLNAME SQLType=\""
-        + (is(ORACLE) ? "NUMERIC" : "INTEGER")
+        + JdbcFixture.INTEGER
         + "\">17</COLNAME>"
         + "</table_rec>"
         + "</table>"
@@ -145,7 +145,7 @@ public class TupleReaderTest {
         + "<table>"
         + "<table_rec>"
         + "<COLNAME SQLType=\""
-        + (is(ORACLE) ? "NUMERIC" : "INTEGER")
+        + JdbcFixture.INTEGER
         + "\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
@@ -906,7 +906,7 @@ public class TupleReaderTest {
         + "<table>"
         + "<table_rec>"
         + "<ID SQLType=\""
-        + (is(ORACLE) ? "NUMERIC" : "INTEGER")
+        + JdbcFixture.INTEGER
         + "\">1</ID>"
         + "<NAME SQLType=\"VARCHAR\">file.txt</NAME>"
         + "<MODIFIED SQLType=\"TIMESTAMP\" ISNULL=\"true\"/>"
