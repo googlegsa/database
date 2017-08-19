@@ -16,6 +16,7 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
@@ -124,7 +125,9 @@ public class TupleReaderTest {
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<COLNAME SQLType=\"INTEGER\">17</COLNAME>"
+        + "<COLNAME SQLType=\""
+        + JdbcFixture.INTEGER
+        + "\">17</COLNAME>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -141,7 +144,9 @@ public class TupleReaderTest {
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<COLNAME SQLType=\"INTEGER\" ISNULL=\"true\"/>"
+        + "<COLNAME SQLType=\""
+        + JdbcFixture.INTEGER
+        + "\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -152,6 +157,7 @@ public class TupleReaderTest {
 
   @Test
   public void testBoolean() throws Exception {
+    assumeFalse("BOOLEAN type not supported", is(ORACLE));
     executeUpdate("create table data(COLNAME " + JdbcFixture.BOOLEAN + ")");
     PreparedStatement ps =
         prepareStatement("insert into data(colname) values(?)");
@@ -174,6 +180,7 @@ public class TupleReaderTest {
 
   @Test
   public void testBoolean_null() throws Exception {
+    assumeFalse("BOOLEAN type not supported", is(ORACLE));
     executeUpdate("create table data(COLNAME " + JdbcFixture.BOOLEAN + ")");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
@@ -200,7 +207,7 @@ public class TupleReaderTest {
         + "<table>"
         + "<table_rec>"
         + "<COLNAME SQLType=\"CHAR\">"
-        + (is(SQLSERVER) ? "onevalue            " : "onevalue")
+        + (is(ORACLE) || is(SQLSERVER) ? "onevalue            " : "onevalue")
         + "</COLNAME>"
         + "</table_rec>"
         + "</table>"
@@ -320,7 +327,9 @@ public class TupleReaderTest {
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<COLNAME SQLType=\"VARBINARY\" encoding=\"base64binary\"/>"
+        + "<COLNAME SQLType=\"VARBINARY\" "
+        + (is(ORACLE) ? "ISNULL=\"true\"" : "encoding=\"base64binary\"")
+        + "/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -354,7 +363,7 @@ public class TupleReaderTest {
     executeUpdate("create table data(COLNAME longvarbinary)");
     String sql = "insert into data(colname) values (?)";
     PreparedStatement ps = prepareStatement(sql);
-    ps.setBinaryStream(1, new ByteArrayInputStream(longvarbinaryData));
+    ps.setBytes(1, longvarbinaryData);
     assertEquals(1, ps.executeUpdate());
 
     String base64LongvarbinaryData =
@@ -383,7 +392,9 @@ public class TupleReaderTest {
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<COLNAME SQLType=\"LONGVARBINARY\" encoding=\"base64binary\"/>"
+        + "<COLNAME SQLType=\"LONGVARBINARY\" "
+        + (is(ORACLE) ? "ISNULL=\"true\"" : "encoding=\"base64binary\"")
+        + "/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -412,6 +423,7 @@ public class TupleReaderTest {
 
   @Test
   public void testDate() throws Exception {
+    assumeFalse("DATE type not supported", is(ORACLE));
     executeUpdate("create table data(COLNAME date)");
     executeUpdate("insert into data(colname) values({d '2004-10-06'})");
     final String golden = ""
@@ -429,6 +441,7 @@ public class TupleReaderTest {
 
   @Test
   public void testDate_null() throws Exception {
+    assumeFalse("DATE type not supported", is(ORACLE));
     executeUpdate("create table data(COLNAME date)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
@@ -446,6 +459,7 @@ public class TupleReaderTest {
 
   @Test
   public void testTime() throws Exception {
+    assumeFalse("TIME type not supported", is(ORACLE));
     executeUpdate("create table data(COLNAME time)");
     executeUpdate("insert into data(colname) values({t '09:15:30'})");
     // H2 returns a java.sql.Date with the date set to 1970-01-01.
@@ -475,6 +489,7 @@ public class TupleReaderTest {
 
   @Test
   public void testTime_null() throws Exception {
+    assumeFalse("TIME type not supported", is(ORACLE));
     executeUpdate("create table data(COLNAME time)");
     executeUpdate("insert into data(colname) values(null)");
     // H2 returns a java.sql.Date with the date set to 1970-01-01.
@@ -724,7 +739,9 @@ public class TupleReaderTest {
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<COLNAME SQLType=\"BLOB\" encoding=\"base64binary\"/>"
+        + "<COLNAME SQLType=\"BLOB\" "
+        + (is(ORACLE) ? "ISNULL=\"true\"" : "encoding=\"base64binary\"")
+        + "/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -881,16 +898,18 @@ public class TupleReaderTest {
   @Test
   public void testMultipleTypes() throws Exception {
     executeUpdate(
-        "create table data(ID integer, NAME varchar(20), MODIFIED date)");
+        "create table data(ID integer, NAME varchar(20), MODIFIED timestamp)");
     executeUpdate(
         "insert into data(id, name, modified) values(1, 'file.txt', null)");
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<ID SQLType=\"INTEGER\">1</ID>"
+        + "<ID SQLType=\""
+        + JdbcFixture.INTEGER
+        + "\">1</ID>"
         + "<NAME SQLType=\"VARCHAR\">file.txt</NAME>"
-        + "<MODIFIED SQLType=\"DATE\" ISNULL=\"true\"/>"
+        + "<MODIFIED SQLType=\"TIMESTAMP\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";

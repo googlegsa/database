@@ -47,6 +47,7 @@ class JdbcFixture {
   public static final String USER;
   public static final String PASSWORD;
   public static final String BOOLEAN;
+  public static final String INTEGER;
 
   private static ConcurrentLinkedDeque<AutoCloseable> openObjects =
       new ConcurrentLinkedDeque<>();
@@ -105,6 +106,7 @@ class JdbcFixture {
     PASSWORD = dbpassword;
     BOOLEAN = (DATABASE == Database.MYSQL || DATABASE == Database.SQLSERVER)
         ? "BIT" : "BOOLEAN";
+    INTEGER = (DATABASE == Database.ORACLE) ? "NUMERIC" : "INTEGER";
   }
 
   /**
@@ -112,6 +114,16 @@ class JdbcFixture {
    */
   public static boolean is(Database database) {
     return DATABASE == database;
+  }
+
+  /** Gets a string value matching the corresponding JDBC d escape output. */
+  public static String d(String date) {
+    return is(Database.ORACLE) ? date + " 00:00:00.0" : date;
+  }
+
+  /** Gets a string value matching the corresponding JDBC t escape output. */
+  public static String t(String time) {
+    return is(Database.ORACLE) ? "1970-01-01 " + time + ".0" : time;
   }
 
   /**
@@ -204,7 +216,11 @@ class JdbcFixture {
             break;
           case ORACLE:
             if (sql.startsWith("create table")) {
-              sql = sql.replaceAll("\\bvarbinary\\b", "raw(1024)");
+              sql = sql
+                  .replaceAll("\\bbigint\\b", "integer")
+                  .replaceAll("\\blongvarbinary\\b", "long raw")
+                  .replaceAll("\\btime\\b", "date")
+                  .replaceAll("\\bvarbinary\\b", "raw");
             }
             break;
           case SQLSERVER:
