@@ -15,6 +15,7 @@
 package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
@@ -28,6 +29,7 @@ import static org.hamcrest.CoreMatchers.endsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
@@ -162,12 +164,21 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testRowToText_array() throws Exception {
-    assumeTrue("ARRAY type not supported", is(H2));
-    executeUpdate("create table data (id int, arraycol array)");
-    String sql = "insert into data values (1, ?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setObject(1, new String[] { "hello", "world" });
-    assertEquals(1, ps.executeUpdate());
+    if (is(H2)) {
+      executeUpdate("create table data (id int, arraycol array)");
+      String sql = "insert into data(id, arraycol) values (1, ?)";
+      PreparedStatement ps = prepareStatement(sql);
+      ps.setObject(1, new String[] { "hello", "world" });
+      assertEquals(1, ps.executeUpdate());
+    } else if (is(ORACLE)) {
+      executeUpdate(
+          "create or replace type vcarray as varray(2) of varchar2(20)");
+      executeUpdate("create table data(id int, arraycol vcarray)");
+      executeUpdate("insert into data(id, arraycol) "
+          + "values (1, vcarray('hello', 'world'))");
+    } else {
+      assumeTrue("ARRAY type not supported", false);
+    }
 
     MockResponse bar = new MockResponse();
     Response response = newProxyInstance(Response.class, bar);
@@ -179,26 +190,19 @@ public class ResponseGeneratorTest {
     captureLogMessages(ResponseGenerator.class,
         "Column type not supported for text", messages);
     resgen.generateResponse(rs, response);
-    String golden = "DATA\nID\n1\n";
+    String golden = (is(ORACLE) ? "" : "DATA") + "\nID\n1\n";
     assertEquals(golden, bar.baos.toString(UTF_8.name()));
     assertEquals(messages.toString(), 1, messages.size());
   }
 
   @Test
-  public void testRowToText_multipleTypes() throws Exception {
+  public void testRowToText_boolean() throws Exception {
+    assumeFalse("BOOLEAN type not supported", is(ORACLE));
     executeUpdate("create table data ("
-        + "intcol integer, booleancol " + JdbcFixture.BOOLEAN
-        + ", charcol varchar(20),"
-        + " datecol date, timecol time, timestampcol timestamp(3),"
-        + " clobcol clob, blobcol blob)");
-    String sql = "insert into data values (1, ?, ?,"
-        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56.7'},"
-        + "?, ?)";
+        + "booleancol " + JdbcFixture.BOOLEAN + ")");
+    String sql = "insert into data values (?)";
     PreparedStatement ps = prepareStatement(sql);
     ps.setBoolean(1, true);
-    ps.setString(2, "hello, world");
-    ps.setString(3, "it's a big world");
-    ps.setBytes(4, "a big, bad world".getBytes(UTF_8));
     assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
@@ -211,12 +215,46 @@ public class ResponseGeneratorTest {
     captureLogMessages(ResponseGenerator.class,
         "Column type not supported for text", messages);
     resgen.generateResponse(rs, response);
-    String tables = is(SQLSERVER)
-        ? ",,,,,," : "data,data,data,data,data,data,data";
+    String tables = is(SQLSERVER) ? "" : "data";
     String golden = tables + "\n"
-        + "intcol,booleancol,charcol,datecol,timecol,timestampcol,clobcol\n"
-        + "1,true,\"hello, world\",2007-08-09,12:34:56,2007-08-09 12:34:56.7,"
-        + "it's a big world\n";
+        + "booleancol\n"
+        + "true\n";
+    assertEquals(golden, bar.baos.toString(UTF_8.name()).toLowerCase(US));
+    assertEquals(messages.toString(), 0, messages.size());
+  }
+
+  @Test
+  public void testRowToText_multipleTypes() throws Exception {
+    executeUpdate("create table data ("
+        + "intcol integer, charcol varchar(20),"
+        + " datecol date, timecol time, timestampcol timestamp(3),"
+        + " clobcol clob, blobcol blob)");
+    String sql = "insert into data values (1, ?,"
+        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56.7'},"
+        + "?, ?)";
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, "hello, world");
+    ps.setString(2, "it's a big world");
+    ps.setBytes(3, "a big, bad world".getBytes(UTF_8));
+    assertEquals(1, ps.executeUpdate());
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(ResponseGenerator.class,
+        "Column type not supported for text", messages);
+    resgen.generateResponse(rs, response);
+    String tables = (is(ORACLE) || is(SQLSERVER))
+        ? ",,,,," : "data,data,data,data,data,data";
+    String golden = tables + "\n"
+        + "intcol,charcol,datecol,timecol,timestampcol,clobcol\n"
+        + "1,\"hello, world\"," + JdbcFixture.d("2007-08-09") + ","
+        + JdbcFixture.t("12:34:56")
+        + ",2007-08-09 12:34:56.7,it's a big world\n";
     assertEquals(golden, bar.baos.toString(UTF_8.name()).toLowerCase(US));
     assertEquals(messages.toString(), 1, messages.size());
   }
@@ -234,7 +272,7 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    String table = is(SQLSERVER) ? ",," : "DATA,DATA,DATA";
+    String table = (is(SQLSERVER) || is(ORACLE)) ? ",," : "DATA,DATA,DATA";
     String golden = table + "\nID,THIS,THAT\n1,,\n";
     assertEquals(golden, bar.baos.toString(UTF_8.name()).toUpperCase(US));
   }

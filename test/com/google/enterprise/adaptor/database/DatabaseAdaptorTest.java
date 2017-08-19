@@ -1494,7 +1494,7 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "url:string");
-    moreEntries.put("db.everyDocIdSql", "select url from data");
+    moreEntries.put("db.everyDocIdSql", "select url from data order by url");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.updateSql", "select url from data");
     moreEntries.put("db.singleDocContentSql",
@@ -1509,8 +1509,8 @@ public class DatabaseAdaptorTest {
     assertEquals(messages.toString(), 1, messages.size());
     assertEquals(
         Arrays.asList(
-            new Record.Builder(new DocId("http://host/foo")).build(),
             new Record.Builder(new DocId("http://host/bar")).build(),
+            new Record.Builder(new DocId("http://host/foo")).build(),
             new Record.Builder(new DocId("http://host/foo%20bar")).build()),
         pusher.getRecords());
   }
@@ -1910,7 +1910,8 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "url:string");
-    moreEntries.put("db.updateSql", "select url from data where ts >= ?");
+    moreEntries.put("db.updateSql",
+        "select url from data where ts >= ? order by url");
     // Required for validation, but not specific to this test.
     moreEntries.put("db.everyDocIdSql", "select url from data");
     moreEntries.put("db.singleDocContentSql",
@@ -1925,9 +1926,9 @@ public class DatabaseAdaptorTest {
     assertEquals(messages.toString(), 1, messages.size());
     assertEquals(
         Arrays.asList(
-            new Record.Builder(new DocId("http://host/foo"))
-            .setCrawlImmediately(true).build(),
             new Record.Builder(new DocId("http://host/bar"))
+            .setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("http://host/foo"))
             .setCrawlImmediately(true).build(),
             new Record.Builder(new DocId("http://host/foo%20bar"))
             .setCrawlImmediately(true).build()),

@@ -14,13 +14,16 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
+import static com.google.enterprise.adaptor.database.JdbcFixture.is;
 import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatement;
 import static com.google.enterprise.adaptor.database.UniqueKey.ColumnType;
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 
@@ -317,15 +320,15 @@ public class UniqueKeyTest {
   @Test
   public void testPreparingRetrieval() throws SQLException {
     executeUpdate("create table data("
-        + "numnum int, strstr varchar(20), tymestamp timestamp(3), date date, "
-        + "time time, longint bigint)");
+        + "numnum int, strstr varchar(20), tymestamp timestamp(3), dyte date, "
+        + "tyme time, longint bigint)");
 
     String sql = "insert into data("
-        + "numnum, strstr, tymestamp, date, time, longint)"
+        + "numnum, strstr, tymestamp, dyte, tyme, longint)"
         + " values (?, ?, ?, ?, ?, ?)";
     PreparedStatement ps = prepareStatement(sql);
     UniqueKey uk = newUniqueKey("numnum:int,strstr:string,"
-        + "tymestamp:timestamp,date:date,time:time,longint:long");
+        + "tymestamp:timestamp,dyte:date,tyme:time,longint:long");
     uk.setContentSqlValues(ps,
         "888/bluesky/1414701070212/2014-01-01/02:03:04/123");
     assertEquals(1, ps.executeUpdate());
@@ -334,8 +337,8 @@ public class UniqueKeyTest {
     assertEquals(888, rs.getInt("numnum"));
     assertEquals("bluesky", rs.getString("strstr"));
     assertEquals(new Timestamp(1414701070212L), rs.getTimestamp("tymestamp"));
-    assertEquals(Date.valueOf("2014-01-01"), rs.getDate("date"));
-    assertEquals(Time.valueOf("02:03:04"), rs.getTime("time"));
+    assertEquals(Date.valueOf("2014-01-01"), rs.getDate("dyte"));
+    assertEquals(Time.valueOf("02:03:04"), rs.getTime("tyme"));
     assertEquals(123L, rs.getLong("longint"));
   }
 
@@ -463,6 +466,7 @@ public class UniqueKeyTest {
 
   @Test
   public void testFuzzSlashesAndEscapes() throws Exception {
+    assumeFalse("Oracle treats empty strings as null", is(ORACLE));
     for (int fuzzCase = 0; fuzzCase < 1000; fuzzCase++) {
       String elem1 = makeSomeIdsWithJustSlashesAndEscapeChar();
       String elem2 = makeSomeIdsWithJustSlashesAndEscapeChar();
@@ -472,6 +476,7 @@ public class UniqueKeyTest {
 
   @Test
   public void testEmptiesPreserved() throws Exception {
+    assumeFalse("Oracle treats empty strings as null", is(ORACLE));
     testUniqueElementsRoundTrip("", "");
     testUniqueElementsRoundTrip("", "_stuff/");
     testUniqueElementsRoundTrip("_stuff/", "");
