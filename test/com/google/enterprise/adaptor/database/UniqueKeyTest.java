@@ -16,6 +16,7 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
+import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
@@ -23,8 +24,11 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.is;
 import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatement;
 import static com.google.enterprise.adaptor.database.UniqueKey.ColumnType;
 import static java.util.Arrays.asList;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
@@ -326,6 +330,49 @@ public class UniqueKeyTest {
     assertEquals("123/4567890/1234567.89/foo/2007-08-09/12:34:56/"
                  + Timestamp.valueOf("2007-08-09 12:34:56").getTime(),
                  uk.makeUniqueId(rs));
+  }
+
+  @Test
+  public void testProcessingDocId_nulls() throws Exception {
+    executeUpdate("create table data(rowno integer, "
+        + "c1 integer, c2 bigint, c3 numeric(9,2), "
+        + "c4 varchar(20), c5 date, c6 time, c7 timestamp)");
+    executeUpdate("insert into data(rowno, c1, c2, c3, c4, c5, c6, c7) "
+        + "values (0, null, 4567890, 1234567.89, 'foo', "
+        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56'})");
+    executeUpdate("insert into data(rowno, c1, c2, c3, c4, c5, c6, c7) "
+        + "values (1, 123, null, 1234567.89, 'foo', "
+        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56'})");
+    executeUpdate("insert into data(rowno, c1, c2, c3, c4, c5, c6, c7) "
+        + "values (2, 123, 4567890, null, 'foo', "
+        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56'})");
+    executeUpdate("insert into data(rowno, c1, c2, c3, c4, c5, c6, c7) "
+        + "values (3, 123, 4567890, 1234567.89, null, "
+        + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56'})");
+    executeUpdate("insert into data(rowno, c1, c2, c3, c4, c5, c6, c7) "
+        + "values (4, 123, 4567890, 1234567.89, 'foo', "
+        + "null, {t '12:34:56'}, {ts '2007-08-09 12:34:56'})");
+    executeUpdate("insert into data(rowno, c1, c2, c3, c4, c5, c6, c7) "
+        + "values (5, 123, 4567890, 1234567.89, 'foo', "
+        + "{d '2007-08-09'}, null, {ts '2007-08-09 12:34:56'})");
+    executeUpdate("insert into data(rowno, c1, c2, c3, c4, c5, c6, c7) "
+        + "values (6, 123, 4567890, 1234567.89, 'foo', "
+        + "{d '2007-08-09'}, {t '12:34:56'}, null)");
+
+    UniqueKey uk = new UniqueKey.Builder(
+        "c1:int, c2:long, c3:bigdecimal, c4:string, c5:date, c6:time, "
+        + "c7:timestamp")
+        .build();
+    ResultSet rs = executeQuery("select * from data order by rowno");
+    for (int i = 0; i < 7; i++) {
+      assertTrue("Missing row " + i, rs.next());
+      try {
+        uk.makeUniqueId(rs);
+        fail("Expected a NPE on row " + i);
+      } catch (NullPointerException expected) {
+        assertThat("Row " + i, expected.getMessage(), containsString("Column"));
+      }
+    }
   }
 
   @Test

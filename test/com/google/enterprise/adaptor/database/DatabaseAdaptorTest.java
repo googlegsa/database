@@ -1504,7 +1504,7 @@ public class DatabaseAdaptorTest {
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     RecordingDocIdPusher pusher = new RecordingDocIdPusher();
     List<String> messages = new ArrayList<String>();
-    captureLogMessages(DatabaseAdaptor.class, "Invalid DocId URL", messages);
+    captureLogMessages(DatabaseAdaptor.class, "Invalid DocId", messages);
     adaptor.getDocIds(pusher);
 
     assertEquals(messages.toString(), 1, messages.size());
@@ -1515,6 +1515,38 @@ public class DatabaseAdaptorTest {
             new Record.Builder(new DocId("http://host/foo%20bar")).build()),
         pusher.getRecords());
   }
+
+  @Test
+  public void testGetDocIds_nullUniqueKey() throws Exception {
+    executeUpdate("create table data(id integer, other varchar(20))");
+    executeUpdate("insert into data(id, other) values(1, 'hello world')");
+    executeUpdate("insert into data(id, other) values(2, 'hello world')");
+    executeUpdate("insert into data(id, other) values(null, 'hello world')");
+    executeUpdate("insert into data(id, other) values(4, 'hello world')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "select id from data order by id");
+    moreEntries.put("db.metadataColumns", "other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class, "Invalid DocId", messages);
+    adaptor.getDocIds(pusher);
+
+    assertEquals(messages.toString(), 1, messages.size());
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("1")).setMetadata(null).build(),
+            new Record.Builder(new DocId("2")).setMetadata(null).build(),
+            new Record.Builder(new DocId("4")).setMetadata(null).build()),
+        pusher.getRecords());
+   }
 
   @Test
   public void testGetDocIds_gsaAction() throws Exception {
@@ -1895,6 +1927,45 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testGetModifiedDocIds_nullUniqueKey() throws Exception {
+    // Add time to show the records as modified.
+    executeUpdate("create table data(id integer, "
+        + "other varchar(20) default 'hello, world', ts timestamp)");
+    executeUpdate("insert into data(id, ts) values (1, " + nowPlus(1) + ")");
+    executeUpdate("insert into data(id, ts) values (2, " + nowPlus(1) + ")");
+    executeUpdate("insert into data(id, ts) values (null, " + nowPlus(1) + ")");
+    executeUpdate("insert into data(id, ts) values (4, " + nowPlus(1) + ")");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.updateSql",
+        "select id from data where ts >= ? order by id");
+    moreEntries.put("db.metadataColumns", "other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class, "Invalid DocId", messages);
+    lister.getModifiedDocIds(pusher);
+
+    assertEquals(messages.toString(), 1, messages.size());
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("1"))
+            .setMetadata(null).setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("2"))
+            .setMetadata(null).setCrawlImmediately(true).build(),
+            new Record.Builder(new DocId("4"))
+            .setMetadata(null).setCrawlImmediately(true).build()),
+        pusher.getRecords());
+  }
+
+  @Test
   public void testGetModifiedDocIds_docIdIsUrl() throws Exception {
     // Add time to show the records as modified.
     executeUpdate("create table data(url varchar(20), ts timestamp)");
@@ -1921,7 +1992,7 @@ public class DatabaseAdaptorTest {
     PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
     RecordingDocIdPusher pusher = new RecordingDocIdPusher();
     List<String> messages = new ArrayList<String>();
-    captureLogMessages(DatabaseAdaptor.class, "Invalid DocId URL", messages);
+    captureLogMessages(DatabaseAdaptor.class, "Invalid DocId", messages);
     lister.getModifiedDocIds(pusher);
 
     assertEquals(messages.toString(), 1, messages.size());

@@ -24,6 +24,7 @@ import java.net.URISyntaxException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -89,7 +90,8 @@ class UniqueKey {
           part = rs.getString(name);
           break;
         case TIMESTAMP:
-          part = "" + rs.getTimestamp(name).getTime();
+          Timestamp ts = rs.getTimestamp(name);
+          part = (ts != null) ? "" + ts.getTime() : null;
           break;
         case DATE:
           part = "" + rs.getDate(name);
@@ -100,6 +102,9 @@ class UniqueKey {
         default:
           throw new AssertionError("Invalid type for column " + name
               + ": " + types.get(name));
+      }
+      if (rs.wasNull()) {
+        throw new NullPointerException("Column \"" + name + "\" was null.");
       }
       sb.append("/").append(encodeSlashInData(part));
     }

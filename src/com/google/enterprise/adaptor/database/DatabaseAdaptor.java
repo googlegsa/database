@@ -399,8 +399,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         DocId id;
         try {
           id = new DocId(uniqueKey.makeUniqueId(rs));
-        } catch (URISyntaxException e) {
-          log.log(Level.WARNING, "Invalid DocId URL, skipping row: "
+        } catch (NullPointerException | URISyntaxException e) {
+          log.log(Level.WARNING, "Invalid DocId, skipping row: "
               + e.getMessage());
           continue;
         }
@@ -945,8 +945,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           DocId id;
           try {
             id = new DocId(uniqueKey.makeUniqueId(rs));
-          } catch (URISyntaxException e) {
-            log.log(Level.WARNING, "Invalid DocId URL, skipping row: "
+          } catch (NullPointerException | URISyntaxException e) {
+            log.log(Level.WARNING, "Invalid DocId, skipping row: "
                 + e.getMessage());
             continue;
           }
