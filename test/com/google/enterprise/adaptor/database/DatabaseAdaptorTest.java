@@ -17,7 +17,6 @@ package com.google.enterprise.adaptor.database;
 import static com.google.enterprise.adaptor.DocIdPusher.Record;
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
-import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
@@ -29,6 +28,7 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatemen
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Locale.US;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.isA;
@@ -68,6 +68,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -112,17 +113,8 @@ public class DatabaseAdaptorTest {
   }
 
   private String nowPlus(int minutes) {
-    switch (JdbcFixture.DATABASE) {
-      case H2:
-        return "dateadd('minute', " + minutes + ", current_timestamp())";
-      case MYSQL:
-        return "date_add(current_timestamp(), interval " + minutes + " minute)";
-      case ORACLE:
-        return "(CURRENT_TIMESTAMP + interval '" + minutes + "' minute)";
-      case SQLSERVER:
-        return "dateadd(minute, " + minutes + ", current_timestamp)";
-    }
-    return null;
+    long millis = System.currentTimeMillis() + MINUTES.toMillis(minutes);
+    return "{ts '" + new Timestamp(millis) + "'}";
   }
 
   @Test
