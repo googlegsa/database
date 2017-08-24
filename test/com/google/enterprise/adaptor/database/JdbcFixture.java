@@ -48,6 +48,7 @@ class JdbcFixture {
   public static final String PASSWORD;
   public static final String BOOLEAN;
   public static final String INTEGER;
+  public static final String SQLXML;
 
   private static ConcurrentLinkedDeque<AutoCloseable> openObjects =
       new ConcurrentLinkedDeque<>();
@@ -104,9 +105,11 @@ class JdbcFixture {
     URL = dburl;
     USER = dbuser;
     PASSWORD = dbpassword;
+
     BOOLEAN = (DATABASE == Database.MYSQL || DATABASE == Database.SQLSERVER)
         ? "BIT" : "BOOLEAN";
     INTEGER = (DATABASE == Database.ORACLE) ? "NUMERIC" : "INTEGER";
+    SQLXML = (DATABASE == Database.SQLSERVER) ? "LONGNVARCHAR" : "SQLXML";
   }
 
   /**
@@ -220,7 +223,8 @@ class JdbcFixture {
                   .replaceAll("\\bbigint\\b", "integer")
                   .replaceAll("\\blongvarbinary\\b", "long raw")
                   .replaceAll("\\btime\\b", "date")
-                  .replaceAll("\\bvarbinary\\b", "raw");
+                  .replaceAll("\\bvarbinary\\b", "raw")
+                  .replaceAll("\\bxml\\b", "xmltype");
             }
             break;
           case SQLSERVER:
