@@ -19,6 +19,7 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
+import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.JdbcFixture.is;
 import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatement;
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
@@ -51,9 +52,11 @@ import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLXML;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -450,6 +453,49 @@ public class ResponseGeneratorTest {
   @Test
   public void testContentColumn_nullBlob() throws Exception {
     executeUpdate("create table data(id int, content blob)");
+    executeUpdate("insert into data(id) values (1)");
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals("", bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testContentColumn_sqlxml() throws Exception {
+    assumeTrue("SQLXML type not supported", is(ORACLE) || is(SQLSERVER));
+    String content = "<motd>hello world</motd>\n";
+    executeUpdate("create table data(id int, content xml)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    try (Connection conn = getConnection();
+        PreparedStatement ps = conn.prepareStatement(sql)) {
+      SQLXML sqlxml = conn.createSQLXML();
+      sqlxml.setString(content);
+      ps.setSQLXML(1, sqlxml);
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(is(SQLSERVER) ? content.trim() : content,
+        bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testContentColumn_nullSqlxml() throws Exception {
+    assumeTrue("SQLXML type not supported", is(ORACLE) || is(SQLSERVER));
+    executeUpdate("create table data(id int, content xml)");
     executeUpdate("insert into data(id) values (1)");
 
     MockResponse bar = new MockResponse();

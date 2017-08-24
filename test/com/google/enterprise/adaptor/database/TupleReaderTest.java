@@ -21,6 +21,7 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSER
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
+import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.JdbcFixture.is;
 import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatement;
 import static org.hamcrest.CoreMatchers.isA;
@@ -40,9 +41,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 import java.io.StringWriter;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLXML;
 import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -760,6 +763,87 @@ public class TupleReaderTest {
         + "<table>"
         + "<table_rec>"
         + "<COLNAME SQLType=\"BLOB\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testSqlxml() throws Exception {
+    assumeTrue("SQLXML type not supported", is(ORACLE) || is(SQLSERVER));
+    String xmlData = "<motd>hello world</motd>\n";
+    executeUpdate("create table data(COLNAME xml)");
+    String sql = "insert into data(colname) values (?)";
+    try (Connection conn = getConnection();
+        PreparedStatement ps = conn.prepareStatement(sql)) {
+      SQLXML sqlxml = conn.createSQLXML();
+      sqlxml.setString(xmlData);
+      ps.setSQLXML(1, sqlxml);
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    String xmlOutput = xmlData.replace("<", "&lt;").replace(">", "&gt;");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\""
+        + JdbcFixture.SQLXML
+        + "\">"
+        + (is(SQLSERVER) ? xmlOutput.trim() : xmlOutput)
+        + "</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testSqlxml_empty() throws Exception {
+    // Oracle does not support empty XMLTYPE values.
+    assumeTrue("SQLXML type not supported", is(SQLSERVER));
+    executeUpdate("create table data(COLNAME xml)");
+    String sql = "insert into data(colname) values (?)";
+    try (Connection conn = getConnection();
+        PreparedStatement ps = conn.prepareStatement(sql)) {
+      SQLXML sqlxml = conn.createSQLXML();
+      sqlxml.setString("");
+      ps.setSQLXML(1, sqlxml);
+      assertEquals(1, ps.executeUpdate());
+    }
+
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\""
+        + JdbcFixture.SQLXML
+        + "\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testSqlxml_null() throws Exception {
+    assumeTrue("SQLXML type not supported", is(ORACLE) || is(SQLSERVER));
+    executeUpdate("create table data(COLNAME xml)");
+    executeUpdate("insert into data(colname) values(null)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\""
+        + JdbcFixture.SQLXML
+        + "\" ISNULL=\"true\"/>"
         + "</table_rec>"
         + "</table>"
         + "</database>";
