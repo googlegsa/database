@@ -14,9 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
-import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
-import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
@@ -196,6 +195,7 @@ public class UniqueKeyTest {
     sqlTypes.put("SMALLINT", Types.SMALLINT);
     sqlTypes.put("INTEGER", Types.INTEGER);
     sqlTypes.put("BIGINT", Types.BIGINT);
+    sqlTypes.put("DECIMAL", Types.DECIMAL);
     sqlTypes.put("NUMERIC", Types.NUMERIC);
     sqlTypes.put("CHAR", Types.CHAR);
     sqlTypes.put("VARCHAR", Types.VARCHAR);
@@ -216,6 +216,7 @@ public class UniqueKeyTest {
     golden.put("SMALLINT", ColumnType.INT);
     golden.put("INTEGER", ColumnType.INT);
     golden.put("BIGINT", ColumnType.LONG);
+    golden.put("DECIMAL", ColumnType.BIGDECIMAL);
     golden.put("NUMERIC", ColumnType.BIGDECIMAL);
     golden.put("CHAR", ColumnType.STRING);
     golden.put("VARCHAR", ColumnType.STRING);
@@ -228,9 +229,10 @@ public class UniqueKeyTest {
     golden.put("TIME", ColumnType.TIME);
     golden.put("TIMESTAMP", ColumnType.TIMESTAMP);
 
-    UniqueKey.Builder builder = new UniqueKey.Builder("BIT, BOOLEAN, TINYINT, "
-        + "SMALLINT, INTEGER, BIGINT, NUMERIC, CHAR, VARCHAR, LONGVARCHAR, "
-        + "NCHAR, NVARCHAR, LONGNVARCHAR, DATALINK, DATE, TIME, TIMESTAMP");
+    UniqueKey.Builder builder = new UniqueKey.Builder(
+        "BIT, BOOLEAN, TINYINT, SMALLINT, INTEGER, BIGINT, DECIMAL, NUMERIC, "
+        + "CHAR, VARCHAR, LONGVARCHAR, NCHAR, NVARCHAR, LONGNVARCHAR, "
+        + "DATALINK, DATE, TIME, TIMESTAMP");
     builder.addColumnTypes(sqlTypes);
     assertEquals(golden, builder.getColumnTypes());
   }
@@ -284,20 +286,28 @@ public class UniqueKeyTest {
     assertEquals(golden, builder.getColumnTypes());
   }
 
+  /**
+   * Tests both DECIMAL and NUMERIC data types. Include an INTEGER
+   * column for Oracle to demonstrate that it's an alias for
+   * NUMBER(38,0), which is returned as Types.NUMERIC. Some databases
+   * may return Types.DECIMAL for the NUMERIC(9,2) column as well (as
+   * H2 and MySQL do). The connector maps both to ColumnType.BIGDECIMAL,
+   * so the difference is not visible to the tests.
+   */
   @Test
   public void testVerifyColumnNames_numeric() throws Exception {
-    assumeFalse("NUMERIC type not supported", is(H2) || is(MYSQL));
-    executeUpdate("create table data("
-        + (is(ORACLE) ? "intcol int, " : "") + "bigdecimalcol numeric(9,2))");
+    executeUpdate("create table data(" + (is(ORACLE) ? "intcol int, " : "")
+        + "decimalcol decimal(9,2), numericcol numeric(9,2))");
 
     Map<String, ColumnType> golden
         = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     if (is(ORACLE)) {
       golden.put("intcol", ColumnType.BIGDECIMAL);
     }
-    golden.put("bigdecimalcol", ColumnType.BIGDECIMAL);
+    golden.put("decimalcol", ColumnType.BIGDECIMAL);
+    golden.put("numericcol", ColumnType.BIGDECIMAL);
 
-    String config = is(ORACLE) ? "intcol,bigdecimalcol" : "bigdecimalcol";
+    String config = (is(ORACLE) ? "intcol," : "") + "decimalcol,numericcol";
     UniqueKey.Builder builder = new UniqueKey.Builder(config);
     builder.addColumnTypes(
         DatabaseAdaptor.verifyColumnNames(getConnection(),
@@ -582,6 +592,7 @@ public class UniqueKeyTest {
   @Test
   public void testFuzzSlashesAndEscapes() throws Exception {
     assumeFalse("Oracle treats empty strings as null", is(ORACLE));
+    assumeFalse("SQL Server takes too long", is(SQLSERVER));
     for (int fuzzCase = 0; fuzzCase < 1000; fuzzCase++) {
       String elem1 = makeSomeIdsWithJustSlashesAndEscapeChar();
       String elem2 = makeSomeIdsWithJustSlashesAndEscapeChar();

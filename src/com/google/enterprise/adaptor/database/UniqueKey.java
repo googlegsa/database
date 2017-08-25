@@ -385,6 +385,7 @@ class UniqueKey {
           case Types.BIGINT:
             type = ColumnType.LONG;
             break;
+          case Types.DECIMAL:
           case Types.NUMERIC:
             type = ColumnType.BIGDECIMAL;
             break;
