@@ -32,6 +32,7 @@ import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
+import com.google.enterprise.adaptor.database.DatabaseAdaptor.SqlType;
 
 import org.junit.After;
 import org.junit.Rule;
@@ -188,25 +189,25 @@ public class UniqueKeyTest {
 
   @Test
   public void testAddColumnTypes() {
-    Map<String, Integer> sqlTypes = new HashMap<>();
-    sqlTypes.put("BIT", Types.BIT);
-    sqlTypes.put("BOOLEAN", Types.BOOLEAN);
-    sqlTypes.put("TINYINT", Types.TINYINT);
-    sqlTypes.put("SMALLINT", Types.SMALLINT);
-    sqlTypes.put("INTEGER", Types.INTEGER);
-    sqlTypes.put("BIGINT", Types.BIGINT);
-    sqlTypes.put("DECIMAL", Types.DECIMAL);
-    sqlTypes.put("NUMERIC", Types.NUMERIC);
-    sqlTypes.put("CHAR", Types.CHAR);
-    sqlTypes.put("VARCHAR", Types.VARCHAR);
-    sqlTypes.put("LONGVARCHAR", Types.LONGVARCHAR);
-    sqlTypes.put("NCHAR", Types.NCHAR);
-    sqlTypes.put("NVARCHAR", Types.NVARCHAR);
-    sqlTypes.put("LONGNVARCHAR", Types.LONGNVARCHAR);
-    sqlTypes.put("DATALINK", Types.DATALINK);
-    sqlTypes.put("DATE", Types.DATE);
-    sqlTypes.put("TIME", Types.TIME);
-    sqlTypes.put("TIMESTAMP", Types.TIMESTAMP);
+    Map<String, SqlType> sqlTypes = new HashMap<>();
+    sqlTypes.put("BIT", new SqlType(Types.BIT));
+    sqlTypes.put("BOOLEAN", new SqlType(Types.BOOLEAN));
+    sqlTypes.put("TINYINT", new SqlType(Types.TINYINT));
+    sqlTypes.put("SMALLINT", new SqlType(Types.SMALLINT));
+    sqlTypes.put("INTEGER", new SqlType(Types.INTEGER));
+    sqlTypes.put("BIGINT", new SqlType(Types.BIGINT));
+    sqlTypes.put("DECIMAL", new SqlType(Types.DECIMAL));
+    sqlTypes.put("NUMERIC", new SqlType(Types.NUMERIC));
+    sqlTypes.put("CHAR", new SqlType(Types.CHAR));
+    sqlTypes.put("VARCHAR", new SqlType(Types.VARCHAR));
+    sqlTypes.put("LONGVARCHAR", new SqlType(Types.LONGVARCHAR));
+    sqlTypes.put("NCHAR", new SqlType(Types.NCHAR));
+    sqlTypes.put("NVARCHAR", new SqlType(Types.NVARCHAR));
+    sqlTypes.put("LONGNVARCHAR", new SqlType(Types.LONGNVARCHAR));
+    sqlTypes.put("DATALINK", new SqlType(Types.DATALINK));
+    sqlTypes.put("DATE", new SqlType(Types.DATE));
+    sqlTypes.put("TIME", new SqlType(Types.TIME));
+    sqlTypes.put("TIMESTAMP", new SqlType(Types.TIMESTAMP));
 
     Map<String, ColumnType> golden
         = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
@@ -239,8 +240,8 @@ public class UniqueKeyTest {
 
   @Test
   public void testAddColumnTypes_invalidType() {
-    Map<String, Integer> sqlTypes = new HashMap<>();
-    sqlTypes.put("blob", Types.BLOB);
+    Map<String, SqlType> sqlTypes = new HashMap<>();
+    sqlTypes.put("blob", new SqlType(Types.BLOB));
 
     UniqueKey.Builder builder = new UniqueKey.Builder("blob");
     thrown.expect(InvalidConfigurationException.class);

@@ -15,6 +15,7 @@
 package com.google.enterprise.adaptor.database;
 
 import static com.google.common.base.Charsets.UTF_8;
+import static com.google.enterprise.adaptor.database.DatabaseAdaptor.getColumnTypeName;
 
 import com.google.enterprise.adaptor.IOHelper;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
@@ -317,7 +318,7 @@ public abstract class ResponseGenerator {
           case Types.STRUCT:
           case Types.JAVA_OBJECT:
             log.log(Level.FINEST, "Column type not supported for text: {0}",
-                columnType);
+                getColumnTypeName(columnType, rsMetaData, index));
             continue;
           default:
             try {
@@ -497,8 +498,9 @@ public abstract class ResponseGenerator {
       ResultSetMetaData rsMetaData = rs.getMetaData();
       int index = rs.findColumn(getContentColumnName());
       int columnType = rsMetaData.getColumnType(index);
+      String columnTypeName = getColumnTypeName(columnType, rsMetaData, index);
       log.log(Level.FINEST, "Content column name: {0}, Type: {1}",
-          new Object[] {getContentColumnName(), columnType});
+          new Object[] {getContentColumnName(), columnTypeName});
 
       OutputStream out = resp.getOutputStream();
       // This code supports *LOB, *CHAR, *BINARY, and SQLXML types only.
@@ -604,7 +606,7 @@ public abstract class ResponseGenerator {
           break;
         default:
           log.log(Level.WARNING, "Content column type not supported: {0}",
-              columnType);
+              columnTypeName);
           break;
       }
     }

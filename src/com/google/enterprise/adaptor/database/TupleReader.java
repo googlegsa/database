@@ -14,6 +14,8 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.DatabaseAdaptor.getColumnTypeName;
+
 import com.google.common.io.BaseEncoding;
 import com.google.enterprise.adaptor.IOHelper;
 
@@ -30,8 +32,6 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.Writer;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
@@ -44,7 +44,6 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.text.SimpleDateFormat;
-import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -93,23 +92,6 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
           return new SimpleDateFormat("Z");
         }
       };
-
-  /** Map from SQL types to SQL type names. */
-  private static final HashMap<Integer, String> sqlTypeNames = new HashMap<>();
-
-  static {
-    for (Field field : Types.class.getFields()) {
-      if (field.getType() == int.class
-          && (field.getModifiers() & Modifier.STATIC) == Modifier.STATIC) {
-        try {
-          sqlTypeNames.put(field.getInt(null), field.getName());
-        } catch (IllegalAccessException | IllegalArgumentException e) {
-          // These should not be possible with the checks above.
-          throw new AssertionError(e);
-        }
-      }
-    }
-  }
 
   private static final String NS = ""; // namespace
   private static final String ROOT_ELEMENT = "database";
@@ -348,29 +330,6 @@ class TupleReader extends XMLFilterImpl implements XMLReader {
       handler.endElement("", columnName, columnName);
     }
     handler.endElement(NS, RECORD_ELEMENT, RECORD_ELEMENT);
-  }
-
-  /**
-   * Return a SQL type name for the column type.
-   * Use this instead of {@link ResultSetMetaData.getColumnTypeName()} 
-   * because drivers return different names.
-   *
-   * @param sqlType a type from java.sql.Types
-   * @return a name for the type from the first non-null value found
-   *     looking in java.sql.Types, calling ResultSetMetaData.getColumnTypeName,
-   *      and falling back to a string of the raw integer type itself
-   */
-  private static String getColumnTypeName(int sqlType, ResultSetMetaData rsmd,
-      int columnIndex) throws SQLException {
-     String sqlTypeName = sqlTypeNames.get(sqlType);
-     if (sqlTypeName == null) {
-       // Try the database's name for non-standard types.
-       sqlTypeName = rsmd.getColumnTypeName(columnIndex);
-       if (sqlTypeName == null || sqlTypeName.isEmpty()) {
-         sqlTypeName = String.valueOf(sqlType);
-       }
-     }
-     return sqlTypeName;
   }
 
   /**

@@ -18,6 +18,7 @@ import static java.util.Locale.US;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
+import com.google.enterprise.adaptor.database.DatabaseAdaptor.SqlType;
 
 import java.math.BigDecimal;
 import java.net.URISyntaxException;
@@ -368,13 +369,13 @@ class UniqueKey {
      * @throws InvalidConfigurationException if a column's SQL type cannot be
      *     mapped to a ColumnType.
      */
-    Builder addColumnTypes(Map<String, Integer> sqlTypes) {
-      for (Map.Entry<String, Integer> entry : sqlTypes.entrySet()) {
+    Builder addColumnTypes(Map<String, SqlType> sqlTypes) {
+      for (Map.Entry<String, SqlType> entry : sqlTypes.entrySet()) {
         if (types.get(entry.getKey()) != null) {
           continue;
         }
         ColumnType type;
-        switch (entry.getValue()) {
+        switch (entry.getValue().getType()) {
           case Types.BIT:
           case Types.BOOLEAN:
           case Types.TINYINT:
@@ -408,9 +409,9 @@ class UniqueKey {
             type = ColumnType.TIMESTAMP;
             break;
           default:
-            String errmsg = "Invalid UniqueKey SQLtype '" + entry.getValue()
-                + "' for " + entry.getKey() + ". Please set an explicit key "
-                + "type in db.uniqueKey.";
+            String errmsg = "Invalid UniqueKey SQLtype '"
+                + entry.getValue().getName() + "' for " + entry.getKey()
+                + ". Please set an explicit key type in db.uniqueKey.";
             throw new InvalidConfigurationException(errmsg);
         }
         types.put(entry.getKey(), type);

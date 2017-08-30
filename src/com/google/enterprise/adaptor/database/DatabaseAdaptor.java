@@ -37,6 +37,7 @@ import com.google.enterprise.adaptor.UserPrincipal;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -73,7 +74,47 @@ import java.util.logging.Logger;
 public class DatabaseAdaptor extends AbstractAdaptor {
   private static final Logger log
       = Logger.getLogger(DatabaseAdaptor.class.getName());
-  
+
+  /** Map from SQL types to SQL type names. */
+  private static final HashMap<Integer, String> sqlTypeNames = new HashMap<>();
+
+  static {
+    for (Field field : Types.class.getFields()) {
+      if (field.getType() == int.class
+          && (field.getModifiers() & Modifier.STATIC) == Modifier.STATIC) {
+        try {
+          sqlTypeNames.put(field.getInt(null), field.getName());
+        } catch (IllegalAccessException | IllegalArgumentException e) {
+          // These should not be possible with the checks above.
+          throw new AssertionError(e);
+        }
+      }
+    }
+  }
+
+  /**
+   * Return a SQL type name for the column type.
+   * Use this instead of {@link ResultSetMetaData.getColumnTypeName()}
+   * because drivers return different names.
+   *
+   * @param sqlType a type from java.sql.Types
+   * @return a name for the type from the first non-null value found
+   *     looking in java.sql.Types, calling ResultSetMetaData.getColumnTypeName,
+   *      and falling back to a string of the raw integer type itself
+   */
+  static String getColumnTypeName(int sqlType, ResultSetMetaData rsmd,
+      int columnIndex) throws SQLException {
+     String sqlTypeName = sqlTypeNames.get(sqlType);
+     if (sqlTypeName == null) {
+       // Try the database's name for non-standard types.
+       sqlTypeName = rsmd.getColumnTypeName(columnIndex);
+       if (sqlTypeName == null || sqlTypeName.isEmpty()) {
+         sqlTypeName = String.valueOf(sqlType);
+       }
+     }
+     return sqlTypeName;
+  }
+
   private static boolean isNullOrEmptyString(String str) {
     return null == str || "".equals(str.trim());
   }
@@ -273,7 +314,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     // Verify all column names.
     try (Connection conn = makeNewConnection()) {
-      Map<String, Integer> columnTypes =
+      Map<String, SqlType> columnTypes =
           verifyColumnNames(conn, "db.everyDocIdSql", everyDocIdSql,
               "db.uniqueKey", ukBuilder.getDocIdSqlColumns());
       ukBuilder.addColumnTypes(columnTypes);
@@ -305,6 +346,30 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     log.config("primary key: " + uniqueKey);
   }
 
+  /** A SQL data type, with a type code and type name. */
+  static class SqlType {
+    private final int type;
+    private final String name;
+
+    @VisibleForTesting
+    SqlType(int type) {
+      this(type, String.valueOf(type));
+    }
+
+    private SqlType(int type, String name) {
+      this.type = type;
+      this.name = name;
+    }
+
+    public int getType() {
+      return type;
+    }
+
+    public String getName() {
+      return name;
+    }
+  }
+
   /**
    * Verifies that the given column names exist in the query
    * ResultSet. The check is case-insensitive, so in some cases the
@@ -322,10 +387,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
    * @throws InvalidConfigurationException if any of the columns are not found
    */
   @VisibleForTesting
-  static Map<String, Integer> verifyColumnNames(Connection conn,
+  static Map<String, SqlType> verifyColumnNames(Connection conn,
        String sqlConfig, String sql, String columnConfig,
        Collection<String> columnNames) {
-    Map<String, Integer> typeMap = new HashMap<>();
+    Map<String, SqlType> typeMap = new HashMap<>();
     if (isNullOrEmptyString(sql)) {
       log.log(Level.FINEST,
           "Skipping validation of empty query {0}", sqlConfig);
@@ -361,7 +426,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
               "Matched column \"{0}\" as \"{1}\" in query {2}",
               new Object[] { match, actual, sqlConfig });
           targets.remove(match);
-          typeMap.put(match, rsmd.getColumnType(i));
+          int columnType = rsmd.getColumnType(i);
+          typeMap.put(match,
+              new SqlType(columnType, getColumnTypeName(columnType, rsmd, i)));
         }
       }
       if (!targets.isEmpty()) {
@@ -449,8 +516,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         continue;
       }
       int columnType = rsMetaData.getColumnType(index);
+      String columnTypeName = getColumnTypeName(columnType, rsMetaData, index);
       log.log(Level.FINEST, "Column name: {0}, Type: {1}", new Object[] {
-          entry.getKey(), columnType});
+          entry.getKey(), columnTypeName});
 
       // This code does not support binary or structured types.
       Object value = null;
@@ -542,7 +610,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         case Types.STRUCT:
         case Types.JAVA_OBJECT:
           log.log(Level.FINEST, "Metadata column type not supported: {0}",
-              columnType);
+              columnTypeName);
           break;
         default:
           try {
