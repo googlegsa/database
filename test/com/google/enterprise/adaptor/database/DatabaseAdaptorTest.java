@@ -2256,6 +2256,53 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testMetadataColumns_longvarchar() throws Exception {
+    executeUpdate("create table data(id int, content longvarchar)");
+    executeUpdate("insert into data(id, content) values (1, 'hello world')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select id from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata expected = new Metadata();
+    expected.add("col1", "1");
+    expected.add("col2", "hello world");
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_longvarcharNull() throws Exception {
+    executeUpdate("create table data(id int, content longvarchar)");
+    executeUpdate("insert into data(id) values (1)");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select id from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata expected = new Metadata();
+    expected.add("col1", "1");
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
   public void testMetadataColumns_date() throws Exception {
     executeUpdate("create table data(id integer, col date)");
     executeUpdate("insert into data(id, col) values(1001, {d '2004-10-06'})");

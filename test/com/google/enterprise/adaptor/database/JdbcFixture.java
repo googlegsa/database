@@ -212,8 +212,9 @@ class JdbcFixture {
           case MYSQL:
             if (sql.startsWith("create table")) {
               sql = sql
-                  .replaceAll("\\bclob\\b", "text")
-                  .replaceAll("\\blongvarbinary\\b", "long varbinary")
+                  .replaceAll("\\bclob\\b", "longtext")
+                  .replaceAll("\\blongvarbinary\\b", "mediumblob")
+                  .replaceAll("\\blongvarchar\\b", "mediumtext")
                   .replaceAll("\\btimestamp\\b(\\(\\d\\))?", "datetime$1 null");
             }
             break;
@@ -222,6 +223,7 @@ class JdbcFixture {
               sql = sql
                   .replaceAll("\\bbigint\\b", "integer")
                   .replaceAll("\\blongvarbinary\\b", "long raw")
+                  .replaceAll("\\blongvarchar\\b", "long")
                   .replaceAll("\\btime\\b", "date")
                   .replaceAll("\\bvarbinary\\b", "raw")
                   .replaceAll("\\bxml\\b", "xmltype");
@@ -232,6 +234,8 @@ class JdbcFixture {
               sql = sql
                   .replaceAll("\\bblob\\b", "varbinary(max)")
                   .replaceAll("\\bclob\\b", "varchar(max)")
+                  .replaceAll("\\blongvarbinary\\b", "image")
+                  .replaceAll("\\blongvarchar\\b", "text")
                   .replaceAll("\\btimestamp\\b", "datetime2");
             } else if (sql.startsWith("insert")) {
               // A ts escape is treated as a datetime rather than a

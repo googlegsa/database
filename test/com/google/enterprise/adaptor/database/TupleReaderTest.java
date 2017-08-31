@@ -292,6 +292,42 @@ public class TupleReaderTest {
   }
 
   @Test
+  public void testLongvarchar() throws Exception {
+    assumeFalse("LONGVARCHAR type not supported", is(H2));
+    executeUpdate("create table data(COLNAME longvarchar)");
+    executeUpdate("insert into data(colname) values('onevalue')");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"LONGVARCHAR\">onevalue</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testLongvarchar_null() throws Exception {
+    assumeFalse("LONGVARCHAR type not supported", is(H2));
+    executeUpdate("create table data(COLNAME longvarchar)");
+    executeUpdate("insert into data(colname) values(null)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"LONGVARCHAR\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
   public void testBinary() throws Exception {
     byte[] binaryData = new byte[123];
     new Random().nextBytes(binaryData);
@@ -360,7 +396,7 @@ public class TupleReaderTest {
 
   @Test
   public void testLongvarbinary() throws Exception {
-    assumeFalse("LONGVARBINARY type not supported", is(H2) || is(SQLSERVER));
+    assumeFalse("LONGVARBINARY type not supported", is(H2));
     byte[] longvarbinaryData = new byte[12345];
     new Random().nextBytes(longvarbinaryData);
     executeUpdate("create table data(COLNAME longvarbinary)");
@@ -388,7 +424,7 @@ public class TupleReaderTest {
 
   @Test
   public void testLongvarbinary_empty() throws Exception {
-    assumeFalse("LONGVARBINARY type not supported", is(H2) || is(SQLSERVER));
+    assumeFalse("LONGVARBINARY type not supported", is(H2));
     executeUpdate("create table data(COLNAME longvarbinary)");
     executeUpdate("insert into data(colname) values('')");
     final String golden = ""
@@ -408,7 +444,7 @@ public class TupleReaderTest {
 
   @Test
   public void testLongvarbinary_null() throws Exception {
-    assumeFalse("LONGVARBINARY type not supported", is(H2) || is(SQLSERVER));
+    assumeFalse("LONGVARBINARY type not supported", is(H2));
     executeUpdate("create table data(COLNAME longvarbinary)");
     executeUpdate("insert into data(colname) values(null)");
     final String golden = ""
