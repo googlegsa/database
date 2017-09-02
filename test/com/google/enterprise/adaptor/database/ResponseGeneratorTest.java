@@ -14,6 +14,7 @@
 
 package com.google.enterprise.adaptor.database;
 
+import static com.google.enterprise.adaptor.database.JdbcFixture.DATABASE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
@@ -229,16 +230,17 @@ public class ResponseGeneratorTest {
   @Test
   public void testRowToText_multipleTypes() throws Exception {
     executeUpdate("create table data ("
-        + "intcol integer, charcol varchar(20),"
+        + "intcol integer, charcol varchar(20), longcharcol longvarchar,"
         + " datecol date, timecol time, timestampcol timestamp(3),"
         + " clobcol clob, blobcol blob)");
-    String sql = "insert into data values (1, ?,"
+    String sql = "insert into data values (1, ?, ?,"
         + "{d '2007-08-09'}, {t '12:34:56'}, {ts '2007-08-09 12:34:56.7'},"
         + "?, ?)";
     PreparedStatement ps = prepareStatement(sql);
     ps.setString(1, "hello, world");
-    ps.setString(2, "it's a big world");
-    ps.setBytes(3, "a big, bad world".getBytes(UTF_8));
+    ps.setString(2, "lovely world");
+    ps.setString(3, "it's a big world");
+    ps.setBytes(4, "a big, bad world".getBytes(UTF_8));
     assertEquals(1, ps.executeUpdate());
 
     MockResponse bar = new MockResponse();
@@ -251,11 +253,21 @@ public class ResponseGeneratorTest {
     captureLogMessages(ResponseGenerator.class,
         "Column type not supported for text", messages);
     resgen.generateResponse(rs, response);
-    String tables = (is(ORACLE) || is(SQLSERVER))
-        ? ",,,,," : "data,data,data,data,data,data";
+    String tables;
+    switch (DATABASE) {
+      case ORACLE:
+        tables = ",,,,,,";
+        break;
+      case SQLSERVER:
+        tables = ",,data,,,,";
+        break;
+      default:
+        tables = "data,data,data,data,data,data,data";
+        break;
+    }
     String golden = tables + "\n"
-        + "intcol,charcol,datecol,timecol,timestampcol,clobcol\n"
-        + "1,\"hello, world\"," + JdbcFixture.d("2007-08-09") + ","
+        + "intcol,charcol,longcharcol,datecol,timecol,timestampcol,clobcol\n"
+        + "1,\"hello, world\",lovely world," + JdbcFixture.d("2007-08-09") + ","
         + JdbcFixture.t("12:34:56")
         + ",2007-08-09 12:34:56.7,it's a big world\n";
     assertEquals(golden, bar.baos.toString(UTF_8.name()).toLowerCase(US));
@@ -359,6 +371,42 @@ public class ResponseGeneratorTest {
   }
 
   @Test
+  public void testContentColumn_longvarchar() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content longvarchar)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, content);
+    assertEquals(1, ps.executeUpdate());
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testContentColumn_nullLongvarchar() throws Exception {
+    executeUpdate("create table data(id int, content longvarchar)");
+    executeUpdate("insert into data(id) values (1)");
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals("", bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
   public void testContentColumn_varbinary() throws Exception {
     String content = "hello world";
     executeUpdate("create table data(id int, content varbinary(20))");
@@ -381,6 +429,42 @@ public class ResponseGeneratorTest {
   @Test
   public void testContentColumn_nullVarbinary() throws Exception {
     executeUpdate("create table data(id int, content varbinary(20))");
+    executeUpdate("insert into data(id) values (1)");
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals("", bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testContentColumn_longvarbinary() throws Exception {
+    String content = "hello world";
+    executeUpdate("create table data(id int, content longvarbinary)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setBytes(1, content.getBytes(UTF_8));
+    assertEquals(1, ps.executeUpdate());
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testContentColumn_nullLongvarbinary() throws Exception {
+    executeUpdate("create table data(id int, content longvarbinary)");
     executeUpdate("insert into data(id) values (1)");
 
     MockResponse bar = new MockResponse();
