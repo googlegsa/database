@@ -224,6 +224,7 @@ class JdbcFixture {
                   .replaceAll("\\bbigint\\b", "integer")
                   .replaceAll("\\blongvarbinary\\b", "long raw")
                   .replaceAll("\\blongvarchar\\b", "long")
+                  .replaceAll("\\bnvarchar\\b", "nvarchar2")
                   .replaceAll("\\btime\\b", "date")
                   .replaceAll("\\bvarbinary\\b", "raw")
                   .replaceAll("\\bxml\\b", "xmltype");
@@ -236,6 +237,7 @@ class JdbcFixture {
                   .replaceAll("\\bclob\\b", "varchar(max)")
                   .replaceAll("\\blongvarbinary\\b", "image")
                   .replaceAll("\\blongvarchar\\b", "text")
+                  .replaceAll("\\bnclob\\b", "nvarchar(max)")
                   .replaceAll("\\btimestamp\\b", "datetime2");
             } else if (sql.startsWith("insert")) {
               // A ts escape is treated as a datetime rather than a

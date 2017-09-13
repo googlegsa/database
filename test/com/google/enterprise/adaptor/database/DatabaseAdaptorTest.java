@@ -17,6 +17,7 @@ package com.google.enterprise.adaptor.database;
 import static com.google.enterprise.adaptor.DocIdPusher.Record;
 import static com.google.enterprise.adaptor.Principal.DEFAULT_NAMESPACE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQuery;
@@ -2477,6 +2478,59 @@ public class DatabaseAdaptorTest {
   @Test
   public void testMetadataColumns_clobNull() throws Exception {
     executeUpdate("create table data(id int, content clob)");
+    executeUpdate("insert into data(id) values (1)");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata expected = new Metadata();
+    expected.add("col1", "1");
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_nclob() throws Exception {
+    assumeFalse("NCLOB type not supported", is(MYSQL));
+    String content = "Hello World";
+    executeUpdate("create table data(id int, content nclob)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, content);
+    assertEquals(1, ps.executeUpdate());
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "ID:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Metadata expected = new Metadata();
+    expected.add("col1", "1");
+    expected.add("col2", content);
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testMetadataColumns_nclobNull() throws Exception {
+    assumeFalse("NCLOB type not supported", is(MYSQL));
+    executeUpdate("create table data(id int, content nclob)");
     executeUpdate("insert into data(id) values (1)");
 
     Map<String, String> configEntries = new HashMap<String, String>();

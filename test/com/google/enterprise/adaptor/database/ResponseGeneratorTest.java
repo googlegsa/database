@@ -16,6 +16,7 @@ package com.google.enterprise.adaptor.database;
 
 import static com.google.enterprise.adaptor.database.JdbcFixture.DATABASE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.H2;
+import static com.google.enterprise.adaptor.database.JdbcFixture.Database.MYSQL;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.ORACLE;
 import static com.google.enterprise.adaptor.database.JdbcFixture.Database.SQLSERVER;
 import static com.google.enterprise.adaptor.database.JdbcFixture.executeQueryAndNext;
@@ -275,6 +276,35 @@ public class ResponseGeneratorTest {
   }
 
   @Test
+  public void testRowToText_national() throws Exception {
+    assumeFalse("NATIONAL types not supported", is(MYSQL));
+    executeUpdate("create table data ("
+        + "intcol int, nvarcharcol nvarchar(20), nclobcol nclob)");
+    String sql = "insert into data values (1, ?, ?)";
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, "hello, world");
+    ps.setString(2, "lovely world");
+    assertEquals(1, ps.executeUpdate());
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(ResponseGenerator.class,
+        "Column type not supported for text", messages);
+    resgen.generateResponse(rs, response);
+    String tables = (is(SQLSERVER) || is(ORACLE)) ? ",," : "data,data,data";
+    String golden = tables + "\n"
+        + "intcol,nvarcharcol,nclobcol\n"
+        + "1,\"hello, world\",lovely world\n";
+    assertEquals(golden, bar.baos.toString(UTF_8.name()).toLowerCase(US));
+    assertEquals(messages.toString(), 0, messages.size());
+  }
+
+  @Test
   public void testRowToText_null() throws Exception {
     executeUpdate(
         "create table data (id integer, this varchar(20), that clob)");
@@ -501,6 +531,44 @@ public class ResponseGeneratorTest {
   @Test
   public void testContentColumn_nullClob() throws Exception {
     executeUpdate("create table data(id int, content clob)");
+    executeUpdate("insert into data(id) values (1)");
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals("", bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testContentColumn_nclob() throws Exception {
+    assumeFalse("NCLOB type not supported", is(MYSQL));
+    String content = "hello world";
+    executeUpdate("create table data(id int, content nclob)");
+    String sql = "insert into data(id, content) values (1, ?)";
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, content);
+    assertEquals(1, ps.executeUpdate());
+
+    MockResponse bar = new MockResponse();
+    Response response = newProxyInstance(Response.class, bar);
+    Map<String, String> cfg = new TreeMap<String, String>();
+    cfg.put("columnName", "content");
+    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
+
+    ResultSet rs = executeQueryAndNext("select * from data");
+    resgen.generateResponse(rs, response);
+    assertEquals(content, bar.baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testContentColumn_nullNclob() throws Exception {
+    assumeFalse("NCLOB type not supported", is(MYSQL));
+    executeUpdate("create table data(id int, content nclob)");
     executeUpdate("insert into data(id) values (1)");
 
     MockResponse bar = new MockResponse();
