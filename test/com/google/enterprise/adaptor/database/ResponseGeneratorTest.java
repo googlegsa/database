@@ -36,7 +36,7 @@ import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import com.google.enterprise.adaptor.InvalidConfigurationException;
-import com.google.enterprise.adaptor.Response;
+import com.google.enterprise.adaptor.database.RecordingResponse.State;
 
 import org.junit.After;
 import org.junit.Rule;
@@ -48,9 +48,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
@@ -137,36 +134,6 @@ public class ResponseGeneratorTest {
         Collections.<String, String>singletonMap("columnName", ""));
   }
 
-  private static class MockResponse implements InvocationHandler {
-    boolean notFound = false;
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    String contentType = null;
-    URI displayUrl = null;
-
-    public Object invoke(Object proxy, Method method, Object[] args)
-        throws Throwable {
-      String methodName = method.getName();
-      if ("respondNotFound".equals(methodName)) {
-        notFound = true;
-        return null;
-      } else if ("getOutputStream".equals(methodName)) {
-        return baos;
-      } else if ("setContentType".equals(methodName)) {
-        contentType = "" + args[0];
-        return null;
-      } else if ("setDisplayUrl".equals(methodName)) {
-        displayUrl = (URI) args[0];
-        return null;
-      }
-      throw new AssertionError("misused response proxy");
-    }
-  }
-
-  private <T> T newProxyInstance(Class<T> clazz, InvocationHandler handler) {
-    return clazz.cast(Proxy.newProxyInstance(clazz.getClassLoader(),
-        new Class<?>[] { clazz }, handler));
-  }
-
   @Test
   public void testRowToText_array() throws Exception {
     if (is(H2)) {
@@ -185,8 +152,8 @@ public class ResponseGeneratorTest {
       assumeTrue("ARRAY type not supported", false);
     }
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
 
@@ -196,7 +163,7 @@ public class ResponseGeneratorTest {
         "Column type not supported for text", messages);
     resgen.generateResponse(rs, response);
     String golden = (is(ORACLE) ? "" : "DATA") + "\nID\n1\n";
-    assertEquals(golden, bar.baos.toString(UTF_8.name()));
+    assertEquals(golden, baos.toString(UTF_8.name()));
     assertEquals(messages.toString(), 1, messages.size());
   }
 
@@ -210,8 +177,8 @@ public class ResponseGeneratorTest {
     ps.setBoolean(1, true);
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
 
@@ -224,7 +191,7 @@ public class ResponseGeneratorTest {
     String golden = tables + "\n"
         + "booleancol\n"
         + "true\n";
-    assertEquals(golden, bar.baos.toString(UTF_8.name()).toLowerCase(US));
+    assertEquals(golden, baos.toString(UTF_8.name()).toLowerCase(US));
     assertEquals(messages.toString(), 0, messages.size());
   }
 
@@ -244,8 +211,8 @@ public class ResponseGeneratorTest {
     ps.setBytes(4, "a big, bad world".getBytes(UTF_8));
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
 
@@ -271,7 +238,7 @@ public class ResponseGeneratorTest {
         + "1,\"hello, world\",lovely world," + JdbcFixture.d("2007-08-09") + ","
         + JdbcFixture.t("12:34:56")
         + ",2007-08-09 12:34:56.7,it's a big world\n";
-    assertEquals(golden, bar.baos.toString(UTF_8.name()).toLowerCase(US));
+    assertEquals(golden, baos.toString(UTF_8.name()).toLowerCase(US));
     assertEquals(messages.toString(), 1, messages.size());
   }
 
@@ -286,8 +253,8 @@ public class ResponseGeneratorTest {
     ps.setString(2, "lovely world");
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
 
@@ -300,7 +267,7 @@ public class ResponseGeneratorTest {
     String golden = tables + "\n"
         + "intcol,nvarcharcol,nclobcol\n"
         + "1,\"hello, world\",lovely world\n";
-    assertEquals(golden, bar.baos.toString(UTF_8.name()).toLowerCase(US));
+    assertEquals(golden, baos.toString(UTF_8.name()).toLowerCase(US));
     assertEquals(messages.toString(), 0, messages.size());
   }
 
@@ -310,8 +277,8 @@ public class ResponseGeneratorTest {
         "create table data (id integer, this varchar(20), that clob)");
     executeUpdate("insert into data (id) values (1)");
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
 
@@ -319,7 +286,7 @@ public class ResponseGeneratorTest {
     resgen.generateResponse(rs, response);
     String table = (is(SQLSERVER) || is(ORACLE)) ? ",," : "DATA,DATA,DATA";
     String golden = table + "\nID,THIS,THAT\n1,,\n";
-    assertEquals(golden, bar.baos.toString(UTF_8.name()).toUpperCase(US));
+    assertEquals(golden, baos.toString(UTF_8.name()).toUpperCase(US));
   }
 
   @Test
@@ -332,8 +299,8 @@ public class ResponseGeneratorTest {
     ps.setString(2, "\"Frankly Scarlett, I don't give a damn!\"");
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     ResponseGenerator resgen = ResponseGenerator.rowToText(cfg);
 
@@ -341,7 +308,7 @@ public class ResponseGeneratorTest {
     resgen.generateResponse(rs, response);
     String golden = "\nID,NAME,QUOTE\n"
         + "1,Rhett Butler,\"\"\"Frankly Scarlett, I don't give a damn!\"\"\"\n";
-    assertThat(bar.baos.toString(UTF_8.name()), endsWith(golden));
+    assertThat(baos.toString(UTF_8.name()), endsWith(golden));
   }
 
   @Test
@@ -353,15 +320,15 @@ public class ResponseGeneratorTest {
     ps.setString(1, content);
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
+    assertEquals(content, baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -369,15 +336,15 @@ public class ResponseGeneratorTest {
     executeUpdate("create table data(id int, content varchar(20))");
     executeUpdate("insert into data(id) values (1)");
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals("", bar.baos.toString(UTF_8.name()));
+    assertEquals("", baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -389,8 +356,7 @@ public class ResponseGeneratorTest {
     ps.setString(1, content);
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    RecordingResponse response = new RecordingResponse();
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "wrongcolumn");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
@@ -409,15 +375,15 @@ public class ResponseGeneratorTest {
     ps.setString(1, content);
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
+    assertEquals(content, baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -425,15 +391,15 @@ public class ResponseGeneratorTest {
     executeUpdate("create table data(id int, content longvarchar)");
     executeUpdate("insert into data(id) values (1)");
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals("", bar.baos.toString(UTF_8.name()));
+    assertEquals("", baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -445,15 +411,15 @@ public class ResponseGeneratorTest {
     ps.setBytes(1, content.getBytes(UTF_8));
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
+    assertEquals(content, baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -461,15 +427,15 @@ public class ResponseGeneratorTest {
     executeUpdate("create table data(id int, content varbinary(20))");
     executeUpdate("insert into data(id) values (1)");
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals("", bar.baos.toString(UTF_8.name()));
+    assertEquals("", baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -481,15 +447,15 @@ public class ResponseGeneratorTest {
     ps.setBytes(1, content.getBytes(UTF_8));
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
+    assertEquals(content, baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -497,15 +463,15 @@ public class ResponseGeneratorTest {
     executeUpdate("create table data(id int, content longvarbinary)");
     executeUpdate("insert into data(id) values (1)");
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals("", bar.baos.toString(UTF_8.name()));
+    assertEquals("", baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -517,15 +483,15 @@ public class ResponseGeneratorTest {
     ps.setString(1, content);
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
+    assertEquals(content, baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -533,15 +499,15 @@ public class ResponseGeneratorTest {
     executeUpdate("create table data(id int, content clob)");
     executeUpdate("insert into data(id) values (1)");
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals("", bar.baos.toString(UTF_8.name()));
+    assertEquals("", baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -554,15 +520,15 @@ public class ResponseGeneratorTest {
     ps.setString(1, content);
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
+    assertEquals(content, baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -571,15 +537,15 @@ public class ResponseGeneratorTest {
     executeUpdate("create table data(id int, content nclob)");
     executeUpdate("insert into data(id) values (1)");
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals("", bar.baos.toString(UTF_8.name()));
+    assertEquals("", baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -591,15 +557,15 @@ public class ResponseGeneratorTest {
     ps.setBytes(1, content.getBytes(UTF_8));
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
+    assertEquals(content, baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -607,15 +573,15 @@ public class ResponseGeneratorTest {
     executeUpdate("create table data(id int, content blob)");
     executeUpdate("insert into data(id) values (1)");
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals("", bar.baos.toString(UTF_8.name()));
+    assertEquals("", baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -632,8 +598,8 @@ public class ResponseGeneratorTest {
       assertEquals(1, ps.executeUpdate());
     }
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
@@ -641,7 +607,7 @@ public class ResponseGeneratorTest {
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
     assertEquals(is(SQLSERVER) ? content.trim() : content,
-        bar.baos.toString(UTF_8.name()));
+        baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -650,15 +616,15 @@ public class ResponseGeneratorTest {
     executeUpdate("create table data(id int, content xml)");
     executeUpdate("insert into data(id) values (1)");
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals("", bar.baos.toString(UTF_8.name()));
+    assertEquals("", baos.toString(UTF_8.name()));
   }
 
   @Test
@@ -681,8 +647,8 @@ public class ResponseGeneratorTest {
     ps.setTimestamp(1, new Timestamp(0L));
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
@@ -692,14 +658,14 @@ public class ResponseGeneratorTest {
     captureLogMessages(ResponseGenerator.class,
         "Content column type not supported", messages);
     resgen.generateResponse(rs, response);
-    assertEquals("", bar.baos.toString(UTF_8.name()));
+    assertEquals("", baos.toString(UTF_8.name()));
     assertEquals(messages.toString(), 1, messages.size());
   }
 
   @Test
   public void testFilepathColumn() throws Exception {
-    MockResponse far = new MockResponse();
-    Response response = newProxyInstance(Response.class, far);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "filepath");
     String content = "we live inside a file\nwe do\nyes";
@@ -712,13 +678,12 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.filepathColumn(cfg);
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, far.baos.toString(UTF_8.name()));
+    assertEquals(content, baos.toString(UTF_8.name()));
   }
 
   @Test
   public void testFilepathColumnModeIncorrectColumnName() throws Exception {
-    MockResponse far = new MockResponse();
-    Response response = newProxyInstance(Response.class, far);
+    RecordingResponse response = new RecordingResponse();
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "wrongcolumn");
     String content = "we live inside a file\nwe do\nyes";
@@ -736,8 +701,8 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testUrlColumn() throws Exception {
-    MockResponse uar = new MockResponse();
-    Response response = newProxyInstance(Response.class, uar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "url");
     String content = "from a yellow url connection comes monty python";
@@ -753,15 +718,14 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, uar.baos.toString(UTF_8.name()));
-    assertEquals("text/plain", uar.contentType);
-    assertEquals(testUri, uar.displayUrl);
+    assertEquals(content, baos.toString(UTF_8.name()));
+    assertEquals("text/plain", response.getContentType());
+    assertEquals(testUri, response.getDisplayUrl());
   }
 
   @Test
   public void testUrlColumnModeIncorrectColumnName() throws Exception {
-    MockResponse far = new MockResponse();
-    Response response = newProxyInstance(Response.class, far);
+    RecordingResponse response = new RecordingResponse();
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "wrongcolumn");
 
@@ -790,17 +754,17 @@ public class ResponseGeneratorTest {
     ps.setString(2, "some metadata");
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse uar = new MockResponse();
-    Response response = newProxyInstance(Response.class, uar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("db.metadataColumns", "col1");
     ResponseGenerator resgen = ResponseGenerator.urlAndMetadataLister(cfg);
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(true, uar.notFound);
-    assertEquals("", uar.baos.toString(UTF_8.name()));
-    assertNull(uar.contentType);
-    assertNull(uar.displayUrl);
+    assertEquals(State.NOT_FOUND, response.getState());
+    assertEquals("", baos.toString(UTF_8.name()));
+    assertNull(response.getContentType());
+    assertNull(response.getDisplayUrl());
   }
 
   @Test
@@ -820,23 +784,22 @@ public class ResponseGeneratorTest {
     executeUpdate("create table data(url varchar(200))");
     executeUpdate("insert into data(url) values (null)");
 
-    MockResponse uar = new MockResponse();
-    Response response = newProxyInstance(Response.class, uar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     ResponseGenerator resgen = ResponseGenerator.urlAndMetadataLister(cfg);
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(true, uar.notFound);
-    assertEquals("", uar.baos.toString(UTF_8.name()));
-    assertNull(uar.contentType);
-    assertNull(uar.displayUrl);
+    assertEquals(State.NOT_FOUND, response.getState());
+    assertEquals("", baos.toString(UTF_8.name()));
+    assertNull(response.getContentType());
+    assertNull(response.getDisplayUrl());
   }
 
   @Test
   public void testContentColumn_contentTypeOverrideAndContentTypeCol()
       throws Exception {
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    RecordingResponse response = new RecordingResponse();
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "my-blob-col");
     cfg.put("contentTypeOverride", "dev/rubish");
@@ -854,8 +817,8 @@ public class ResponseGeneratorTest {
     ps.setBytes(1, content.getBytes(UTF_8));
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("contentTypeOverride", "dev/rubish");
@@ -864,8 +827,8 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
-    assertEquals("dev/rubish", bar.contentType);
+    assertEquals(content, baos.toString(UTF_8.name()));
+    assertEquals("dev/rubish", response.getContentType());
   }
 
   @Test
@@ -879,8 +842,8 @@ public class ResponseGeneratorTest {
     ps.setBytes(1, content.getBytes(UTF_8));
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("contentTypeOverride", ""); // Empty should be ignored.
@@ -889,8 +852,8 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
-    assertEquals("text/rtf", bar.contentType);
+    assertEquals(content, baos.toString(UTF_8.name()));
+    assertEquals("text/rtf", response.getContentType());
   }
 
   @Test
@@ -903,8 +866,8 @@ public class ResponseGeneratorTest {
     ps.setBytes(1, content.getBytes(UTF_8));
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("contentTypeOverride", ""); // Empty should be ignored.
@@ -916,8 +879,8 @@ public class ResponseGeneratorTest {
     captureLogMessages(ResponseGenerator.class,
         "content type at col {0} is null", messages);
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
-    assertNull(bar.contentType);
+    assertEquals(content, baos.toString(UTF_8.name()));
+    assertNull(response.getContentType());
     assertEquals(messages.toString(), 1, messages.size());
   }
 
@@ -932,8 +895,8 @@ public class ResponseGeneratorTest {
     ps.setString(2, url);
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("displayUrlCol", "url");
@@ -941,8 +904,8 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
-    assertEquals(new URI(url), bar.displayUrl);
+    assertEquals(content, baos.toString(UTF_8.name()));
+    assertEquals(new URI(url), response.getDisplayUrl());
   }
 
   @Test
@@ -954,8 +917,8 @@ public class ResponseGeneratorTest {
     ps.setBytes(1, content.getBytes(UTF_8));
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("displayUrlCol", "url");
@@ -966,8 +929,8 @@ public class ResponseGeneratorTest {
     captureLogMessages(ResponseGenerator.class,
         "display url at col {0} is null", messages);
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
-    assertNull(bar.displayUrl);
+    assertEquals(content, baos.toString(UTF_8.name()));
+    assertNull(response.getDisplayUrl());
     assertEquals(messages.toString(), 1, messages.size());
   }
 
@@ -982,8 +945,8 @@ public class ResponseGeneratorTest {
     ps.setString(2, url);
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "content");
     cfg.put("displayUrlCol", "url");
@@ -994,8 +957,8 @@ public class ResponseGeneratorTest {
     captureLogMessages(ResponseGenerator.class,
          "override display url invalid:", messages);
     resgen.generateResponse(rs, response);
-    assertEquals(content, bar.baos.toString(UTF_8.name()));
-    assertNull(bar.displayUrl);
+    assertEquals(content, baos.toString(UTF_8.name()));
+    assertNull(response.getDisplayUrl());
     assertEquals(messages.toString(), 1, messages.size());
   }
 
@@ -1008,8 +971,7 @@ public class ResponseGeneratorTest {
     ps.setString(1, url);
     assertEquals(1, ps.executeUpdate());
 
-    MockResponse bar = new MockResponse();
-    Response response = newProxyInstance(Response.class, bar);
+    RecordingResponse response = new RecordingResponse();
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "url");
     ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
@@ -1022,8 +984,8 @@ public class ResponseGeneratorTest {
 
   @Test
   public void testUrlColumn_displayUrlCol() throws Exception {
-    MockResponse uar = new MockResponse();
-    Response response = newProxyInstance(Response.class, uar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "fetchUrl");
     cfg.put("displayUrlCol", "url");
@@ -1039,15 +1001,15 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, uar.baos.toString(UTF_8.name()));
-    assertEquals("text/plain", uar.contentType);
-    assertEquals(new URI(url), uar.displayUrl);
+    assertEquals(content, baos.toString(UTF_8.name()));
+    assertEquals("text/plain", response.getContentType());
+    assertEquals(new URI(url), response.getDisplayUrl());
   }
 
   @Test
   public void testUrlColumn_contentTypeCol() throws Exception {
-    MockResponse uar = new MockResponse();
-    Response response = newProxyInstance(Response.class, uar);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("columnName", "url");
     cfg.put("contentTypeCol", "contentType");
@@ -1066,8 +1028,8 @@ public class ResponseGeneratorTest {
     ResponseGenerator resgen = ResponseGenerator.urlColumn(cfg);
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, uar.baos.toString(UTF_8.name()));
-    assertEquals("text/rtf", uar.contentType);
+    assertEquals(content, baos.toString(UTF_8.name()));
+    assertEquals("text/rtf", response.getContentType());
   }
 
   @Test
@@ -1076,8 +1038,8 @@ public class ResponseGeneratorTest {
     executeUpdate(
         "insert into data(id, xyggy_col) values (1, 'xyggy value')");
 
-    MockResponse har = new MockResponse();
-    Response response = newProxyInstance(Response.class, har);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     ResponseGenerator resgen =
         ResponseGenerator.rowToHtml(Collections.<String, String>emptyMap());
 
@@ -1085,7 +1047,7 @@ public class ResponseGeneratorTest {
     resgen.generateResponse(rs, response);
     // Assert that the column of interest appears as the content of some
     // element in the HTML.
-    String content = har.baos.toString(UTF_8.name());
+    String content = baos.toString(UTF_8.name());
     assertThat(content, containsString(">XYGGY_COL<"));
     assertThat(content, containsString(">xyggy value<"));
   }
@@ -1097,8 +1059,8 @@ public class ResponseGeneratorTest {
     executeUpdate(
         "insert into data(id, \"xyggy col\") values (1, 'xyggy value')");
 
-    MockResponse har = new MockResponse();
-    Response response = newProxyInstance(Response.class, har);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     ResponseGenerator resgen =
         ResponseGenerator.rowToHtml(Collections.<String, String>emptyMap());
 
@@ -1106,7 +1068,7 @@ public class ResponseGeneratorTest {
     resgen.generateResponse(rs, response);
     // Assert that the column of interest appears as the content of some
     // element in the HTML.
-    String content = har.baos.toString(UTF_8.name());
+    String content = baos.toString(UTF_8.name());
     assertThat(content, containsString(">xyggy col<"));
     assertThat(content, containsString(">xyggy value<"));
   }
@@ -1117,8 +1079,8 @@ public class ResponseGeneratorTest {
     executeUpdate(
         "insert into data(id, xyggy_col) values (1, 'xyggy value')");
 
-    MockResponse har = new MockResponse();
-    Response response = newProxyInstance(Response.class, har);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("stylesheet",
         ResponseGenerator.class
@@ -1130,15 +1092,14 @@ public class ResponseGeneratorTest {
     resgen.generateResponse(rs, response);
     // Assert that the column of interest appears as the content of some
     // element in the HTML.
-    String content = har.baos.toString(UTF_8.name());
+    String content = baos.toString(UTF_8.name());
     assertThat(content, containsString(">XYGGY_COL<"));
     assertThat(content, containsString(">xyggy value<"));
   }
 
   @Test
   public void testRowToHtml_stylesheetNotFound() throws Exception {
-    MockResponse har = new MockResponse();
-    Response response = newProxyInstance(Response.class, har);
+    RecordingResponse response = new RecordingResponse();
     Map<String, String> cfg = new TreeMap<String, String>();
     cfg.put("stylesheet", "not/a/valid/path.xsl");
     thrown.expect(FileNotFoundException.class);
