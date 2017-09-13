@@ -743,6 +743,49 @@ public class TupleReaderTest {
   }
 
   @Test
+  public void testNclob() throws Exception {
+    assumeTrue("NCLOB type not supported", is(ORACLE));
+    String nclobData = "hello world";
+    executeUpdate("create table data(colname nclob)");
+    String sql = "insert into data(colname) values (?)";
+    PreparedStatement ps = prepareStatement(sql);
+    ps.setString(1, nclobData);
+    assertEquals(1, ps.executeUpdate());
+
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"NCLOB\">"
+        + nclobData
+        + "</COLNAME>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
+  public void testNclob_null() throws Exception {
+    assumeTrue("NCLOB type not supported", is(ORACLE));
+    executeUpdate("create table data(colname nclob)");
+    executeUpdate("insert into data(colname) values(null)");
+    final String golden = ""
+        + "<database>"
+        + "<table>"
+        + "<table_rec>"
+        + "<COLNAME SQLType=\"NCLOB\" ISNULL=\"true\"/>"
+        + "</table_rec>"
+        + "</table>"
+        + "</database>";
+    ResultSet rs = executeQueryAndNext("select * from data");
+    String result = generateXml(rs);
+    assertEquals(golden, result);
+  }
+
+  @Test
   public void testBlob() throws Exception {
     assumeFalse("BLOB type not supported", is(MYSQL) || is(SQLSERVER));
     byte[] blobData = new byte[12345];
