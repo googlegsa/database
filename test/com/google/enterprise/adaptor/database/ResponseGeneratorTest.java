@@ -24,6 +24,7 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.JdbcFixture.is;
 import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatement;
+import static com.google.enterprise.adaptor.database.JdbcFixture.setObject;
 import static com.google.enterprise.adaptor.database.Logging.captureLogMessages;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Locale.US;
@@ -57,6 +58,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLXML;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -311,13 +313,28 @@ public class ResponseGeneratorTest {
     assertThat(baos.toString(UTF_8.name()), endsWith(golden));
   }
 
-  @Test
-  public void testContentColumn_varchar() throws Exception {
-    String content = "hello world";
-    executeUpdate("create table data(id int, content varchar(20))");
+  /** @see testContentColumn(int, String, Object, String) */
+  private void testContentColumn(int sqlType, Object input, String output)
+      throws Exception {
+    testContentColumn(sqlType,
+        DatabaseAdaptor.getColumnTypeName(sqlType, null, 0).toLowerCase(US),
+        input, output);
+  }
+
+  /**
+   * Parameterized test for contentColumn using different SQL data types.
+   *
+   * @param sqlType the SQL data type
+   * @param sqlTypeDecl the SQL data type declaration
+   * @param input the SQL value inserted into the database
+   * @param output the expected content stream value
+   */
+  private void testContentColumn(int sqlType, String sqlTypeDecl, Object input,
+      String output) throws SQLException, IOException {
+    executeUpdate("create table data(id int, content " + sqlTypeDecl + ")");
     String sql = "insert into data(id, content) values (1, ?)";
     PreparedStatement ps = prepareStatement(sql);
-    ps.setString(1, content);
+    setObject(ps, 1, input, sqlType);
     assertEquals(1, ps.executeUpdate());
 
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -328,23 +345,18 @@ public class ResponseGeneratorTest {
 
     ResultSet rs = executeQueryAndNext("select * from data");
     resgen.generateResponse(rs, response);
-    assertEquals(content, baos.toString(UTF_8.name()));
+    assertEquals(output, baos.toString(UTF_8.name()));
+  }
+
+  @Test
+  public void testContentColumn_varchar() throws Exception {
+    String content = "hello world";
+    testContentColumn(Types.VARCHAR, "varchar(20)", content, content);
   }
 
   @Test
   public void testContentColumn_nullVarchar() throws Exception {
-    executeUpdate("create table data(id int, content varchar(20))");
-    executeUpdate("insert into data(id) values (1)");
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals("", baos.toString(UTF_8.name()));
+    testContentColumn(Types.VARCHAR, "varchar(20)", null, "");
   }
 
   @Test
@@ -369,219 +381,70 @@ public class ResponseGeneratorTest {
   @Test
   public void testContentColumn_longvarchar() throws Exception {
     String content = "hello world";
-    executeUpdate("create table data(id int, content longvarchar)");
-    String sql = "insert into data(id, content) values (1, ?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setString(1, content);
-    assertEquals(1, ps.executeUpdate());
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals(content, baos.toString(UTF_8.name()));
+    testContentColumn(Types.LONGVARCHAR, content, content);
   }
 
   @Test
   public void testContentColumn_nullLongvarchar() throws Exception {
-    executeUpdate("create table data(id int, content longvarchar)");
-    executeUpdate("insert into data(id) values (1)");
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals("", baos.toString(UTF_8.name()));
+    testContentColumn(Types.LONGVARCHAR, null, "");
   }
 
   @Test
   public void testContentColumn_varbinary() throws Exception {
     String content = "hello world";
-    executeUpdate("create table data(id int, content varbinary(20))");
-    String sql = "insert into data(id, content) values (1, ?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setBytes(1, content.getBytes(UTF_8));
-    assertEquals(1, ps.executeUpdate());
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals(content, baos.toString(UTF_8.name()));
+    testContentColumn(Types.VARBINARY, "varbinary(20)", content.getBytes(UTF_8),
+        content);
   }
 
   @Test
   public void testContentColumn_nullVarbinary() throws Exception {
-    executeUpdate("create table data(id int, content varbinary(20))");
-    executeUpdate("insert into data(id) values (1)");
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals("", baos.toString(UTF_8.name()));
+    testContentColumn(Types.VARBINARY, "varbinary(20)", null, "");
   }
 
   @Test
   public void testContentColumn_longvarbinary() throws Exception {
     String content = "hello world";
-    executeUpdate("create table data(id int, content longvarbinary)");
-    String sql = "insert into data(id, content) values (1, ?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setBytes(1, content.getBytes(UTF_8));
-    assertEquals(1, ps.executeUpdate());
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals(content, baos.toString(UTF_8.name()));
+    testContentColumn(Types.LONGVARBINARY, content.getBytes(UTF_8), content);
   }
 
   @Test
   public void testContentColumn_nullLongvarbinary() throws Exception {
-    executeUpdate("create table data(id int, content longvarbinary)");
-    executeUpdate("insert into data(id) values (1)");
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals("", baos.toString(UTF_8.name()));
+    testContentColumn(Types.LONGVARBINARY, null, "");
   }
 
   @Test
   public void testContentColumn_clob() throws Exception {
     String content = "hello world";
-    executeUpdate("create table data(id int, content clob)");
-    String sql = "insert into data(id, content) values (1, ?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setString(1, content);
-    assertEquals(1, ps.executeUpdate());
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals(content, baos.toString(UTF_8.name()));
+    testContentColumn(Types.CLOB, content, content);
   }
 
   @Test
   public void testContentColumn_nullClob() throws Exception {
-    executeUpdate("create table data(id int, content clob)");
-    executeUpdate("insert into data(id) values (1)");
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals("", baos.toString(UTF_8.name()));
+    testContentColumn(Types.CLOB, null, "");
   }
 
   @Test
   public void testContentColumn_nclob() throws Exception {
     assumeFalse("NCLOB type not supported", is(MYSQL));
     String content = "hello world";
-    executeUpdate("create table data(id int, content nclob)");
-    String sql = "insert into data(id, content) values (1, ?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setString(1, content);
-    assertEquals(1, ps.executeUpdate());
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals(content, baos.toString(UTF_8.name()));
+    testContentColumn(Types.NCLOB, content, content);
   }
 
   @Test
   public void testContentColumn_nullNclob() throws Exception {
     assumeFalse("NCLOB type not supported", is(MYSQL));
-    executeUpdate("create table data(id int, content nclob)");
-    executeUpdate("insert into data(id) values (1)");
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals("", baos.toString(UTF_8.name()));
+    testContentColumn(Types.NCLOB, null, "");
   }
 
   @Test
   public void testContentColumn_blob() throws Exception {
     String content = "hello world";
-    executeUpdate("create table data(id int, content blob)");
-    String sql = "insert into data(id, content) values (1, ?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setBytes(1, content.getBytes(UTF_8));
-    assertEquals(1, ps.executeUpdate());
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals(content, baos.toString(UTF_8.name()));
+    testContentColumn(Types.BLOB, content.getBytes(UTF_8), content);
   }
 
   @Test
   public void testContentColumn_nullBlob() throws Exception {
-    executeUpdate("create table data(id int, content blob)");
-    executeUpdate("insert into data(id) values (1)");
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals("", baos.toString(UTF_8.name()));
+    testContentColumn(Types.BLOB, null, "");
   }
 
   @Test
@@ -613,18 +476,7 @@ public class ResponseGeneratorTest {
   @Test
   public void testContentColumn_nullSqlxml() throws Exception {
     assumeTrue("SQLXML type not supported", is(ORACLE) || is(SQLSERVER));
-    executeUpdate("create table data(id int, content xml)");
-    executeUpdate("insert into data(id) values (1)");
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    RecordingResponse response = new RecordingResponse(baos);
-    Map<String, String> cfg = new TreeMap<String, String>();
-    cfg.put("columnName", "content");
-    ResponseGenerator resgen = ResponseGenerator.contentColumn(cfg);
-
-    ResultSet rs = executeQueryAndNext("select * from data");
-    resgen.generateResponse(rs, response);
-    assertEquals("", baos.toString(UTF_8.name()));
+    testContentColumn(Types.SQLXML, "xml", null, "");
   }
 
   @Test

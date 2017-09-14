@@ -258,6 +258,27 @@ class JdbcFixture {
     return stmt;
   }
 
+  /**
+   * Sets a parameter value on a prepared statement.
+   *
+   * setObject(int, Object) fails on SQL Server varchar(max) with null.
+   * setNull(int, int) fails on Oracle XMLTYPE.
+   * setObject(int, Object, int) fails on Oracle LOBs with non-null values.
+   *
+   * @param stmt the prepared statement
+   * @param index the one-based parameter index
+   * @param value the parameter value
+   * @param sqlType the SQL data type
+   */
+  public static void setObject(PreparedStatement stmt, int index, Object value,
+      int sqlType) throws SQLException {
+    if (value == null) {
+      stmt.setObject(index, null, sqlType);
+    } else {
+      stmt.setObject(index, value);
+    }
+  }
+
   private JdbcFixture() {
     // Prevents instantiation.
   }
