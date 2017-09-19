@@ -24,6 +24,8 @@ import static com.google.enterprise.adaptor.database.JdbcFixture.executeUpdate;
 import static com.google.enterprise.adaptor.database.JdbcFixture.getConnection;
 import static com.google.enterprise.adaptor.database.JdbcFixture.is;
 import static com.google.enterprise.adaptor.database.JdbcFixture.prepareStatement;
+import static com.google.enterprise.adaptor.database.JdbcFixture.setObject;
+import static java.util.Locale.US;
 import static org.hamcrest.CoreMatchers.isA;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assume.assumeFalse;
@@ -37,7 +39,6 @@ import org.junit.rules.ExpectedException;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 import java.io.StringWriter;
@@ -47,6 +48,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLXML;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -120,17 +122,37 @@ public class TupleReaderTest {
     generateXml(rs);
   }
 
-  @Test
-  public void testInteger() throws Exception {
-    executeUpdate("create table data(COLNAME integer)");
-    executeUpdate("insert into data(colname) values(17)");
+  /** @see testGenerateXml(String, int, String, Object, String) */
+  private void testGenerateXml(String columnName, int sqlType, Object input,
+      String output) throws Exception {
+    testGenerateXml(columnName, sqlType,
+        DatabaseAdaptor.getColumnTypeName(sqlType, null, 0).toLowerCase(US),
+        input, output);
+  }
+
+  /**
+   * Parameterized test for TupleReader using different SQL data types.
+   *
+   * @param columnName the column name
+   * @param sqlType the SQL data type
+   * @param sqlTypeDecl the SQL data type declaration
+   * @param input the SQL value inserted into the database
+   * @param output the expected content stream value
+   */
+  private void testGenerateXml(String columnName, int sqlType,
+      String sqlTypeDecl, Object input, String output)
+      throws SQLException, TransformerException {
+    executeUpdate("create table data(" + columnName + " " + sqlTypeDecl + ")");
+    String sql = "insert into data(" + columnName + ") values (?)";
+    PreparedStatement ps = prepareStatement(sql);
+    setObject(ps, 1, input, sqlType);
+    assertEquals(1, ps.executeUpdate());
+
     final String golden = ""
         + "<database>"
         + "<table>"
         + "<table_rec>"
-        + "<COLNAME SQLType=\""
-        + JdbcFixture.INTEGER
-        + "\">17</COLNAME>"
+        + output
         + "</table_rec>"
         + "</table>"
         + "</database>";
@@ -140,258 +162,103 @@ public class TupleReaderTest {
   }
 
   @Test
+  public void testInteger() throws Exception {
+    testGenerateXml("COLNAME", Types.INTEGER, 17,
+        "<COLNAME SQLType=\"" + JdbcFixture.INTEGER + "\">17</COLNAME>");
+  }
+
+  @Test
   public void testInteger_null() throws Exception {
-    executeUpdate("create table data(COLNAME integer)");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\""
-        + JdbcFixture.INTEGER
-        + "\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.INTEGER, null,
+        "<COLNAME SQLType=\"" + JdbcFixture.INTEGER + "\" ISNULL=\"true\"/>");
   }
 
   @Test
   public void testBoolean() throws Exception {
     assumeFalse("BOOLEAN type not supported", is(ORACLE));
-    executeUpdate("create table data(COLNAME " + JdbcFixture.BOOLEAN + ")");
-    PreparedStatement ps =
-        prepareStatement("insert into data(colname) values(?)");
-    ps.setBoolean(1, true);
-    assertEquals(1, ps.executeUpdate());
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\""
-        + JdbcFixture.BOOLEAN
-        + "\">true</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.BOOLEAN, JdbcFixture.BOOLEAN, true,
+        "<COLNAME SQLType=\"" + JdbcFixture.BOOLEAN + "\">true</COLNAME>");
   }
 
   @Test
   public void testBoolean_null() throws Exception {
     assumeFalse("BOOLEAN type not supported", is(ORACLE));
-    executeUpdate("create table data(COLNAME " + JdbcFixture.BOOLEAN + ")");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\""
-        + JdbcFixture.BOOLEAN
-        + "\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.BOOLEAN, JdbcFixture.BOOLEAN, null,
+        "<COLNAME SQLType=\"" + JdbcFixture.BOOLEAN + "\" ISNULL=\"true\"/>");
   }
 
   @Test
   public void testChar() throws Exception {
-    executeUpdate("create table data(COLNAME char(20))");
-    executeUpdate("insert into data(colname) values('onevalue')");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"CHAR\">"
+    testGenerateXml("COLNAME", Types.CHAR, "char(20)", "onevalue",
+        "<COLNAME SQLType=\"CHAR\">"
         + (is(ORACLE) || is(SQLSERVER) ? "onevalue            " : "onevalue")
-        + "</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+        + "</COLNAME>");
   }
 
   @Test
   public void testChar_null() throws Exception {
-    executeUpdate("create table data(COLNAME char)");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"CHAR\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.CHAR, null,
+        "<COLNAME SQLType=\"CHAR\" ISNULL=\"true\"/>");
   }
 
   @Test
   public void testVarchar() throws Exception {
-    executeUpdate("create table data(COLNAME varchar(20))");
-    executeUpdate("insert into data(colname) values('onevalue')");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"VARCHAR\">onevalue</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.VARCHAR, "varchar(20)", "onevalue",
+        "<COLNAME SQLType=\"VARCHAR\">onevalue</COLNAME>");
   }
 
   @Test
   public void testVarchar_xml() throws Exception {
-    final String template = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"VARCHAR\">%s</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
+    String template = "<COLNAME SQLType=\"VARCHAR\">%s</COLNAME>";
     String xml = String.format(template, "onevalue");
-    executeUpdate("create table data(COLNAME varchar(200))");
-    executeUpdate("insert into data(colname) values('" + xml + "')");
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(
-        String.format(template, xml.replace("<", "&lt;").replace(">", "&gt;")),
-        result);
+    testGenerateXml("COLNAME", Types.VARCHAR, "varchar(200)", xml,
+        String.format(template, xml.replace("<", "&lt;").replace(">", "&gt;")));
   }
 
   @Test
   public void testVarchar_null() throws Exception {
-    executeUpdate("create table data(COLNAME varchar(20))");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"VARCHAR\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.VARCHAR, "varchar(20)", null,
+        "<COLNAME SQLType=\"VARCHAR\" ISNULL=\"true\"/>");
   }
 
   @Test
   public void testLongvarchar() throws Exception {
     assumeFalse("LONGVARCHAR type not supported", is(H2));
-    executeUpdate("create table data(COLNAME longvarchar)");
-    executeUpdate("insert into data(colname) values('onevalue')");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"LONGVARCHAR\">onevalue</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.LONGVARCHAR, "onevalue",
+        "<COLNAME SQLType=\"LONGVARCHAR\">onevalue</COLNAME>");
   }
 
   @Test
   public void testLongvarchar_null() throws Exception {
     assumeFalse("LONGVARCHAR type not supported", is(H2));
-    executeUpdate("create table data(COLNAME longvarchar)");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"LONGVARCHAR\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.LONGVARCHAR, null,
+        "<COLNAME SQLType=\"LONGVARCHAR\" ISNULL=\"true\"/>");
   }
 
   @Test
   public void testBinary() throws Exception {
     byte[] binaryData = new byte[123];
     new Random().nextBytes(binaryData);
-    executeUpdate("create table data(COLNAME varbinary(200))");
-    String sql = "insert into data(colname) values (?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setBinaryStream(1, new ByteArrayInputStream(binaryData));
-    assertEquals(1, ps.executeUpdate());
-
     String base64BinaryData = DatatypeConverter.printBase64Binary(binaryData);
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"VARBINARY\" encoding=\"base64binary\">"
+    testGenerateXml("COLNAME", Types.VARBINARY, "varbinary(200)", binaryData,
+        "<COLNAME SQLType=\"VARBINARY\" encoding=\"base64binary\">"
         + base64BinaryData
-        + "</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+        + "</COLNAME>");
   }
 
   @Test
   public void testBinary_empty() throws Exception {
     byte[] binaryData = new byte[0];
-    executeUpdate("create table data(COLNAME varbinary(1))");
-    String sql = "insert into data(colname) values (?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setBinaryStream(1, new ByteArrayInputStream(binaryData));
-    assertEquals(1, ps.executeUpdate());
-
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"VARBINARY\" "
+    testGenerateXml("COLNAME", Types.VARBINARY, "varbinary(1)", binaryData,
+        "<COLNAME SQLType=\"VARBINARY\" "
         + (is(ORACLE) ? "ISNULL=\"true\"" : "encoding=\"base64binary\"")
-        + "/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+        + "/>");
   }
 
   @Test
   public void testBinary_null() throws Exception {
-    executeUpdate("create table data(COLNAME varbinary(20))");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"VARBINARY\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.VARBINARY, "varbinary(20)", null,
+        "<COLNAME SQLType=\"VARBINARY\" ISNULL=\"true\"/>");
   }
 
   @Test
@@ -399,65 +266,29 @@ public class TupleReaderTest {
     assumeFalse("LONGVARBINARY type not supported", is(H2));
     byte[] longvarbinaryData = new byte[12345];
     new Random().nextBytes(longvarbinaryData);
-    executeUpdate("create table data(COLNAME longvarbinary)");
-    String sql = "insert into data(colname) values (?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setBytes(1, longvarbinaryData);
-    assertEquals(1, ps.executeUpdate());
-
     String base64LongvarbinaryData =
         DatatypeConverter.printBase64Binary(longvarbinaryData);
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"LONGVARBINARY\" encoding=\"base64binary\">"
+    testGenerateXml("COLNAME", Types.LONGVARBINARY, longvarbinaryData,
+        "<COLNAME SQLType=\"LONGVARBINARY\" encoding=\"base64binary\">"
         + base64LongvarbinaryData
-        + "</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+        + "</COLNAME>");
   }
 
   @Test
   public void testLongvarbinary_empty() throws Exception {
     assumeFalse("LONGVARBINARY type not supported", is(H2));
-    executeUpdate("create table data(COLNAME longvarbinary)");
-    executeUpdate("insert into data(colname) values('')");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"LONGVARBINARY\" "
+    byte[] emptyData = {};
+    testGenerateXml("COLNAME", Types.LONGVARBINARY, emptyData,
+        "<COLNAME SQLType=\"LONGVARBINARY\" "
         + (is(ORACLE) ? "ISNULL=\"true\"" : "encoding=\"base64binary\"")
-        + "/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+        + "/>");
   }
 
   @Test
   public void testLongvarbinary_null() throws Exception {
     assumeFalse("LONGVARBINARY type not supported", is(H2));
-    executeUpdate("create table data(COLNAME longvarbinary)");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"LONGVARBINARY\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.LONGVARBINARY, (byte[]) null,
+        "<COLNAME SQLType=\"LONGVARBINARY\" ISNULL=\"true\"/>");
   }
 
   @Test
@@ -481,19 +312,8 @@ public class TupleReaderTest {
   @Test
   public void testDate_null() throws Exception {
     assumeFalse("DATE type not supported", is(ORACLE));
-    executeUpdate("create table data(COLNAME date)");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"DATE\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.DATE, null,
+        "<COLNAME SQLType=\"DATE\" ISNULL=\"true\"/>");
   }
 
   @Test
@@ -529,27 +349,8 @@ public class TupleReaderTest {
   @Test
   public void testTime_null() throws Exception {
     assumeFalse("TIME type not supported", is(ORACLE));
-    executeUpdate("create table data(COLNAME time)");
-    executeUpdate("insert into data(colname) values(null)");
-    // H2 returns a java.sql.Date with the date set to 1970-01-01.
-    Calendar cal = Calendar.getInstance(TimeZone.getDefault());
-    cal.set(Calendar.YEAR, 1970);
-    cal.set(Calendar.MONTH, Calendar.JANUARY);
-    cal.set(Calendar.DATE, 1);
-    cal.set(Calendar.HOUR, 9);
-    cal.set(Calendar.MINUTE, 15);
-    cal.set(Calendar.SECOND, 30);
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"TIME\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.TIME, null,
+        "<COLNAME SQLType=\"TIME\" ISNULL=\"true\"/>");
   }
 
   @Test
@@ -660,26 +461,8 @@ public class TupleReaderTest {
 
   @Test
   public void testTimestamp_null() throws Exception {
-    executeUpdate("create table data(COLNAME timestamp)");
-    executeUpdate("insert into data(colname) values(null)");
-    Calendar cal = Calendar.getInstance(TimeZone.getDefault());
-    cal.set(Calendar.YEAR, 2004);
-    cal.set(Calendar.MONTH, Calendar.OCTOBER);
-    cal.set(Calendar.DATE, 6);
-    cal.set(Calendar.HOUR, 9);
-    cal.set(Calendar.MINUTE, 15);
-    cal.set(Calendar.SECOND, 30);
-    String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"TIMESTAMP\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.TIMESTAMP, null,
+        "<COLNAME SQLType=\"TIMESTAMP\" ISNULL=\"true\"/>");
   }
 
   @Test
@@ -703,86 +486,30 @@ public class TupleReaderTest {
             + " prevent it, the automatic facilities used to create"
             + " the indices are likely to find that site and index it"
             + " again in a relatively short amount of time.";
-    executeUpdate("create table data(colname clob)");
-    String sql = "insert into data(colname) values (?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setString(1, clobData);
-    assertEquals(1, ps.executeUpdate());
-
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"CLOB\">"
-        + clobData
-        + "</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.CLOB, clobData,
+        "<COLNAME SQLType=\"CLOB\">" + clobData + "</COLNAME>");
   }
 
   @Test
   public void testClob_null() throws Exception {
     assumeFalse("CLOB type not supported", is(MYSQL) || is(SQLSERVER));
-    executeUpdate("create table data(colname clob)");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"CLOB\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.CLOB, null,
+        "<COLNAME SQLType=\"CLOB\" ISNULL=\"true\"/>");
   }
 
   @Test
   public void testNclob() throws Exception {
     assumeTrue("NCLOB type not supported", is(ORACLE));
     String nclobData = "hello world";
-    executeUpdate("create table data(colname nclob)");
-    String sql = "insert into data(colname) values (?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setString(1, nclobData);
-    assertEquals(1, ps.executeUpdate());
-
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"NCLOB\">"
-        + nclobData
-        + "</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.NCLOB, nclobData,
+        "<COLNAME SQLType=\"NCLOB\">" + nclobData + "</COLNAME>");
   }
 
   @Test
   public void testNclob_null() throws Exception {
     assumeTrue("NCLOB type not supported", is(ORACLE));
-    executeUpdate("create table data(colname nclob)");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"NCLOB\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.NCLOB, null,
+        "<COLNAME SQLType=\"NCLOB\" ISNULL=\"true\"/>");
   }
 
   @Test
@@ -790,64 +517,27 @@ public class TupleReaderTest {
     assumeFalse("BLOB type not supported", is(MYSQL) || is(SQLSERVER));
     byte[] blobData = new byte[12345];
     new Random().nextBytes(blobData);
-    executeUpdate("create table data(colname blob)");
-    String sql = "insert into data(colname) values (?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setBinaryStream(1, new ByteArrayInputStream(blobData));
-    assertEquals(1, ps.executeUpdate());
-
     String base64BlobData = DatatypeConverter.printBase64Binary(blobData);
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"BLOB\" encoding=\"base64binary\">"
+    testGenerateXml("COLNAME", Types.BLOB, blobData,
+        "<COLNAME SQLType=\"BLOB\" encoding=\"base64binary\">"
         + base64BlobData
-        + "</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+        + "</COLNAME>");
   }
 
   @Test
   public void testBlob_empty() throws Exception {
     assumeFalse("BLOB type not supported", is(MYSQL) || is(SQLSERVER));
-    executeUpdate("create table data(colname blob)");
-    executeUpdate("insert into data(colname) values('')");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"BLOB\" "
+    testGenerateXml("COLNAME", Types.BLOB, "",
+        "<COLNAME SQLType=\"BLOB\" "
         + (is(ORACLE) ? "ISNULL=\"true\"" : "encoding=\"base64binary\"")
-        + "/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+        + "/>");
   }
 
   @Test
   public void testBlob_null() throws Exception {
     assumeFalse("BLOB type not supported", is(MYSQL) || is(SQLSERVER));
-    executeUpdate("create table data(colname blob)");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"BLOB\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.BLOB, null,
+        "<COLNAME SQLType=\"BLOB\" ISNULL=\"true\"/>");
   }
 
   @Test
@@ -914,21 +604,8 @@ public class TupleReaderTest {
   @Test
   public void testSqlxml_null() throws Exception {
     assumeTrue("SQLXML type not supported", is(ORACLE) || is(SQLSERVER));
-    executeUpdate("create table data(COLNAME xml)");
-    executeUpdate("insert into data(colname) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\""
-        + JdbcFixture.SQLXML
-        + "\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.SQLXML, "xml", null,
+        "<COLNAME SQLType=\"" + JdbcFixture.SQLXML + "\" ISNULL=\"true\"/>");
   }
 
   @Test
@@ -978,25 +655,8 @@ public class TupleReaderTest {
       out.writeObject(serializable);
     }
 
-    executeUpdate("create table data(colname other)");
-    String sql = "insert into data(colname) values (?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setObject(1, buffer.toByteArray());
-    assertEquals(1, ps.executeUpdate());
-
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"OTHER\">"
-        + serializable
-        + "</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.OTHER, buffer.toByteArray(),
+        "<COLNAME SQLType=\"OTHER\">" + serializable + "</COLNAME>");
   }
 
   @Test
@@ -1019,43 +679,15 @@ public class TupleReaderTest {
       out.writeObject(input.toString());
     }
 
-    executeUpdate("create table data(colname other)");
-    String sql = "insert into data(colname) values (?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setObject(1, buffer.toByteArray());
-    assertEquals(1, ps.executeUpdate());
-
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"OTHER\">"
-        + output.toString()
-        + "</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.OTHER, buffer.toByteArray(),
+        "<COLNAME SQLType=\"OTHER\">" + output + "</COLNAME>");
   }
 
   @Test
   public void testOther_null() throws Exception {
     assumeTrue("OTHER type not supported", is(H2));
-    executeUpdate("create table data(other other)");
-    executeUpdate("insert into data(other) values(null)");
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<OTHER SQLType=\"OTHER\" ISNULL=\"true\"/>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("OTHER", Types.OTHER, null,
+        "<OTHER SQLType=\"OTHER\" ISNULL=\"true\"/>");
   }
 
   @Test
@@ -1096,25 +728,8 @@ public class TupleReaderTest {
     output.setCharAt('\n', '\n');
     output.replace('\r', '\r' + 1, "&#13;");
 
-    executeUpdate("create table data(colname varchar)");
-    String sql = "insert into data(colname) values (?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setString(1, input.toString());
-    assertEquals(1, ps.executeUpdate());
-
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"VARCHAR\">"
-        + output.toString()
-        + "</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+    testGenerateXml("COLNAME", Types.VARCHAR, input.toString(),
+        "<COLNAME SQLType=\"VARCHAR\">" + output + "</COLNAME>");
   }
 
   /** Test all Unicode BMP characters, plus some surrogate pairs. */
@@ -1137,17 +752,8 @@ public class TupleReaderTest {
     buf.append(surrogates);
     String content = buf.toString();
 
-    executeUpdate("create table data(colname varchar)");
-    String sql = "insert into data(colname) values (?)";
-    PreparedStatement ps = prepareStatement(sql);
-    ps.setString(1, content);
-    assertEquals(1, ps.executeUpdate());
-
-    final String golden = ""
-        + "<database>"
-        + "<table>"
-        + "<table_rec>"
-        + "<COLNAME SQLType=\"VARCHAR\">"
+    testGenerateXml("COLNAME", Types.VARCHAR, content,
+        "<COLNAME SQLType=\"VARCHAR\">"
         + content
         .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         .replace("\u007F", "&#127;")
@@ -1162,12 +768,6 @@ public class TupleReaderTest {
         .replace(surrogates.toString(),
             "&#119040;&#119041;&#119042;&#119043;"
             + "&#119044;&#119045;&#119046;&#119047;")
-        + "</COLNAME>"
-        + "</table_rec>"
-        + "</table>"
-        + "</database>";
-    ResultSet rs = executeQueryAndNext("select * from data");
-    String result = generateXml(rs);
-    assertEquals(golden, result);
+        + "</COLNAME>");
   }
 }
