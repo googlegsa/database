@@ -454,10 +454,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   @Override
   public void getDocIds(DocIdPusher pusher) throws IOException,
       InterruptedException {
+    BufferedPusher outstream = new BufferedPusher(pusher);
     try (Connection conn = makeNewConnection();
         PreparedStatement stmt = getStreamFromDb(conn, everyDocIdSql);
-        ResultSet rs = stmt.executeQuery();
-        BufferedPusher outstream = new BufferedPusher(pusher)) {
+        ResultSet rs = stmt.executeQuery()) {
       log.finer("queried for stream");
       boolean hasAction
           = hasColumn(rs.getMetaData(), GsaSpecialColumns.GSA_ACTION);
@@ -483,6 +483,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       }
     } catch (SQLException ex) {
       throw new IOException(ex);
+    } finally {
+      outstream.flush();
     }
   }
 
@@ -840,7 +842,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
    * them, and sends them when it has accumulated maximum allowed amount per
    * feed file.
    */
-  private class BufferedPusher implements AutoCloseable {
+  private class BufferedPusher {
     final DocIdPusher wrapped;
     final ArrayList<DocIdPusher.Record> saved;
 
@@ -871,8 +873,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       }
     }
 
-    @Override
-    public void close() throws InterruptedException {
+    public void flush() throws InterruptedException {
       if (0 != saved.size()) {
         forcePush();
       }
@@ -995,6 +996,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     @Override
     public void getModifiedDocIds(DocIdPusher pusher)
         throws IOException, InterruptedException {
+      BufferedPusher outstream = new BufferedPusher(pusher);
       // latestTimestamp will be used to update lastUpdateTimestamp
       // if GSA_TIMESTAMP column is present in the ResultSet and there is at 
       // least one non-null value of that column in the ResultSet.
@@ -1002,8 +1004,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       boolean hasTimestamp = false;
       try (Connection conn = makeNewConnection();
           PreparedStatement stmt = getUpdateStreamFromDb(conn);
-          ResultSet rs = stmt.executeQuery();
-          BufferedPusher outstream = new BufferedPusher(pusher)) {
+          ResultSet rs = stmt.executeQuery()) {
         ResultSetMetaData rsmd = rs.getMetaData();
         boolean hasAction = hasColumn(rsmd, GsaSpecialColumns.GSA_ACTION);
         log.log(Level.FINEST, "Has GSA_ACTION column: {0}", hasAction);
@@ -1045,6 +1046,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         }
       } catch (SQLException ex) {
         throw new IOException(ex);
+      } finally {
+        outstream.flush();
       }
       if (!hasTimestamp) {
         lastUpdateTimestamp = new Timestamp(System.currentTimeMillis());
