@@ -35,7 +35,8 @@
     value="java.lang.FunctionalInterface"/>
 
   <!-- Use add-modules with Java 9 and higher. -->
-  <condition property="java.modules" value="" else="--add-modules java.se.ee">
+  <condition property="java.modules"
+      value="" else="--add-modules java.xml.bind">
     <matches string="${ant.java.version}" pattern="^1\.[678]$"/>
   </condition>
 
