@@ -272,7 +272,7 @@ public class DatabaseAdaptorTest {
     DatabaseAdaptor.loadResponseGenerator(config);
   }
 
-  private ResponseGenerator privateDummy(Map<String, String> config) {
+  private static ResponseGenerator privateDummy(Map<String, String> config) {
     return new DummyResponseGenerator(config);
   }
 

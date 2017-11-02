@@ -217,8 +217,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     singleDocContentSql = cfg.getValue("db.singleDocContentSql");
     log.config("single doc content sql: " + singleDocContentSql);
 
-    Boolean includeAllColumnsAsMetadata = new Boolean(cfg.getValue(
-        "db.includeAllColumnsAsMetadata"));
+    boolean includeAllColumnsAsMetadata = Boolean.parseBoolean(
+        cfg.getValue("db.includeAllColumnsAsMetadata"));
     log.config("include all columns as metadata: "
         + includeAllColumnsAsMetadata);
 
@@ -278,7 +278,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       log.config("aclPrincipalDelimiter: '" + aclPrincipalDelimiter + "'");
     }
 
-    disableStreaming = new Boolean(cfg.getValue("db.disableStreaming"));
+    disableStreaming =
+        Boolean.parseBoolean(cfg.getValue("db.disableStreaming"));
     log.config("disableStreaming: " + disableStreaming);
 
     String updateSql = cfg.getValue("db.updateSql");
