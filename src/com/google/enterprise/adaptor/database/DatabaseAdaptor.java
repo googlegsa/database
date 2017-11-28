@@ -274,9 +274,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     if (!isNullOrEmptyString(cfg.getValue("db.aclSql"))) {
       aclSql = cfg.getValue("db.aclSql");
       log.config("acl sql: " + aclSql); 
-      aclPrincipalDelimiter = cfg.getValue("db.aclPrincipalDelimiter");
-      log.config("aclPrincipalDelimiter: '" + aclPrincipalDelimiter + "'");
     }
+    aclPrincipalDelimiter = cfg.getValue("db.aclPrincipalDelimiter");
+    log.config("aclPrincipalDelimiter: '" + aclPrincipalDelimiter + "'");
 
     disableStreaming =
         Boolean.parseBoolean(cfg.getValue("db.disableStreaming"));
@@ -678,6 +678,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       // Generate Acl if aclSql is provided.
       if (aclSql != null) {
         resp.setAcl(getAcl(conn, id.getUniqueId()));
+      } else {
+        resp.setAcl(buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
+            ResultSetNext.STOP_NEXT));
       }
       // Generate response body.
       // In database adaptor's case, we almost never want to follow the URLs.
@@ -697,18 +700,27 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     try (PreparedStatement stmt = getAclFromDb(conn, uniqueId);
         ResultSet rs = stmt.executeQuery()) {
       log.finer("got acl");
-      return buildAcl(rs, aclPrincipalDelimiter, aclNamespace);
+      boolean hasResult = rs.next();
+      if (!hasResult) {
+        // empty Acl ensures adaptor will mark this document as secure
+        return Acl.EMPTY;
+      } else {
+        return buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
+            ResultSetNext.CONTINUE_NEXT);
+      }
     }
   }
   
   @VisibleForTesting
   static Acl buildAcl(ResultSet rs, String delim, String namespace)
       throws SQLException {
-    boolean hasResult = rs.next();
-    if (!hasResult) {
-      // empty Acl ensures adaptor will mark this document as secure
-      return Acl.EMPTY;
-    }
+    rs.next();
+    return buildAcl(rs, delim, namespace, ResultSetNext.CONTINUE_NEXT);
+  }
+
+  @VisibleForTesting
+  static Acl buildAcl(ResultSet rs, String delim, String namespace,
+      ResultSetNext rsNext) throws SQLException {
     ResultSetMetaData metadata = rs.getMetaData();
     Acl.Builder builder = new Acl.Builder();
     ArrayList<UserPrincipal> permitUsers = new ArrayList<UserPrincipal>();
@@ -739,6 +751,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       if (hasDenyGroups) {
         denyGroups.addAll(getGroupPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_GROUPS, delim, namespace));
+      }
+      if (rsNext == ResultSetNext.STOP_NEXT) {
+        break;
       }
     } while (rs.next());
     return builder
@@ -810,14 +825,22 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private PreparedStatement getDocFromDb(Connection conn,
       String uniqueId) throws SQLException {
     PreparedStatement st = conn.prepareStatement(singleDocContentSql);
-    uniqueKey.setContentSqlValues(st, uniqueId);  
+    uniqueKey.setContentSqlValues(st, uniqueId);
+    if (aclSql == null) {
+      uniqueKey.setAclSqlValues(st, uniqueId);
+    }
     log.log(Level.FINER, "about to get doc: {0}",  uniqueId);
     return st;
   }
 
   private PreparedStatement getAclFromDb(Connection conn,
       String uniqueId) throws SQLException {
-    PreparedStatement st = conn.prepareStatement(aclSql);
+    PreparedStatement st;
+    if (aclSql == null) {
+       st = conn.prepareStatement(singleDocContentSql);
+    } else {
+       st = conn.prepareStatement(aclSql);
+    }
     uniqueKey.setAclSqlValues(st, uniqueId);  
     log.log(Level.FINER, "about to get acl: {0}",  uniqueId);
     return st;
@@ -1083,6 +1106,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     GSA_DENY_GROUPS,
     GSA_ACTION,
     GSA_TIMESTAMP;
+  }
+
+  enum ResultSetNext {
+    CONTINUE_NEXT,
+    STOP_NEXT,
   }
 
   private static class AllPublic implements AuthzAuthority {

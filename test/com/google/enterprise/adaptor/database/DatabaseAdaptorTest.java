@@ -61,6 +61,7 @@ import com.google.enterprise.adaptor.TestHelper;
 import com.google.enterprise.adaptor.TestHelper.RecordingContext;
 import com.google.enterprise.adaptor.UserPrincipal;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
+import com.google.enterprise.adaptor.database.DatabaseAdaptor.ResultSetNext;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -414,6 +415,44 @@ public class DatabaseAdaptorTest {
         .build();
     ResultSet rs = executeQuery("select * from acl");
     Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    assertEquals(golden, acl);
+  }
+
+  @Test
+  public void testSingleDocSqlResultSetHasOneRecord() throws SQLException {
+    executeUpdate("create table data("
+        + "id int, col1 varchar(20),"
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar(20))");
+    executeUpdate("insert into data("
+        + "id, col1,"
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
+        + GsaSpecialColumns.GSA_PERMIT_USERS + ","
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
+        + "1, 'test', "
+        + "'pgroup1, pgroup2', 'puser1, puser2', "
+        + "'dgroup1, dgroup2', 'duser1, duser2')");
+    Acl golden = new Acl.Builder()
+        .setPermitUsers(Arrays.asList(
+            new UserPrincipal("puser2"),
+            new UserPrincipal("puser1")))
+        .setDenyUsers(Arrays.asList(
+            new UserPrincipal("duser1"),
+            new UserPrincipal("duser2")))
+        .setPermitGroups(Arrays.asList(
+            new GroupPrincipal("pgroup1"),
+            new GroupPrincipal("pgroup2")))
+        .setDenyGroups(Arrays.asList(
+            new GroupPrincipal("dgroup2"),
+            new GroupPrincipal("dgroup1")))
+        .build();
+    ResultSet rs = executeQuery("select * from data");
+    rs.next();
+    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE,
+        ResultSetNext.STOP_NEXT);
     assertEquals(golden, acl);
   }
 
