@@ -275,6 +275,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       aclSql = cfg.getValue("db.aclSql");
       log.config("acl sql: " + aclSql); 
     }
+    // May have delimiter and no aclSql as ACLs might come from
+    // singleDocContentSql rather than aclSql.
     aclPrincipalDelimiter = cfg.getValue("db.aclPrincipalDelimiter");
     log.config("aclPrincipalDelimiter: '" + aclPrincipalDelimiter + "'");
 
@@ -679,8 +681,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       if (aclSql != null) {
         resp.setAcl(getAcl(conn, id.getUniqueId()));
       } else {
+        // Generate ACL if it came as part of result to singleDocContentSql.
         resp.setAcl(buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
-            ResultSetNext.STOP_NEXT));
+            ResultSetNext.PROCESS_ONE_ROW));
       }
       // Generate response body.
       // In database adaptor's case, we almost never want to follow the URLs.
@@ -706,18 +709,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         return Acl.EMPTY;
       } else {
         return buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
-            ResultSetNext.CONTINUE_NEXT);
+            ResultSetNext.PROCESS_ALL_ROWS);
       }
     }
   }
   
-  @VisibleForTesting
-  static Acl buildAcl(ResultSet rs, String delim, String namespace)
-      throws SQLException {
-    rs.next();
-    return buildAcl(rs, delim, namespace, ResultSetNext.CONTINUE_NEXT);
-  }
-
   @VisibleForTesting
   static Acl buildAcl(ResultSet rs, String delim, String namespace,
       ResultSetNext rsNext) throws SQLException {
@@ -735,6 +731,12 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         hasColumn(metadata, GsaSpecialColumns.GSA_PERMIT_GROUPS);
     boolean hasDenyGroups =
         hasColumn(metadata, GsaSpecialColumns.GSA_DENY_GROUPS);
+
+    if (!hasPermitUsers && !hasDenyUsers
+        && !hasPermitGroups && !hasDenyGroups) {
+      return Acl.EMPTY;
+    }
+
     do {
       if (hasPermitUsers) {
         permitUsers.addAll(getUserPrincipalsFromResultSet(rs,
@@ -752,7 +754,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         denyGroups.addAll(getGroupPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_GROUPS, delim, namespace));
       }
-      if (rsNext == ResultSetNext.STOP_NEXT) {
+      if (rsNext == ResultSetNext.PROCESS_ONE_ROW) {
         break;
       }
     } while (rs.next());
@@ -825,7 +827,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private PreparedStatement getDocFromDb(Connection conn,
       String uniqueId) throws SQLException {
     PreparedStatement st = conn.prepareStatement(singleDocContentSql);
-    uniqueKey.setContentSqlValues(st, uniqueId);
+    uniqueKey.setContentSqlValues(st, uniqueId);  
     if (aclSql == null) {
       uniqueKey.setAclSqlValues(st, uniqueId);
     }
@@ -837,9 +839,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       String uniqueId) throws SQLException {
     PreparedStatement st;
     if (aclSql == null) {
-       st = conn.prepareStatement(singleDocContentSql);
+      st = conn.prepareStatement(singleDocContentSql);
     } else {
-       st = conn.prepareStatement(aclSql);
+      st = conn.prepareStatement(aclSql);
     }
     uniqueKey.setAclSqlValues(st, uniqueId);  
     log.log(Level.FINER, "about to get acl: {0}",  uniqueId);
@@ -1109,8 +1111,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   }
 
   enum ResultSetNext {
-    CONTINUE_NEXT,
-    STOP_NEXT,
+    PROCESS_ALL_ROWS,
+    PROCESS_ONE_ROW,
   }
 
   private static class AllPublic implements AuthzAuthority {

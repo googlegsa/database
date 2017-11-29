@@ -364,6 +364,13 @@ public class DatabaseAdaptorTest {
         GsaSpecialColumns.GSA_TIMESTAMP));
   }
 
+  private Acl buildAcl(ResultSet rs, String delim, String namespace)
+      throws SQLException {
+    rs.next();
+    return DatabaseAdaptor.buildAcl(rs, delim, namespace,
+        ResultSetNext.PROCESS_ALL_ROWS);
+  }
+
   @Test
   public void testAclSqlResultSetHasNoAclColumns() throws SQLException {
     Acl golden = Acl.EMPTY;
@@ -371,7 +378,7 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table acl(id integer)");
     executeUpdate("insert into acl(id) values(1)");
     ResultSet rs = executeQuery("select * from acl");
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    Acl acl = buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
 
@@ -381,7 +388,7 @@ public class DatabaseAdaptorTest {
 
     executeUpdate("create table acl(id integer)");
     ResultSet rs = executeQuery("select * from acl");
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    Acl acl = buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
 
@@ -414,12 +421,12 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup1")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    Acl acl = buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
 
   @Test
-  public void testSingleDocSqlResultSetHasOneRecord() throws SQLException {
+  public void testSingleDocSqlResultSetHasTwoRecords() throws Exception {
     executeUpdate("create table data("
         + "id int, col1 varchar(20),"
         + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar(20),"
@@ -435,6 +442,15 @@ public class DatabaseAdaptorTest {
         + "1, 'test', "
         + "'pgroup1, pgroup2', 'puser1, puser2', "
         + "'dgroup1, dgroup2', 'duser1, duser2')");
+    executeUpdate("insert into data("
+        + "id, col1,"
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
+        + GsaSpecialColumns.GSA_PERMIT_USERS + ","
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
+        + "2, 'test2', "
+        + "'pgroup3, pgroup4', 'puser3, puser4', "
+        + "'dgroup3, dgroup4', 'duser3, duser4')");
     Acl golden = new Acl.Builder()
         .setPermitUsers(Arrays.asList(
             new UserPrincipal("puser2"),
@@ -449,10 +465,20 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2"),
             new GroupPrincipal("dgroup1")))
         .build();
-    ResultSet rs = executeQuery("select * from data");
-    rs.next();
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE,
-        ResultSetNext.STOP_NEXT);
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select id from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    Acl acl = response.getAcl();
     assertEquals(golden, acl);
   }
 
@@ -501,7 +527,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    Acl acl = buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -542,7 +568,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    Acl acl = buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -576,7 +602,7 @@ public class DatabaseAdaptorTest {
             new UserPrincipal("duser2")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    Acl acl = buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
