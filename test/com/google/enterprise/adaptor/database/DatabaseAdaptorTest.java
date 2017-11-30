@@ -368,7 +368,7 @@ public class DatabaseAdaptorTest {
       throws SQLException {
     rs.next();
     return DatabaseAdaptor.buildAcl(rs, delim, namespace,
-        ResultSetNext.PROCESS_ALL_ROWS);
+        ResultSetNext.PROCESS_ALL_ROWS, Acl.EMPTY);
   }
 
   @Test
@@ -478,8 +478,28 @@ public class DatabaseAdaptorTest {
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
-    Acl acl = response.getAcl();
-    assertEquals(golden, acl);
+    assertEquals(golden, response.getAcl());
+  }
+
+  @Test
+  public void testSingleDocSqlHasNoAcl() throws Exception {
+    executeUpdate("create table data(id int, col1 varchar(20))");
+    executeUpdate("insert into data(id, col1) values (1, 'test')");
+    Acl golden = null;
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select id from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    assertEquals(golden, response.getAcl());
   }
 
   @Test

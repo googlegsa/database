@@ -683,7 +683,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       } else {
         // Generate ACL if it came as part of result to singleDocContentSql.
         resp.setAcl(buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
-            ResultSetNext.PROCESS_ONE_ROW));
+            ResultSetNext.PROCESS_ONE_ROW, null));
       }
       // Generate response body.
       // In database adaptor's case, we almost never want to follow the URLs.
@@ -709,14 +709,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         return Acl.EMPTY;
       } else {
         return buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
-            ResultSetNext.PROCESS_ALL_ROWS);
+            ResultSetNext.PROCESS_ALL_ROWS, Acl.EMPTY);
       }
     }
   }
   
   @VisibleForTesting
   static Acl buildAcl(ResultSet rs, String delim, String namespace,
-      ResultSetNext rsNext) throws SQLException {
+      ResultSetNext rsNext, Acl defaultAcl) throws SQLException {
     ResultSetMetaData metadata = rs.getMetaData();
     Acl.Builder builder = new Acl.Builder();
     ArrayList<UserPrincipal> permitUsers = new ArrayList<UserPrincipal>();
@@ -734,7 +734,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     if (!hasPermitUsers && !hasDenyUsers
         && !hasPermitGroups && !hasDenyGroups) {
-      return Acl.EMPTY;
+      return defaultAcl;
     }
 
     do {
@@ -828,21 +828,15 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       String uniqueId) throws SQLException {
     PreparedStatement st = conn.prepareStatement(singleDocContentSql);
     uniqueKey.setContentSqlValues(st, uniqueId);  
-    if (aclSql == null) {
-      uniqueKey.setAclSqlValues(st, uniqueId);
-    }
     log.log(Level.FINER, "about to get doc: {0}",  uniqueId);
     return st;
   }
 
   private PreparedStatement getAclFromDb(Connection conn,
       String uniqueId) throws SQLException {
-    PreparedStatement st;
-    if (aclSql == null) {
-      st = conn.prepareStatement(singleDocContentSql);
-    } else {
-      st = conn.prepareStatement(aclSql);
-    }
+    // aclSql will be null when called from isUserAuthorized.
+    String sql = (aclSql == null) ? singleDocContentSql : aclSql;
+    PreparedStatement st = conn.prepareStatement(sql);
     uniqueKey.setAclSqlValues(st, uniqueId);  
     log.log(Level.FINER, "about to get acl: {0}",  uniqueId);
     return st;
