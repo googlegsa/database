@@ -754,10 +754,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         denyGroups.addAll(getGroupPrincipalsFromResultSet(rs,
             GsaSpecialColumns.GSA_DENY_GROUPS, delim, namespace));
       }
-      if (rsNext == ResultSetNext.PROCESS_ONE_ROW) {
-        break;
-      }
-    } while (rs.next());
+    } while (rsNext == ResultSetNext.PROCESS_ALL_ROWS && rs.next());
     return builder
         .setPermitUsers(permitUsers)
         .setDenyUsers(denyUsers)
@@ -834,7 +831,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
   private PreparedStatement getAclFromDb(Connection conn,
       String uniqueId) throws SQLException {
-    // aclSql will be null when called from isUserAuthorized.
+    // aclSql will only be null when called from isUserAuthorized.
     String sql = (aclSql == null) ? singleDocContentSql : aclSql;
     PreparedStatement st = conn.prepareStatement(sql);
     uniqueKey.setAclSqlValues(st, uniqueId);  

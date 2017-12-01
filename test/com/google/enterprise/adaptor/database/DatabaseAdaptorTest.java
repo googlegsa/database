@@ -468,10 +468,11 @@ public class DatabaseAdaptorTest {
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "id:int");
-    configEntries.put("db.everyDocIdSql", "select id from data");
     configEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
     configEntries.put("db.modeOfOperation", "rowToText");
+    // Required for validation, but not specific to this test.
+    configEntries.put("db.everyDocIdSql", "select id from data");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
     MockRequest request = new MockRequest(new DocId("1"));
@@ -485,21 +486,21 @@ public class DatabaseAdaptorTest {
   public void testSingleDocSqlHasNoAcl() throws Exception {
     executeUpdate("create table data(id int, col1 varchar(20))");
     executeUpdate("insert into data(id, col1) values (1, 'test')");
-    Acl golden = null;
 
     Map<String, String> configEntries = new HashMap<String, String>();
     configEntries.put("db.uniqueKey", "id:int");
-    configEntries.put("db.everyDocIdSql", "select id from data");
     configEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
     configEntries.put("db.modeOfOperation", "rowToText");
+    // Required for validation, but not specific to this test.
+    configEntries.put("db.everyDocIdSql", "select id from data");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
     MockRequest request = new MockRequest(new DocId("1"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
-    assertEquals(golden, response.getAcl());
+    assertNull(response.getAcl());
   }
 
   @Test
