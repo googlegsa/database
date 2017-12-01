@@ -14,15 +14,30 @@
 
 package com.google.enterprise.adaptor.database;
 
-import static com.google.enterprise.adaptor.TestHelper.asMap;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /** Test cases for {@link MetadataColumns}. */
 public class MetadataColumnsTest {
+  @SuppressWarnings("unchecked")
+  private static <T> Map<T, T> asMap(T... entries) {
+    if (entries.length % 2 != 0) {
+      throw new IllegalArgumentException(
+          "A map requires an even number of entries");
+    }
+    Map<T, T> map = new HashMap<>();
+    for (int i = 0; i < entries.length - 1; i += 2) {
+      map.put(entries[i], entries[i + 1]);
+    }
+    return map;
+  }
+
   @Rule
   public ExpectedException thrown = ExpectedException.none();
 
