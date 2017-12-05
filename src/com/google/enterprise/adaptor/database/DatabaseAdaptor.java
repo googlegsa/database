@@ -293,11 +293,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       ignored.add("db.updateTimestampTimezone");
     }
 
-    if (aclSql == null) {
-      context.setAuthzAuthority(new AllPublic());
-    } else {
-      context.setAuthzAuthority(new AccessChecker());
-    }
+    context.setAuthzAuthority(new AccessChecker());
   
     aclNamespace = cfg.getValue("adaptor.namespace");
     log.config("namespace: " + aclNamespace);
@@ -677,14 +673,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       }
       // Generate response metadata first.
       addMetadataToResponse(resp, rs);
-      // Generate Acl if aclSql is provided.
-      if (aclSql != null) {
-        resp.setAcl(getAcl(conn, id.getUniqueId()));
-      } else {
-        // Generate ACL if it came as part of result to singleDocContentSql.
-        resp.setAcl(buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
-            ResultSetNext.PROCESS_ONE_ROW, null));
-      }
+      // Generate Acl.
+      resp.setAcl(getAcl(conn, rs, id.getUniqueId()));
       // Generate response body.
       // In database adaptor's case, we almost never want to follow the URLs.
       // One record means one document.
@@ -699,17 +689,38 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     AbstractAdaptor.main(new DatabaseAdaptor(), args);
   }
   
-  private Acl getAcl(Connection conn, String uniqueId) throws SQLException {
-    try (PreparedStatement stmt = getAclFromDb(conn, uniqueId);
-        ResultSet rs = stmt.executeQuery()) {
+  private Acl getAcl(Connection conn, ResultSet rs, String uniqueId)
+      throws SQLException {
+    log.log(Level.FINER, "about to get acl: {0}", uniqueId);
+    if (aclSql != null || rs == null) {
+      String sql = (aclSql == null) ? singleDocContentSql : aclSql;
+      try (PreparedStatement st = conn.prepareStatement(sql)) {
+        // aclSql will only be null when called from isUserAuthorized.
+        if (aclSql == null) {
+          uniqueKey.setContentSqlValues(st, uniqueId);
+          return processAclQuery(st, null);
+        } else {
+          uniqueKey.setAclSqlValues(st, uniqueId);
+          return processAclQuery(st, Acl.EMPTY);
+        }
+      }
+    } else {
+      // Generate ACL if it came as part of result to singleDocContentSql.
+      return buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
+          ResultSetNext.PROCESS_ONE_ROW, null);
+    }
+  }
+
+  private Acl processAclQuery(PreparedStatement st, Acl defaultAcl)
+      throws SQLException {
+    try (ResultSet resSet = st.executeQuery()) {
       log.finer("got acl");
-      boolean hasResult = rs.next();
+      boolean hasResult = resSet.next();
       if (!hasResult) {
-        // empty Acl ensures adaptor will mark this document as secure
-        return Acl.EMPTY;
+        return defaultAcl;
       } else {
-        return buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
-            ResultSetNext.PROCESS_ALL_ROWS, Acl.EMPTY);
+        return buildAcl(resSet, aclPrincipalDelimiter, aclNamespace,
+            ResultSetNext.PROCESS_ALL_ROWS, defaultAcl);
       }
     }
   }
@@ -826,16 +837,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     PreparedStatement st = conn.prepareStatement(singleDocContentSql);
     uniqueKey.setContentSqlValues(st, uniqueId);  
     log.log(Level.FINER, "about to get doc: {0}",  uniqueId);
-    return st;
-  }
-
-  private PreparedStatement getAclFromDb(Connection conn,
-      String uniqueId) throws SQLException {
-    // aclSql will only be null when called from isUserAuthorized.
-    String sql = (aclSql == null) ? singleDocContentSql : aclSql;
-    PreparedStatement st = conn.prepareStatement(sql);
-    uniqueKey.setAclSqlValues(st, uniqueId);  
-    log.log(Level.FINER, "about to get acl: {0}",  uniqueId);
     return st;
   }
 
@@ -1146,7 +1147,11 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       try (Connection conn = makeNewConnection()) {
         for (DocId id : ids) {
           log.log(Level.FINE, "about to get acl of doc {0}", id);
-          Acl acl = getAcl(conn, id.getUniqueId());
+          Acl acl = getAcl(conn, null, id.getUniqueId());
+          if (acl == null) {
+            result.put(id, AuthzStatus.PERMIT);
+            continue;
+          }
           List<Acl> aclChain = Arrays.asList(acl);
           log.log(Level.FINE,
               "about to authorize user {0} for doc {1} and acl {2}",
