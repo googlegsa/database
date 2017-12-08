@@ -691,37 +691,27 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   
   private Acl getAcl(Connection conn, ResultSet rs, String uniqueId)
       throws SQLException {
-    log.log(Level.FINER, "about to get acl: {0}", uniqueId);
     if (aclSql != null || rs == null) {
-      String sql = (aclSql == null) ? singleDocContentSql : aclSql;
-      try (PreparedStatement st = conn.prepareStatement(sql)) {
-        // aclSql will only be null when called from isUserAuthorized.
-        if (aclSql == null) {
-          uniqueKey.setContentSqlValues(st, uniqueId);
-          return processAclQuery(st, null);
+      try (PreparedStatement stmt = getAclFromDb(conn, uniqueId);
+          ResultSet resSet = stmt.executeQuery()) {
+        log.finer("got acl");
+        boolean hasResult = resSet.next();
+        if (!hasResult) {
+          if (aclSql == null) {
+            return null;
+          } else {
+            // empty Acl ensures adaptor will mark this document as secure
+            return Acl.EMPTY;
+          }
         } else {
-          uniqueKey.setAclSqlValues(st, uniqueId);
-          return processAclQuery(st, Acl.EMPTY);
+          return buildAcl(resSet, aclPrincipalDelimiter, aclNamespace,
+              ResultSetNext.PROCESS_ALL_ROWS, Acl.EMPTY);
         }
       }
     } else {
       // Generate ACL if it came as part of result to singleDocContentSql.
       return buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
           ResultSetNext.PROCESS_ONE_ROW, null);
-    }
-  }
-
-  private Acl processAclQuery(PreparedStatement st, Acl defaultAcl)
-      throws SQLException {
-    try (ResultSet resSet = st.executeQuery()) {
-      log.finer("got acl");
-      boolean hasResult = resSet.next();
-      if (!hasResult) {
-        return defaultAcl;
-      } else {
-        return buildAcl(resSet, aclPrincipalDelimiter, aclNamespace,
-            ResultSetNext.PROCESS_ALL_ROWS, defaultAcl);
-      }
     }
   }
   
@@ -837,6 +827,21 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     PreparedStatement st = conn.prepareStatement(singleDocContentSql);
     uniqueKey.setContentSqlValues(st, uniqueId);  
     log.log(Level.FINER, "about to get doc: {0}",  uniqueId);
+    return st;
+  }
+
+  private PreparedStatement getAclFromDb(Connection conn,
+      String uniqueId) throws SQLException {
+    PreparedStatement st;
+    // aclSql will only be null when called from isUserAuthorized.
+    if (aclSql == null) {
+      st = conn.prepareStatement(singleDocContentSql);
+      uniqueKey.setContentSqlValues(st, uniqueId);
+    } else {
+      st = conn.prepareStatement(aclSql);
+      uniqueKey.setAclSqlValues(st, uniqueId);
+    }
+    log.log(Level.FINER, "about to get acl: {0}",  uniqueId);
     return st;
   }
 
@@ -1105,18 +1110,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   enum ResultSetNext {
     PROCESS_ALL_ROWS,
     PROCESS_ONE_ROW,
-  }
-
-  private static class AllPublic implements AuthzAuthority {
-    public Map<DocId, AuthzStatus> isUserAuthorized(AuthnIdentity userIdentity,
-        Collection<DocId> ids) throws IOException {
-      Map<DocId, AuthzStatus> result =
-          new HashMap<DocId, AuthzStatus>(ids.size() * 2);
-      for (DocId docId : ids) {
-        result.put(docId, AuthzStatus.PERMIT);
-      }
-      return Collections.unmodifiableMap(result);
-    }
   }
 
   private static Map<DocId, AuthzStatus> allDeny(Collection<DocId> ids) {
