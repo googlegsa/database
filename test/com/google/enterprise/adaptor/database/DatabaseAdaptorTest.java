@@ -2805,6 +2805,7 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
+    executeUpdate("insert into data(id) values (1),(2)");
 
     AuthzAuthority authority = getAuthzAuthority(moreEntries);
     Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
@@ -2966,29 +2967,29 @@ public class DatabaseAdaptorTest {
         Arrays.asList(new DocId("1"), new DocId("2")));
 
     HashMap<DocId, AuthzStatus> golden = new HashMap<>();
-    golden.put(new DocId("1"), AuthzStatus.PERMIT);
-    golden.put(new DocId("2"), AuthzStatus.PERMIT);
+    golden.put(new DocId("1"), AuthzStatus.INDETERMINATE);
+    golden.put(new DocId("2"), AuthzStatus.INDETERMINATE);
     assertEquals(golden, answers);
   }
 
   @Test
   public void testAuthzAuthoritySingleDocContentSql_permit() throws Exception {
-    executeUpdate("create table data(id integer, loginid varchar(20), "
+    executeUpdate("create table data(id integer, author varchar(20), "
         + "gsa_permit_users varchar(20), gsa_deny_users varchar(20))");
-    executeUpdate("insert into data(id, loginid, gsa_deny_users) values "
-        + "(1, 'tom', 'tom')");
-    executeUpdate("insert into data(id, loginid, gsa_permit_users) values "
+    executeUpdate("insert into data(id, author, gsa_deny_users) values "
+        + "(1, 'tom', 'alice')");
+    executeUpdate("insert into data(id, author, gsa_permit_users) values "
         + "(2, 'alice', 'alice')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.aclSqlParameters", "loginid");
-    moreEntries.put("db.singleDocContentSqlParameters", "id, loginid");
+    moreEntries.put("db.aclSqlParameters", "author");
+    moreEntries.put("db.singleDocContentSqlParameters", "id, author");
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int,loginid:string");
+    moreEntries.put("db.uniqueKey", "id:int,author:string");
     moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ? and loginid = ?");
+        "select * from data where id = ? and author = ?");
     // Required for validation, but not specific to this test.
-    moreEntries.put("db.everyDocIdSql", "select id, loginid from data");
+    moreEntries.put("db.everyDocIdSql", "select id, author from data");
 
     AuthzAuthority authority = getAuthzAuthority(moreEntries);
     Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
@@ -2998,6 +2999,57 @@ public class DatabaseAdaptorTest {
     HashMap<DocId, AuthzStatus> golden = new HashMap<>();
     golden.put(new DocId("1/tom"), AuthzStatus.DENY);
     golden.put(new DocId("2/alice"), AuthzStatus.PERMIT);
+    assertEquals(golden, answers);
+  }
+
+  @Test
+  public void testAuthzAuthoritySingleDocContentSql_noAclColumns()
+      throws Exception {
+    executeUpdate("create table data(id integer)");
+    executeUpdate("insert into data(id) values (2)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+
+    AuthzAuthority authority = getAuthzAuthority(moreEntries);
+    Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
+        getAuthnIdentity(new UserPrincipal("alice")),
+        Arrays.asList(new DocId("1"), new DocId("2")));
+
+    HashMap<DocId, AuthzStatus> golden = new HashMap<>();
+    golden.put(new DocId("1"), AuthzStatus.INDETERMINATE);
+    golden.put(new DocId("2"), AuthzStatus.PERMIT);
+    assertEquals(golden, answers);
+  }
+
+  @Test
+  public void testAuthzAuthoritySingleDocContentSql_noAclEntries()
+      throws Exception {
+    executeUpdate("create table data(id integer, "
+        + "gsa_permit_users varchar(20))");
+    executeUpdate("insert into data(id) values (2)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+
+    AuthzAuthority authority = getAuthzAuthority(moreEntries);
+    Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
+        getAuthnIdentity(new UserPrincipal("alice")),
+        Arrays.asList(new DocId("1"), new DocId("2")));
+
+    HashMap<DocId, AuthzStatus> golden = new HashMap<>();
+    golden.put(new DocId("1"), AuthzStatus.INDETERMINATE);
+    golden.put(new DocId("2"), AuthzStatus.INDETERMINATE);
     assertEquals(golden, answers);
   }
 }

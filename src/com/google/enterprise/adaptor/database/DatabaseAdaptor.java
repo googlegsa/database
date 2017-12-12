@@ -697,15 +697,16 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         log.finer("got acl");
         boolean hasResult = resSet.next();
         if (!hasResult) {
-          if (aclSql == null) {
-            return null;
-          } else {
-            // empty Acl ensures adaptor will mark this document as secure
-            return Acl.EMPTY;
-          }
+          // empty Acl ensures adaptor will mark this document as secure
+          return Acl.EMPTY;
         } else {
-          return buildAcl(resSet, aclPrincipalDelimiter, aclNamespace,
-              ResultSetNext.PROCESS_ALL_ROWS, Acl.EMPTY);
+          if (aclSql != null) {
+            return buildAcl(resSet, aclPrincipalDelimiter, aclNamespace,
+                ResultSetNext.PROCESS_ALL_ROWS, Acl.EMPTY);
+          } else {
+            return buildAcl(resSet, aclPrincipalDelimiter, aclNamespace,
+                ResultSetNext.PROCESS_ALL_ROWS, null);
+          }
         }
       }
     } else {
@@ -1124,36 +1125,33 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private class AccessChecker implements AuthzAuthority {
     public Map<DocId, AuthzStatus> isUserAuthorized(AuthnIdentity userIdentity,
         Collection<DocId> ids) throws IOException {
-     if (null == userIdentity) {
-        log.info("null identity to authorize");
-        return allDeny(ids);  // TODO: consider way to permit public
-      }
-      UserPrincipal user = userIdentity.getUser();
-      if (null == user) {
-        log.info("null user to authorize");
-        return allDeny(ids);  // TODO: consider way to permit public
-      }
-      log.log(Level.INFO, "about to authorize {0} {1}",
-          new Object[]{user, userIdentity.getGroups()});
       Map<DocId, AuthzStatus> result
           = new HashMap<DocId, AuthzStatus>(ids.size() * 2);
       try (Connection conn = makeNewConnection()) {
         for (DocId id : ids) {
           log.log(Level.FINE, "about to get acl of doc {0}", id);
-          Acl acl = getAcl(conn, null, id.getUniqueId());
-          if (acl == null) {
-            result.put(id, AuthzStatus.PERMIT);
-            continue;
+          if (userIdentity == null) {
+            result.put(id, AuthzStatus.DENY);
+          } else if (userIdentity.getUser() == null) {
+            result.put(id, AuthzStatus.DENY);
+          } else {
+            Acl acl = getAcl(conn, null, id.getUniqueId());
+            if (acl == null) {
+              result.put(id, AuthzStatus.PERMIT);
+            } else {
+              log.log(Level.INFO, "about to authorize {0} {1}",
+                  new Object[]{user, userIdentity.getGroups()});
+              List<Acl> aclChain = Arrays.asList(acl);
+              log.log(Level.FINE,
+                  "about to authorize user {0} for doc {1} and acl {2}",
+                  new Object[]{user, id, acl});
+              AuthzStatus decision = Acl.isAuthorized(userIdentity, aclChain);
+              log.log(Level.FINE,
+                  "authorization decision {0} for user {1} and doc {2}",
+                  new Object[]{decision, user, id});
+              result.put(id, decision);
+            }
           }
-          List<Acl> aclChain = Arrays.asList(acl);
-          log.log(Level.FINE,
-              "about to authorize user {0} for doc {1} and acl {2}",
-              new Object[]{user, id, acl});
-          AuthzStatus decision = Acl.isAuthorized(userIdentity, aclChain); 
-          log.log(Level.FINE,
-              "authorization decision {0} for user {1} and doc {2}",
-              new Object[]{decision, user, id});
-          result.put(id, decision);
         }
       } catch (SQLException ex) {
         throw new IOException("authz retrieval error", ex);
