@@ -112,7 +112,7 @@ class UniqueKey {
     return sb.toString().substring(1);
   }
 
-  private void setSqlValues(PreparedStatement st, String uniqueId,
+  void setSqlValues(PreparedStatement st, String uniqueId,
       List<String> sqlCols) throws SQLException {
     // parse on / that isn't preceded by escape char _
     // (a / that is preceded by _ is part of column value)
