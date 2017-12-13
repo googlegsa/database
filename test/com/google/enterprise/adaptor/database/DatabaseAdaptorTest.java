@@ -2797,24 +2797,48 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testAuthzAuthority_public() throws Exception {
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    // Required for validation, but not specific to this test.
     executeUpdate("create table data(id int)");
-    moreEntries.put("db.modeOfOperation", "rowToText");
+    executeUpdate("insert into data(id) values (1)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
-    executeUpdate("insert into data(id) values (1),(2)");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
 
     AuthzAuthority authority = getAuthzAuthority(moreEntries);
     Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
         getAuthnIdentity(new UserPrincipal("alice")),
-        Arrays.asList(new DocId("1"), new DocId("2")));
+        Arrays.asList(new DocId("1")));
 
     HashMap<DocId, AuthzStatus> golden = new HashMap<>();
     golden.put(new DocId("1"), AuthzStatus.PERMIT);
-    golden.put(new DocId("2"), AuthzStatus.PERMIT);
+    assertEquals(golden, answers);
+  }
+
+  // add null identity public test
+  @Test
+  public void testAuthzAuthority_publicNullIdentity() throws Exception {
+    executeUpdate("create table data(id int)");
+    executeUpdate("insert into data(id) values (1)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+
+    AuthzAuthority authority = getAuthzAuthority(moreEntries);
+    Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
+        null,
+        Arrays.asList(new DocId("1")));
+
+    HashMap<DocId, AuthzStatus> golden = new HashMap<>();
+    golden.put(new DocId("1"), AuthzStatus.PERMIT);
     assertEquals(golden, answers);
   }
 

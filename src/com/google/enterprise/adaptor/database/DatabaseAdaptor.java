@@ -689,29 +689,27 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     AbstractAdaptor.main(new DatabaseAdaptor(), args);
   }
   
-  private Acl getAcl(Connection conn, ResultSet rs, String uniqueId)
+  private Acl getAcl(Connection conn, ResultSet contentRs, String uniqueId)
       throws SQLException {
-    if (aclSql != null || rs == null) {
+    if (aclSql != null || contentRs == null) {
       try (PreparedStatement stmt = getAclFromDb(conn, uniqueId);
-          ResultSet resSet = stmt.executeQuery()) {
+          ResultSet rs = stmt.executeQuery()) {
         log.finer("got acl");
-        boolean hasResult = resSet.next();
+        boolean hasResult = rs.next();
         if (!hasResult) {
           // empty Acl ensures adaptor will mark this document as secure
           return Acl.EMPTY;
+        } else if (aclSql != null) {
+          return buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
+              ResultSetNext.PROCESS_ALL_ROWS, Acl.EMPTY);
         } else {
-          if (aclSql != null) {
-            return buildAcl(resSet, aclPrincipalDelimiter, aclNamespace,
-                ResultSetNext.PROCESS_ALL_ROWS, Acl.EMPTY);
-          } else {
-            return buildAcl(resSet, aclPrincipalDelimiter, aclNamespace,
-                ResultSetNext.PROCESS_ALL_ROWS, null);
-          }
+          return buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
+              ResultSetNext.PROCESS_ONE_ROW, null);
         }
       }
     } else {
       // Generate ACL if it came as part of result to singleDocContentSql.
-      return buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
+      return buildAcl(contentRs, aclPrincipalDelimiter, aclNamespace,
           ResultSetNext.PROCESS_ONE_ROW, null);
     }
   }
@@ -1130,27 +1128,23 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       try (Connection conn = makeNewConnection()) {
         for (DocId id : ids) {
           log.log(Level.FINE, "about to get acl of doc {0}", id);
-          if (userIdentity == null) {
-            result.put(id, AuthzStatus.DENY);
-          } else if (userIdentity.getUser() == null) {
+          Acl acl = getAcl(conn, null, id.getUniqueId());
+          if (acl == null) {
+            result.put(id, AuthzStatus.PERMIT);
+          } else if (userIdentity == null || userIdentity.getUser() == null) {
             result.put(id, AuthzStatus.DENY);
           } else {
-            Acl acl = getAcl(conn, null, id.getUniqueId());
-            if (acl == null) {
-              result.put(id, AuthzStatus.PERMIT);
-            } else {
-              log.log(Level.INFO, "about to authorize {0} {1}",
-                  new Object[]{user, userIdentity.getGroups()});
-              List<Acl> aclChain = Arrays.asList(acl);
-              log.log(Level.FINE,
-                  "about to authorize user {0} for doc {1} and acl {2}",
-                  new Object[]{user, id, acl});
-              AuthzStatus decision = Acl.isAuthorized(userIdentity, aclChain);
-              log.log(Level.FINE,
-                  "authorization decision {0} for user {1} and doc {2}",
-                  new Object[]{decision, user, id});
-              result.put(id, decision);
-            }
+            log.log(Level.INFO, "about to authorize {0} {1}",
+                new Object[] {user, userIdentity.getGroups()});
+            List<Acl> aclChain = Arrays.asList(acl);
+            log.log(Level.FINE,
+                "about to authorize user {0} for doc {1} and acl {2}",
+                new Object[] {user, id, acl});
+            AuthzStatus decision = Acl.isAuthorized(userIdentity, aclChain);
+            log.log(Level.FINE,
+                "authorization decision {0} for user {1} and doc {2}",
+                new Object[] {decision, user, id});
+            result.put(id, decision);
           }
         }
       } catch (SQLException ex) {
