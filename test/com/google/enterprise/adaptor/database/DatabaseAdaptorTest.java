@@ -2923,7 +2923,6 @@ public class DatabaseAdaptorTest {
   @Test
   public void testAuthzAuthorityAcl_permit() throws Exception {
     executeUpdate("create table acl(id integer, gsa_permit_users varchar(20))");
-    executeUpdate("create table data(id integer, author varchar(20))");
     executeUpdate("insert into acl(id, gsa_permit_users) values "
         + "(2, 'alice')");
 
@@ -2931,6 +2930,8 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.aclSql", "select * from acl where id = ?");
     moreEntries.put("db.aclSqlParameters", "id");
     moreEntries.put("db.singleDocContentSqlParameters", "author");
+    // Required for validation, but not specific to this test.
+    executeUpdate("create table data(id integer, author varchar(20))");
     moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int,author:string");
     moreEntries.put("db.everyDocIdSql", "select id, author from data");
@@ -2982,11 +2983,11 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(id integer)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
     // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.everyDocIdSql", "select id from data");
 
     AuthzAuthority authority = getAuthzAuthority(moreEntries);
@@ -3012,11 +3013,11 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.aclSqlParameters", "author");
     moreEntries.put("db.singleDocContentSqlParameters", "id, author");
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int,author:string");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ? and author = ?");
     // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.everyDocIdSql", "select id, author from data");
 
     AuthzAuthority authority = getAuthzAuthority(moreEntries);
@@ -3039,11 +3040,11 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(id, gsa_permit_users) values (1, 'alice')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
     // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.everyDocIdSql", "select id from data");
 
     AuthzAuthority authority = getAuthzAuthority(moreEntries);
@@ -3063,11 +3064,11 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(id) values (2)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
     // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.everyDocIdSql", "select id from data");
 
     AuthzAuthority authority = getAuthzAuthority(moreEntries);
@@ -3089,11 +3090,11 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(id) values (2)");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
     // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("db.everyDocIdSql", "select id from data");
 
     AuthzAuthority authority = getAuthzAuthority(moreEntries);
