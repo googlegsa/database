@@ -1134,7 +1134,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           } else if (userIdentity == null || userIdentity.getUser() == null) {
             result.put(id, AuthzStatus.DENY);
           } else {
-            log.log(Level.INFO, "about to authorize {0} {1}",
+            log.log(Level.FINE, "about to authorize {0} {1}",
                 new Object[] {user, userIdentity.getGroups()});
             List<Acl> aclChain = Arrays.asList(acl);
             log.log(Level.FINE,
