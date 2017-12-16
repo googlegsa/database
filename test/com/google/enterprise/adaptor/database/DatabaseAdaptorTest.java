@@ -1405,6 +1405,45 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
+  public void testInitVerifyColumnNames_metadataSql_columnInUniqueKey()
+      throws Exception {
+    executeUpdate("create table data(id int, other varchar(20))");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.extraMetadataSql",
+        "select other from data where id = ?");
+    moreEntries.put("db.extraMetadataSqlParameters", "id");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
+  public void testInitVerifyColumnNames_metadataSql_columnNotInUniqueKey()
+      throws Exception {
+    executeUpdate("create table data(id int, other varchar(20))");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.extraMetadataSql",
+        "select other from data where id = ?");
+    moreEntries.put("db.extraMetadataSqlParameters", "other");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("Unknown column 'other' from "
+        + "db.extraMetadataSqlParameters not found in db.uniqueKey: [id]");
+    getObjectUnderTest(moreEntries);
+  }
+
+  @Test
   public void testInitVerifyColumnNames_modeOfOperation() throws Exception {
     executeUpdate("create table data(id int, other varchar(20))");
 
@@ -2641,6 +2680,124 @@ public class DatabaseAdaptorTest {
     expected.add("id", "6");
     expected.add("quote", content);
     assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testExtraMetadata_docAndExtra() throws Exception {
+    executeUpdate("create table data(id int, name varchar(200))");
+    executeUpdate("create table metadata(id int, other varchar(200))");
+    executeUpdate("insert into data(id, name) values (1001, 'Doe, John')");
+    executeUpdate("insert into metadata(id, other) values (1001, 'John 1')");
+    executeUpdate("insert into metadata(id, other) values (1001, 'John 2')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select id, name from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.metadataColumns", "name");
+    configEntries.put("db.extraMetadataSql",
+        "select other from metadata where id = ?");
+    configEntries.put("db.extraMetadataSqlParameters", "id");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+    Metadata expected = new Metadata();
+    expected.add("name", "Doe, John");
+    expected.add("OTHER", "John 1");
+    expected.add("OTHER", "John 2");
+    // metadata comes from both the document row and the extra table
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testExtraMetadata_onlyExtra() throws Exception {
+    executeUpdate("create table data(id int, name varchar(200))");
+    executeUpdate("create table metadata(id int, other varchar(200))");
+    executeUpdate("insert into data(id, name) values (1001, 'Doe, John')");
+    executeUpdate("insert into metadata(id, other) values (1001, 'John 1')");
+    executeUpdate("insert into metadata(id, other) values (1001, 'John 2')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select id, name from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    // extraMetadataSql uses "select <field>" to limit the
+    // columns returned as metadata
+    configEntries.put("db.extraMetadataSql",
+        "select other from metadata where id = ?");
+    configEntries.put("db.extraMetadataSqlParameters", "id");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+    Metadata expected = new Metadata();
+    expected.add("OTHER", "John 1");
+    expected.add("OTHER", "John 2");
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testExtraMetadata_extraMetadataColumns() throws Exception {
+    executeUpdate("create table data(id int, name varchar(200))");
+    executeUpdate("create table metadata(id int, other varchar(200))");
+    executeUpdate("insert into data(id, name) values (1001, 'Doe, John')");
+    executeUpdate("insert into metadata(id, other) values (1001, 'John 1')");
+    executeUpdate("insert into metadata(id, other) values (1001, 'John 2')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select id, name from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    // extraMetadataSql uses "select *", so extraMetadataColumns
+    // is used to limit the columns returned as metadata
+    configEntries.put("db.extraMetadataSql",
+        "select * from metadata where id = ?");
+    configEntries.put("db.extraMetadataSqlParameters", "id");
+    configEntries.put("db.extraMetadataColumns", "OTHER");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+    Metadata expected = new Metadata();
+    expected.add("OTHER", "John 1");
+    expected.add("OTHER", "John 2");
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testExtraMetadata_invalidExtraMetadataColumns() throws Exception {
+    executeUpdate("create table data(id int, name varchar(200))");
+    executeUpdate("create table metadata(id int, other varchar(200))");
+    executeUpdate("insert into data(id, name) values (1001, 'Doe, John')");
+    executeUpdate("insert into metadata(id, other) values (1001, 'John 1')");
+    executeUpdate("insert into metadata(id, other) values (1001, 'John 2')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select id, name from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.extraMetadataSql",
+        "select * from metadata where id = ?");
+    configEntries.put("db.extraMetadataSqlParameters", "id");
+    configEntries.put("db.extraMetadataColumns", "INVALID");
+
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage("These columns from db.extraMetadataColumns [INVALID]"
+        + " not found in query db.extraMetadataSql:"
+        + " select * from metadata where id = ?");
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
   }
 
   @Test

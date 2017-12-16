@@ -55,15 +55,17 @@ class UniqueKey {
   private final Map<String, ColumnType> types;  // types of DocId columns
   private final List<String> contentSqlCols;  // columns for content query
   private final List<String> aclSqlCols;  // columns for acl query
+  private final List<String> metadataSqlCols; // columns for metadata query
   private final boolean docIdIsUrl;
 
   private UniqueKey(List<String> docIdSqlCols, Map<String, ColumnType> types,
       List<String> contentSqlCols, List<String> aclSqlCols,
-      boolean docIdIsUrl) {
+      List<String> metadataSqlCols, boolean docIdIsUrl) {
     this.docIdSqlCols = docIdSqlCols;
     this.types = types;
     this.contentSqlCols = contentSqlCols;
     this.aclSqlCols = aclSqlCols;
+    this.metadataSqlCols = metadataSqlCols;
     this.docIdIsUrl = docIdIsUrl;
   }
 
@@ -171,6 +173,11 @@ class UniqueKey {
     setSqlValues(st, uniqueId, aclSqlCols);
   }
 
+  void setMetadataSqlValues(PreparedStatement st, String uniqueId)
+      throws SQLException {
+    setSqlValues(st, uniqueId, metadataSqlCols);
+  }
+
   @VisibleForTesting
   static String encodeSlashInData(String data) {
     if (-1 == data.indexOf('/') && -1 == data.indexOf('_')) {
@@ -217,8 +224,8 @@ class UniqueKey {
 
   @Override
   public String toString() {
-    return "UniqueKey(" + docIdSqlCols + "," + types + "," + contentSqlCols + ","
-        + aclSqlCols + ")";
+    return "UniqueKey(" + docIdSqlCols + "," + types + ","
+        + contentSqlCols + "," + aclSqlCols + "," + metadataSqlCols + ")";
   }
 
   /** Builder to create instances of {@code UniqueKey}. */
@@ -227,6 +234,7 @@ class UniqueKey {
     private Map<String, ColumnType> types;  // types of DocId columns
     private List<String> contentSqlCols;  // columns for content query
     private List<String> aclSqlCols;  // columns for acl query
+    private List<String> metadataSqlCols;  // columns for metadata query
     private boolean docIdIsUrl = false;
 
     /**
@@ -345,6 +353,19 @@ class UniqueKey {
       return this;
     }
 
+    Builder setMetadataSqlColumns(String metadataSqlColumns)
+        throws InvalidConfigurationException {
+      if (null == metadataSqlColumns) {
+        throw new NullPointerException();
+      }
+      if (!metadataSqlColumns.trim().isEmpty()) {
+        this.metadataSqlCols =
+            splitIntoNameList("db.extraMetadataSqlParameters",
+                metadataSqlColumns, types.keySet());
+      }
+      return this;
+    }
+
     private static List<String> splitIntoNameList(String paramConfig,
         String cols, Set<String> validNames) {
       List<String> columnNames = new ArrayList<String>();
@@ -434,6 +455,10 @@ class UniqueKey {
       return aclSqlCols;
     }
 
+    List<String> getMetadataSqlColumns() {
+      return metadataSqlCols;
+    }
+
     /** Return the Map of column types. */
     @VisibleForTesting
     Map<String, ColumnType> getColumnTypes() {
@@ -464,7 +489,7 @@ class UniqueKey {
            + " The key must be a single string column when docId.isUrl=true.");
       }
       return new UniqueKey(docIdSqlCols, types, contentSqlCols, aclSqlCols,
-                           docIdIsUrl);
+          metadataSqlCols, docIdIsUrl);
     }
   }
 }

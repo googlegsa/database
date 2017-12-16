@@ -128,6 +128,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String everyDocIdSql;
   private String singleDocContentSql;
   private MetadataColumns metadataColumns;
+  private String extraMetadataSql;
+  private MetadataColumns extraMetadataColumns;
   private ResponseGenerator respGenerator;
   private String aclSql;
   private String aclPrincipalDelimiter;
@@ -150,6 +152,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     // when set to true, if "db.metadataColumns" is blank, it will use all
     // returned columns as metadata.
     config.addKey("db.includeAllColumnsAsMetadata", "false");
+    config.addKey("db.extraMetadataSql", "");
+    config.addKey("db.extraMetadataSqlParameters", "");
+    config.addKey("db.extraMetadataColumns", "");
     config.addKey("db.modeOfOperation", null);
     config.addKey("db.updateSql", "");
     config.addKey("db.aclSql", "");
@@ -234,6 +239,20 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       }
     }
 
+    if (!isNullOrEmptyString(cfg.getValue("db.extraMetadataSql"))) {
+      extraMetadataSql = cfg.getValue("db.extraMetadataSql");
+      log.config("extra metadata sql: " + extraMetadataSql);
+      String extraMetadataColumnsConfig =
+          cfg.getValue("db.extraMetadataColumns");
+      if ("".equals(extraMetadataColumnsConfig)) {
+        extraMetadataColumns = null;
+        log.config("extra metadata columns: Use all columns in ResultSet");
+      } else {
+        extraMetadataColumns = new MetadataColumns(extraMetadataColumnsConfig);
+        log.config("extra metadata columns: " + extraMetadataColumns);
+      }
+    }
+
     modeOfOperation = cfg.getValue("db.modeOfOperation");
     log.config("mode of operation: " + modeOfOperation);
 
@@ -311,7 +330,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         = new UniqueKey.Builder(cfg.getValue("db.uniqueKey"))
         .setDocIdIsUrl(docIdIsUrl)
         .setContentSqlColumns(cfg.getValue("db.singleDocContentSqlParameters"))
-        .setAclSqlColumns(cfg.getValue("db.aclSqlParameters"));
+        .setAclSqlColumns(cfg.getValue("db.aclSqlParameters"))
+        .setMetadataSqlColumns(
+            cfg.getValue("db.extraMetadataSqlParameters"));
 
     // Verify all column names.
     try (Connection conn = makeNewConnection()) {
@@ -331,6 +352,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
               "db.metadataColumns", metadataColumns.keySet());
         }
+      }
+      if (extraMetadataColumns != null) {
+        verifyColumnNames(conn, "db.extraMetadataSql", extraMetadataSql,
+            "db.extraMetadataColumns", extraMetadataColumns.keySet());
       }
       if (respGenerator instanceof ResponseGenerator.SingleColumnContent) {
         ResponseGenerator.SingleColumnContent content =
@@ -477,6 +502,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           builder.setDeleteFromIndex(true);
         } else if ("urlAndMetadataLister".equals(modeOfOperation)) {
           addMetadataToRecordBuilder(builder, rs);
+          if (extraMetadataSql != null) {
+            addExtraMetadataToRecordBuilder(builder, conn, id.getUniqueId());
+          }
         }
         DocIdPusher.Record record = builder.build();
         log.log(Level.FINEST, "doc id: {0}", id);
@@ -501,15 +529,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   /*
    * Adds all specified metadata columns to the record or response being built.
    */
-  private void addMetadata(MetadataHandler meta, ResultSet rs)
-      throws SQLException, IOException {
+  private void addMetadata(MetadataHandler meta, ResultSet rs,
+      MetadataColumns rsMetadataColumns) throws SQLException, IOException {
     ResultSetMetaData rsMetaData = rs.getMetaData();
-    synchronized (this) {
-      if (metadataColumns == null) {
-        metadataColumns = new MetadataColumns(rsMetaData);
-      }
-    }
-    for (Map.Entry<String, String> entry : metadataColumns.entrySet()) {
+    for (Map.Entry<String, String> entry : rsMetadataColumns.entrySet()) {
       int index;
       try {
         index = rs.findColumn(entry.getKey());
@@ -633,25 +656,81 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   @VisibleForTesting
   void addMetadataToRecordBuilder(final DocIdPusher.Record.Builder builder,
       ResultSet rs) throws SQLException, IOException {
+    synchronized (this) {
+      if (metadataColumns == null) {
+        metadataColumns = new MetadataColumns(rs.getMetaData());
+      }
+    }
     addMetadata(
         new MetadataHandler() {
           @Override public void addMetadata(String k, String v) {
             builder.addMetadata(k, v);
           }
         },
-        rs);
+        rs, metadataColumns);
   }
 
   @VisibleForTesting
   void addMetadataToResponse(final Response resp, ResultSet rs)
       throws SQLException, IOException {
+    synchronized (this) {
+      if (metadataColumns == null) {
+        metadataColumns = new MetadataColumns(rs.getMetaData());
+      }
+    }
     addMetadata(
         new MetadataHandler() {
           @Override public void addMetadata(String k, String v) {
             resp.addMetadata(k, v);
           }
         },
-        rs);
+        rs, metadataColumns);
+  }
+
+  private void addExtraMetadataToRecordBuilder(
+      final DocIdPusher.Record.Builder builder, Connection conn,
+      String uniqueId) throws SQLException, IOException {
+
+    try (PreparedStatement stmt = getExtraMetadataFromDb(conn, uniqueId);
+        ResultSet rs = stmt.executeQuery()) {
+      synchronized (this) {
+        if (extraMetadataColumns == null) {
+          extraMetadataColumns = new MetadataColumns(rs.getMetaData());
+        }
+      }
+      MetadataHandler handler = new MetadataHandler() {
+          @Override public void addMetadata(String k, String v) {
+            builder.addMetadata(k, v);
+          }
+        };
+      while (rs.next()) {
+        addMetadata(handler, rs, extraMetadataColumns);
+      }
+    } catch (SQLException ex) {
+      throw new IOException(ex);
+    }
+  }
+
+  private void addExtraMetadataToResponse(final Response resp, Connection conn,
+      String uniqueId) throws SQLException, IOException {
+    try (PreparedStatement stmt = getExtraMetadataFromDb(conn, uniqueId);
+        ResultSet rs = stmt.executeQuery()) {
+      synchronized (this) {
+        if (extraMetadataColumns == null) {
+          extraMetadataColumns = new MetadataColumns(rs.getMetaData());
+        }
+      }
+      MetadataHandler handler = new MetadataHandler() {
+          @Override public void addMetadata(String k, String v) {
+            resp.addMetadata(k, v);
+          }
+        };
+      while (rs.next()) {
+        addMetadata(handler, rs, extraMetadataColumns);
+      }
+    } catch (SQLException ex) {
+      throw new IOException(ex);
+    }
   }
 
   /** Gives the bytes of a document referenced with id. */
@@ -675,6 +754,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       }
       // Generate response metadata first.
       addMetadataToResponse(resp, rs);
+      if (extraMetadataSql != null) {
+        addExtraMetadataToResponse(resp, conn, id.getUniqueId());
+      }
       // Generate Acl if aclSql is provided.
       if (aclSql != null) {
         resp.setAcl(getAcl(conn, id.getUniqueId()));
@@ -838,6 +920,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     return st;
   }
 
+  private PreparedStatement getExtraMetadataFromDb(Connection conn,
+      String uniqueId) throws SQLException {
+    PreparedStatement st = conn.prepareStatement(extraMetadataSql);
+    uniqueKey.setMetadataSqlValues(st, uniqueId);
+    log.log(Level.FINER, "about to get extra metadata: {0}",  uniqueId);
+    return st;
+  }
+
   /**
    * Mechanism that accepts stream of DocIdPusher.Record instances, buffers
    * them, and sends them when it has accumulated maximum allowed amount per
@@ -921,7 +1011,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       throw new InvalidConfigurationException(errmsg, ex);
     }
   }
-  
+
   @VisibleForTesting
   static ResponseGenerator loadResponseGeneratorInternal(Method method,
       Map<String, String> config) {
@@ -1026,6 +1116,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
             builder.setDeleteFromIndex(true);
           } else if ("urlAndMetadataLister".equals(modeOfOperation)) {
             addMetadataToRecordBuilder(builder, rs);
+            if (extraMetadataSql != null) {
+              addExtraMetadataToRecordBuilder(builder, conn, id.getUniqueId());
+            }
           }
           DocIdPusher.Record record = builder.build();
           log.log(Level.FINEST, "doc id: {0}", id);
