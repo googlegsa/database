@@ -116,18 +116,22 @@ class UniqueKey {
 
   private void setSqlValues(PreparedStatement st, String uniqueId,
       List<String> sqlCols) throws SQLException {
-    // parse on / that isn't preceded by escape char _
-    // (a / that is preceded by _ is part of column value)
-    String parts[] = uniqueId.split("(?<!_)/", -1);
-    if (parts.length != docIdSqlCols.size()) {
-      String errmsg = "Wrong number of values for primary key: "
-          + "id: " + uniqueId + ", parts: " + Arrays.asList(parts);
-      throw new IllegalStateException(errmsg);
-    }
     Map<String, String> zip = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    for (int i = 0; i < parts.length; i++) {
-      String columnValue = decodeSlashInData(parts[i]);
-      zip.put(docIdSqlCols.get(i), columnValue);
+    if (docIdIsUrl) {
+      zip.put(docIdSqlCols.get(0), uniqueId);
+    } else {
+      // parse on / that isn't preceded by escape char _
+      // (a / that is preceded by _ is part of column value)
+      String parts[] = uniqueId.split("(?<!_)/", -1);
+      if (parts.length != docIdSqlCols.size()) {
+        String errmsg = "Wrong number of values for primary key: "
+            + "id: " + uniqueId + ", parts: " + Arrays.asList(parts);
+        throw new IllegalStateException(errmsg);
+      }
+      for (int i = 0; i < parts.length; i++) {
+        String columnValue = decodeSlashInData(parts[i]);
+        zip.put(docIdSqlCols.get(i), columnValue);
+      }
     }
     for (int i = 0; i < sqlCols.size(); i++) {
       String colName = sqlCols.get(i);
@@ -224,8 +228,8 @@ class UniqueKey {
 
   @Override
   public String toString() {
-    return "UniqueKey(" + docIdSqlCols + "," + types + ","
-        + contentSqlCols + "," + aclSqlCols + "," + metadataSqlCols + ")";
+    return "UniqueKey(" + docIdSqlCols + "," + types + "," + contentSqlCols + ","
+        + aclSqlCols + "," + metadataSqlCols + ")";
   }
 
   /** Builder to create instances of {@code UniqueKey}. */
