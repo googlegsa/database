@@ -56,12 +56,14 @@ import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Metadata;
 import com.google.enterprise.adaptor.PollingIncrementalLister;
 import com.google.enterprise.adaptor.Response;
+import com.google.enterprise.adaptor.SensitiveValueDecoder;
 import com.google.enterprise.adaptor.StartupException;
-import com.google.enterprise.adaptor.TestHelper;
-import com.google.enterprise.adaptor.TestHelper.RecordingContext;
 import com.google.enterprise.adaptor.UserPrincipal;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.ResultSetNext;
+import com.google.enterprise.adaptor.testing.RecordingDocIdPusher;
+import com.google.enterprise.adaptor.testing.RecordingResponse;
+import com.google.enterprise.adaptor.testing.UnsupportedAdaptorContext;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -709,6 +711,53 @@ public class DatabaseAdaptorTest {
   }
 
   /**
+   * A fake implementation of AdaptorContext that simply returns the
+   * values its given, and records the values it receives.
+   */
+  private static class RecordingContext extends UnsupportedAdaptorContext {
+    private final Config config;
+    private PollingIncrementalLister lister;
+    private AuthzAuthority authzAuthority;
+
+    private RecordingContext(Config config) {
+      this.config = config;
+    }
+
+    @Override
+    public Config getConfig() {
+      return config;
+    }
+
+    @Override
+    public void setPollingIncrementalLister(PollingIncrementalLister lister) {
+      this.lister = lister;
+    }
+
+    @Override
+    public SensitiveValueDecoder getSensitiveValueDecoder() {
+      return new SensitiveValueDecoder() {
+        @Override
+        public String decodeValue(String notEncodedDuringTesting) {
+          return notEncodedDuringTesting;
+        }
+      };
+    }
+
+    @Override
+    public void setAuthzAuthority(AuthzAuthority authzAuthority) {
+      this.authzAuthority = authzAuthority;
+    }
+
+    public PollingIncrementalLister getPollingIncrementalLister() {
+      return lister;
+    }
+
+    public AuthzAuthority getAuthzAuthority() {
+      return authzAuthority;
+    }
+  }
+
+  /**
    * Returns a Database adaptor instance with the supplied config overrides.
    * Adaptor.initConfig() and Adaptor.init() have already been called.
    */
@@ -741,7 +790,7 @@ public class DatabaseAdaptorTest {
     DatabaseAdaptor adaptor = new DatabaseAdaptor();
     adaptor.initConfig(config);
     config.load(file);
-    RecordingContext context = TestHelper.createConfigAdaptorContext(config);
+    RecordingContext context = new RecordingContext(config);
     contextHolder.set(context);
     adaptor.init(context);
     return adaptor;
