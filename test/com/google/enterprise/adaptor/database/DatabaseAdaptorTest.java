@@ -1172,7 +1172,7 @@ public class DatabaseAdaptorTest {
    }
 
   @Test
-  public void testInit_ignoredPropertyes_extraMetadata() throws Exception {
+  public void testInitExtraMetadata_ignoredProperties() throws Exception {
     executeUpdate("create table data(id int, other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
@@ -1628,10 +1628,10 @@ public class DatabaseAdaptorTest {
         + " values ('http://localhost/', 'John 2')");
 
     Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("docId.isUrl", "true");
+    configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     configEntries.put("db.uniqueKey", "url:string");
     configEntries.put("db.everyDocIdSql", "select * from data");
-    configEntries.put("db.modeOfOperation", "urlAndMetadataLister");
-    configEntries.put("docId.isUrl", "true");
     configEntries.put("db.metadataColumns", "URL:col1, NAME:col2");
     configEntries.put("db.extraMetadataSql",
         "select other from metadata where url = ?");
@@ -1649,6 +1649,47 @@ public class DatabaseAdaptorTest {
     assertEquals(
         Arrays.asList(new Record.Builder(new DocId("http://localhost/"))
           .setMetadata(metadata).build()),
+        pusher.getRecords());
+  }
+
+  @Test
+  public void testGetDocIds_docIdIsUrl_noMetadata()
+      throws Exception {
+    // The setup for this test should match
+    // testGetDocIds_urlAndMetadataLister_extraMetadata with the
+    // exception of modeOfOperation. We want to verify that no
+    // metadata is returned despite valid metadata configuration when
+    // docIdIsUrl is true and modeOfOperation is not
+    // urlAndMetadataLister.
+    executeUpdate("create table data(url varchar(200), name varchar(20))");
+    executeUpdate(
+        "insert into data(url, name) values('http://localhost/','John')");
+    executeUpdate(
+        "create table metadata(url varchar(200), other varchar(200))");
+    executeUpdate("insert into metadata(url, other)"
+        + " values ('http://localhost/', 'John 1')");
+    executeUpdate("insert into metadata(url, other)"
+        + " values ('http://localhost/', 'John 2')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("docId.isUrl", "true");
+    // modeOfOperation must be valid and not urlAndMetadataLister for
+    // this test
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.uniqueKey", "url:string");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.metadataColumns", "URL:col1, NAME:col2");
+    configEntries.put("db.extraMetadataSql",
+        "select other from metadata where url = ?");
+    configEntries.put("db.extraMetadataSqlParameters", "url");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    adaptor.getDocIds(pusher);
+
+    assertEquals(
+        Arrays.asList(new Record.Builder(new DocId("http://localhost/"))
+            .build()),
         pusher.getRecords());
   }
 
@@ -1685,6 +1726,7 @@ public class DatabaseAdaptorTest {
             new Record.Builder(new DocId("http://host/foo%20bar")).build()),
         pusher.getRecords());
   }
+
 
   @Test
   public void testGetDocIds_nullUniqueKey() throws Exception {
@@ -2252,6 +2294,55 @@ public class DatabaseAdaptorTest {
         Arrays.asList(
             new Record.Builder(new DocId("http://localhost"))
             .setMetadata(metadata).setCrawlImmediately(true).build()),
+        pusher.getRecords());
+  }
+
+  @Test
+  public void testGetModifiedDocIds_docIdIsUrl_noMetadata()
+      throws Exception {
+    // The setup for this test should match
+    // testGetDocModifiedIds_urlAndMetadataLister_extraMetadata with
+    // the exception of modeOfOperation. We want to verify that no
+    // metadata is returned despite valid metadata configuration when
+    // docIdIsUrl is true and modeOfOperation is not
+    // urlAndMetadataLister.
+    // Add time to show the records as modified.
+    executeUpdate("create table data(url varchar(20),"
+        + " other varchar(20), ts timestamp)");
+    executeUpdate("insert into data(url, other, ts) values ('http://localhost',"
+        + " 'hello world', " + nowPlus(1) + ")");
+    executeUpdate(
+        "create table metadata(url varchar(200), other varchar(200))");
+    executeUpdate("insert into metadata(url, other)"
+        + " values ('http://localhost', 'John 1')");
+    executeUpdate("insert into metadata(url, other)"
+        + " values ('http://localhost', 'John 2')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    // modeOfOperation must be valid and not urlAndMetadataLister for
+    // this test
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    moreEntries.put("db.updateSql",
+        "select url, other from data where ts >= ?");
+    moreEntries.put("db.metadataColumns", "other");
+    moreEntries.put("db.extraMetadataSql",
+        "select other as metadataother from metadata where url = ?");
+    moreEntries.put("db.extraMetadataSqlParameters", "url");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select url, other from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where url = ?");
+
+    PollingIncrementalLister lister = getPollingIncrementalLister(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    lister.getModifiedDocIds(pusher);
+
+    assertEquals(
+        Arrays.asList(
+            new Record.Builder(new DocId("http://localhost"))
+            .setCrawlImmediately(true).build()),
         pusher.getRecords());
   }
 
@@ -2825,7 +2916,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.singleDocContentSql",
         "select id, name from data where id = ?");
     configEntries.put("db.modeOfOperation", "rowToText");
-    configEntries.put("db.metadataColumns", "name");
+    configEntries.put("db.includeAllColumnsAsMetadata", "true");
     configEntries.put("db.extraMetadataSql",
         "select other from metadata where id = ?");
     configEntries.put("db.extraMetadataSqlParameters", "id");
@@ -2837,7 +2928,8 @@ public class DatabaseAdaptorTest {
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
     Metadata expected = new Metadata();
-    expected.add("name", "Doe, John");
+    expected.add("ID", "1001");
+    expected.add("NAME", "Doe, John");
     expected.add("OTHER", "John 1");
     expected.add("OTHER", "John 2");
     // metadata comes from both the document row and the extra table
@@ -2867,6 +2959,37 @@ public class DatabaseAdaptorTest {
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
     MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+    Metadata expected = new Metadata();
+    expected.add("OTHER", "John 1");
+    expected.add("OTHER", "John 2");
+    assertEquals(expected, response.getMetadata());
+  }
+
+  @Test
+  public void testExtraMetadata_differentParameters() throws Exception {
+    executeUpdate("create table data(id int, name varchar(200), metaId int)");
+    executeUpdate("create table metadata(id int, other varchar(200))");
+    executeUpdate(
+        "insert into data(id, name, metaId) values (1001, 'Doe, John', 42)");
+    executeUpdate("insert into metadata(id, other) values (42, 'John 1')");
+    executeUpdate("insert into metadata(id, other) values (42, 'John 2')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int,metaId:int");
+    configEntries.put("db.singleDocContentSql",
+        "select id, name from data where id = ?");
+    configEntries.put("db.singleDocContentSqlParameters", "id");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.extraMetadataSql",
+        "select other from metadata where id = ?");
+    configEntries.put("db.extraMetadataSqlParameters", "metaId");
+    // Required for validation, but not specific to this test.
+    configEntries.put("db.everyDocIdSql", "select * from data");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1001/42"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
     Metadata expected = new Metadata();
@@ -2908,7 +3031,7 @@ public class DatabaseAdaptorTest {
   }
 
   @Test
-  public void testExtraMetadata_extraMetadataColumns_Mapping()
+  public void testExtraMetadata_extraMetadataColumns_mapping()
       throws Exception {
     executeUpdate("create table data(id int, name varchar(200))");
     executeUpdate("create table metadata(id int, other varchar(200))");
@@ -2965,6 +3088,64 @@ public class DatabaseAdaptorTest {
         + " not found in query db.extraMetadataSql:"
         + " select * from metadata where id = ?");
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+  }
+
+  @Test
+  public void testExtraMetadata_invalidExtraMetadataSql() throws Exception {
+    executeUpdate("create table data(id int, name varchar(200))");
+    executeUpdate("insert into data(id, name) values (1001, 'Doe, John')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.singleDocContentSql",
+        "select id, name from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    // Metadata table does not exist. When extraMetadataColumns isn't
+    // specified, the column names aren't verified in init, so this
+    // statement is prepared for the first time when adding extra
+    // metadata, triggering an exception to improve test coverage.
+    configEntries.put("db.extraMetadataSql",
+        "select * from metadata where id = ?");
+    configEntries.put("db.extraMetadataSqlParameters", "id");
+    // Required for validation, but not specific to this test.
+    configEntries.put("db.everyDocIdSql", "select * from data");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    thrown.expect(IOException.class);
+    thrown.expectCause(isA(SQLException.class));
+    adaptor.getDocContent(request, response);
+  }
+
+  @Test
+  public void testExtraMetadata_missingExtraMetadataSqlParameters()
+      throws Exception {
+    executeUpdate("create table data(id int, name varchar(200))");
+    executeUpdate("create table metadata(id int, other varchar(200))");
+    executeUpdate("insert into data(id, name) values (1001, 'Doe, John')");
+    executeUpdate("insert into metadata(id, other) values (1001, 'John 1')");
+    executeUpdate("insert into metadata(id, other) values (1001, 'John 2')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.singleDocContentSql",
+        "select id, name from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    configEntries.put("db.extraMetadataSql",
+        "select * from metadata where id = ?");
+    // Required for validation, but not specific to this test.
+    configEntries.put("db.everyDocIdSql", "select * from data");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1001"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+    Metadata expected = new Metadata();
+    expected.add("ID", "1001");
+    expected.add("OTHER", "John 1");
+    expected.add("OTHER", "John 2");
+    assertEquals(expected, response.getMetadata());
   }
 
   @Test

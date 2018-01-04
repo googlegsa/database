@@ -706,22 +706,22 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private void addExtraMetadataToRecordBuilder(
       final DocIdPusher.Record.Builder builder, Connection conn,
       String uniqueId) throws SQLException, IOException {
-    MetadataHandler handler = new MetadataHandler() {
-        @Override public void addMetadata(String k, String v) {
-          builder.addMetadata(k, v);
-        }
-      };
-    addExtraMetadata(conn, uniqueId, handler);
+    addExtraMetadata(conn, uniqueId,
+        new MetadataHandler() {
+          @Override public void addMetadata(String k, String v) {
+            builder.addMetadata(k, v);
+          }
+        });
   }
 
   private void addExtraMetadataToResponse(final Response resp, Connection conn,
       String uniqueId) throws SQLException, IOException {
-    MetadataHandler handler = new MetadataHandler() {
-        @Override public void addMetadata(String k, String v) {
-          resp.addMetadata(k, v);
-        }
-      };
-    addExtraMetadata(conn, uniqueId, handler);
+    addExtraMetadata(conn, uniqueId,
+        new MetadataHandler() {
+          @Override public void addMetadata(String k, String v) {
+            resp.addMetadata(k, v);
+          }
+        });
   }
 
   private void addExtraMetadata(Connection conn, String uniqueId,
