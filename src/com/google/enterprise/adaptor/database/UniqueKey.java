@@ -117,15 +117,18 @@ class UniqueKey {
   private void setSqlValues(PreparedStatement st, String uniqueId,
       List<String> sqlCols) throws SQLException {
     Map<String, String> zip = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    // Parameters to SQL queries are taken from the unique id. When reading extraMetadata
-    // when docIdIsUrl is true, we're now passing the unique id to this method for the
-    // first time. Don't try to split the id; we know it must be a single unique string.
+    // Parameters to SQL queries are taken from the unique id. When
+    // reading extraMetadata when docIdIsUrl is true, we're now
+    // passing the unique id to this method for the first time. Don't
+    // try to split the id; we know it must be a single unique string.
 
-    // TODO(aptls): while this may be OK in that we don't want to try to split the id when
-    // we know it's a URL, the underlying use case of using value(s) from the unique id to
-    // retrieve the extra metadata might not want to have to use this URL as the metadata
-    // key. We want to change this to be able to retrieve the metadata key value(s) from
-    // the doc id or content result set instead of the key.
+    // TODO(aptls): while this may be OK in that we don't want to try
+    // to split the id when we know it's a URL, the underlying use
+    // case of using value(s) from the unique id to retrieve the extra
+    // metadata might not want to have to use this URL as the metadata
+    // key. We want to change this to be able to retrieve the metadata
+    // key value(s) from the doc id or content result set instead of
+    // the key.
     if (docIdIsUrl) {
       zip.put(docIdSqlCols.get(0), uniqueId);
     } else {

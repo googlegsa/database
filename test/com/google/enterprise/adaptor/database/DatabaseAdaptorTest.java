@@ -1727,7 +1727,6 @@ public class DatabaseAdaptorTest {
         pusher.getRecords());
   }
 
-
   @Test
   public void testGetDocIds_nullUniqueKey() throws Exception {
     executeUpdate("create table data(id integer, other varchar(20))");
