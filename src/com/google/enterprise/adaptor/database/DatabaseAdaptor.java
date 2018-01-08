@@ -476,10 +476,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   @Override
   public void getDocIds(DocIdPusher pusher) throws IOException,
       InterruptedException {
+    lastModifiedCache.invalidateAll();
     DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z");
     formatter.setTimeZone(updateTimestampTimezone.getTimeZone());
     BufferedPusher outstream = new BufferedPusher(pusher);
-    lastModifiedCache.invalidateAll();
     try (Connection conn = makeNewConnection();
         PreparedStatement stmt = getStreamFromDb(conn, everyDocIdSql);
         ResultSet rs = stmt.executeQuery()) {
@@ -500,15 +500,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         }
         // Cache last modified time stamp for this DocId
         if (hasTimestamp) {
-          Date cachedLastModified = lastModifiedCache.getIfPresent(id);
           Timestamp ts =
               rs.getTimestamp(GsaSpecialColumns.GSA_TIMESTAMP.toString(),
                   updateTimestampTimezone);
-          if ((ts != null)) {
-            cachedLastModified = new Date(ts.getTime());
-            lastModifiedCache.put(id, cachedLastModified);
-            log.log(Level.FINE, "cachedLastModified updated: {0}",
-                formatter.format(cachedLastModified));
+          if (ts != null) {
+            Date lastModified = new Date(ts.getTime());
+            lastModifiedCache.put(id, lastModified);
+            log.log(Level.FINE, "lastModifiedCache updated: {0}",
+                formatter.format(lastModified));
           }
         }
         DocIdPusher.Record.Builder builder = new DocIdPusher.Record.Builder(id);
@@ -1071,22 +1070,19 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           
           // update time stamps
           if (hasTimestamp) {
-            Date cachedLastModified = lastModifiedCache.getIfPresent(id);
             Timestamp ts =
                 rs.getTimestamp(GsaSpecialColumns.GSA_TIMESTAMP.toString(),
                     updateTimestampTimezone);
             if (ts != null) {
+              Date lastModified = new Date(ts.getTime());
               if (latestTimestamp == null || ts.after(latestTimestamp)) {
                 latestTimestamp = ts;
                 log.log(Level.FINE, "latestTimestamp updated: {0}",
-                    formatter.format(new Date(latestTimestamp.getTime())));
+                    formatter.format(lastModified));
               }
-              if (cachedLastModified == null) {
-                cachedLastModified = new Date(ts.getTime());
-                lastModifiedCache.put(id, cachedLastModified);
-                log.log(Level.FINE, "cachedLastModified updated: {0}",
-                    formatter.format(cachedLastModified));
-              }
+              lastModifiedCache.put(id, lastModified);
+              log.log(Level.FINE, "lastModifiedCache updated: {0}",
+                  formatter.format(lastModified));
             }
           }
         }
