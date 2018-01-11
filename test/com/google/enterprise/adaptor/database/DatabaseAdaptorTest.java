@@ -2402,7 +2402,7 @@ public class DatabaseAdaptorTest {
     Map<String, String> configEntries = initDataAndConfig(content, now());
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1"), null);
+    DocRequest request = new DocRequest(new DocId("1"), null);
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     RecordingResponse response = new RecordingResponse(baos);
     adaptor.getDocContent(request, response);
@@ -2416,8 +2416,8 @@ public class DatabaseAdaptorTest {
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
     RecordingDocIdPusher pusher = new RecordingDocIdPusher();
     adaptor.getDocIds(pusher);
-    MockRequest request =
-        new MockRequest(new DocId("1"), (lastAccessTs == null ? null
+    DocRequest request =
+        new DocRequest(new DocId("1"), (lastAccessTs == null ? null
             : new Date(lastAccessTs.getTime())));
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     RecordingResponse response = new RecordingResponse(baos);
@@ -2467,8 +2467,8 @@ public class DatabaseAdaptorTest {
     RecordingDocIdPusher pusher = new RecordingDocIdPusher();
     lister.getModifiedDocIds(pusher);
 
-    MockRequest request =
-        new MockRequest(new DocId("1"), (lastAccessTs == null ? null
+    DocRequest request =
+        new DocRequest(new DocId("1"), (lastAccessTs == null ? null
             : new Date(lastAccessTs.getTime())));
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     RecordingResponse response = new RecordingResponse(baos);
@@ -2520,8 +2520,8 @@ public class DatabaseAdaptorTest {
 
     executeUpdate("delete from data where content = '" + content + "'");
 
-    MockRequest request =
-        new MockRequest(new DocId("1"), new Date(lastAccessTs.getTime()));
+    DocRequest request =
+        new DocRequest(new DocId("1"), new Date(lastAccessTs.getTime()));
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     RecordingResponse response = new RecordingResponse(baos);
     adaptor.getDocContent(request, response);
@@ -2542,8 +2542,8 @@ public class DatabaseAdaptorTest {
     executeUpdate("delete from data where content = '" + content + "'");
     adaptor.getDocIds(pusher);
 
-    MockRequest request =
-        new MockRequest(new DocId("1"), new Date(lastAccessTs.getTime()));
+    DocRequest request =
+        new DocRequest(new DocId("1"), new Date(lastAccessTs.getTime()));
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     RecordingResponse response = new RecordingResponse(baos);
     adaptor.getDocContent(request, response);
