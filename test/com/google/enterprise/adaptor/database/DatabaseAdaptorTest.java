@@ -51,6 +51,7 @@ import com.google.enterprise.adaptor.AuthzAuthority;
 import com.google.enterprise.adaptor.AuthzStatus;
 import com.google.enterprise.adaptor.Config;
 import com.google.enterprise.adaptor.DocId;
+import com.google.enterprise.adaptor.DocRequest;
 import com.google.enterprise.adaptor.GroupPrincipal;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Metadata;
@@ -2160,7 +2161,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.metadataColumns", "ID:col1, NAME:col2");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1001"));
+    DocRequest request = new DocRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
@@ -2184,7 +2185,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.modeOfOperation.contentColumn.columnName", "content");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1"));
+    DocRequest request = new DocRequest(new DocId("1"));
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     RecordingResponse response = new RecordingResponse(baos);
     adaptor.getDocContent(request, response);
@@ -2206,7 +2207,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.metadataColumns", "id:id, notId:notId");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1"));
+    DocRequest request = new DocRequest(new DocId("1"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
@@ -2235,7 +2236,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.modeOfOperation.contentColumn.displayUrlCol", "url");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1"));
+    DocRequest request = new DocRequest(new DocId("1"));
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     RecordingResponse response = new RecordingResponse(baos);
     adaptor.getDocContent(request, response);
@@ -2257,7 +2258,7 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select * from data");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    MockRequest request = new MockRequest(new DocId("http://"));
+    DocRequest request = new DocRequest(new DocId("http://"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
     assertEquals(RecordingResponse.State.NOT_FOUND, response.getState());
@@ -2276,7 +2277,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.modeOfOperation", "rowToText");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1002"));
+    DocRequest request = new DocRequest(new DocId("1002"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
     assertEquals(RecordingResponse.State.NOT_FOUND, response.getState());
@@ -2299,7 +2300,7 @@ public class DatabaseAdaptorTest {
 
     executeUpdate("drop table data");
 
-    MockRequest request = new MockRequest(new DocId("1002"));
+    DocRequest request = new DocRequest(new DocId("1002"));
     RecordingResponse response = new RecordingResponse();
     thrown.expect(IOException.class);
     thrown.expectMessage("retrieval error");
@@ -2340,7 +2341,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1"));
+    DocRequest request = new DocRequest(new DocId("1"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
@@ -2377,7 +2378,7 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    MockRequest request = new MockRequest(new DocId("1001"));
+    DocRequest request = new DocRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
@@ -2407,7 +2408,7 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    MockRequest request = new MockRequest(new DocId("1001"));
+    DocRequest request = new DocRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
@@ -2438,7 +2439,7 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.metadataColumns", "ID:col1, COL:col2");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    MockRequest request = new MockRequest(new DocId("1001"));
+    DocRequest request = new DocRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
@@ -2500,7 +2501,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.metadataColumns", "ID:col1, CONTENT:col2");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1"));
+    DocRequest request = new DocRequest(new DocId("1"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
@@ -2558,7 +2559,7 @@ public class DatabaseAdaptorTest {
     captureLogMessages(DatabaseAdaptor.class,
         "Metadata column type not supported", messages);
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1"));
+    DocRequest request = new DocRequest(new DocId("1"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
@@ -2594,7 +2595,7 @@ public class DatabaseAdaptorTest {
     captureLogMessages(DatabaseAdaptor.class,
         "Metadata column type not supported", messages);
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("1"));
+    DocRequest request = new DocRequest(new DocId("1"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
@@ -2633,7 +2634,7 @@ public class DatabaseAdaptorTest {
     configEntries.put("db.metadataColumns", "id, quote");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
-    MockRequest request = new MockRequest(new DocId("6"));
+    DocRequest request = new DocRequest(new DocId("6"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
@@ -2674,7 +2675,7 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.modeOfOperation", "rowToText");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    MockRequest request = new MockRequest(new DocId("1001"));
+    DocRequest request = new DocRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
@@ -2700,7 +2701,7 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.modeOfOperation", "rowToText");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
-    MockRequest request = new MockRequest(new DocId("1001"));
+    DocRequest request = new DocRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
 
@@ -2727,7 +2728,7 @@ public class DatabaseAdaptorTest {
 
     executeUpdate("drop table acl");
 
-    MockRequest request = new MockRequest(new DocId("1001"));
+    DocRequest request = new DocRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     thrown.expect(IOException.class);
     thrown.expectMessage("retrieval error");
