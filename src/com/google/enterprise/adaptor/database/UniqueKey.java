@@ -55,15 +55,17 @@ class UniqueKey {
   private final Map<String, ColumnType> types;  // types of DocId columns
   private final List<String> contentSqlCols;  // columns for content query
   private final List<String> aclSqlCols;  // columns for acl query
+  private final List<String> metadataSqlCols; // columns for metadata query
   private final boolean docIdIsUrl;
 
   private UniqueKey(List<String> docIdSqlCols, Map<String, ColumnType> types,
       List<String> contentSqlCols, List<String> aclSqlCols,
-      boolean docIdIsUrl) {
+      List<String> metadataSqlCols, boolean docIdIsUrl) {
     this.docIdSqlCols = docIdSqlCols;
     this.types = types;
     this.contentSqlCols = contentSqlCols;
     this.aclSqlCols = aclSqlCols;
+    this.metadataSqlCols = metadataSqlCols;
     this.docIdIsUrl = docIdIsUrl;
   }
 
@@ -114,18 +116,34 @@ class UniqueKey {
 
   private void setSqlValues(PreparedStatement st, String uniqueId,
       List<String> sqlCols) throws SQLException {
-    // parse on / that isn't preceded by escape char _
-    // (a / that is preceded by _ is part of column value)
-    String parts[] = uniqueId.split("(?<!_)/", -1);
-    if (parts.length != docIdSqlCols.size()) {
-      String errmsg = "Wrong number of values for primary key: "
-          + "id: " + uniqueId + ", parts: " + Arrays.asList(parts);
-      throw new IllegalStateException(errmsg);
-    }
     Map<String, String> zip = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    for (int i = 0; i < parts.length; i++) {
-      String columnValue = decodeSlashInData(parts[i]);
-      zip.put(docIdSqlCols.get(i), columnValue);
+    // Parameters to SQL queries are taken from the unique id. When
+    // reading extraMetadata when docIdIsUrl is true, we're now
+    // passing the unique id to this method for the first time. Don't
+    // try to split the id; we know it must be a single unique string.
+
+    // TODO(aptls): while this may be OK in that we don't want to try
+    // to split the id when we know it's a URL, the underlying use
+    // case of using value(s) from the unique id to retrieve the extra
+    // metadata might not want to have to use this URL as the metadata
+    // key. We want to change this to be able to retrieve the metadata
+    // key value(s) from the doc id or content result set instead of
+    // the key.
+    if (docIdIsUrl) {
+      zip.put(docIdSqlCols.get(0), uniqueId);
+    } else {
+      // parse on / that isn't preceded by escape char _
+      // (a / that is preceded by _ is part of column value)
+      String parts[] = uniqueId.split("(?<!_)/", -1);
+      if (parts.length != docIdSqlCols.size()) {
+        String errmsg = "Wrong number of values for primary key: "
+            + "id: " + uniqueId + ", parts: " + Arrays.asList(parts);
+        throw new IllegalStateException(errmsg);
+      }
+      for (int i = 0; i < parts.length; i++) {
+        String columnValue = decodeSlashInData(parts[i]);
+        zip.put(docIdSqlCols.get(i), columnValue);
+      }
     }
     for (int i = 0; i < sqlCols.size(); i++) {
       String colName = sqlCols.get(i);
@@ -169,6 +187,11 @@ class UniqueKey {
   void setAclSqlValues(PreparedStatement st, String uniqueId)
       throws SQLException {
     setSqlValues(st, uniqueId, aclSqlCols);
+  }
+
+  void setMetadataSqlValues(PreparedStatement st, String uniqueId)
+      throws SQLException {
+    setSqlValues(st, uniqueId, metadataSqlCols);
   }
 
   @VisibleForTesting
@@ -218,7 +241,7 @@ class UniqueKey {
   @Override
   public String toString() {
     return "UniqueKey(" + docIdSqlCols + "," + types + "," + contentSqlCols + ","
-        + aclSqlCols + ")";
+        + aclSqlCols + "," + metadataSqlCols + ")";
   }
 
   /** Builder to create instances of {@code UniqueKey}. */
@@ -227,6 +250,7 @@ class UniqueKey {
     private Map<String, ColumnType> types;  // types of DocId columns
     private List<String> contentSqlCols;  // columns for content query
     private List<String> aclSqlCols;  // columns for acl query
+    private List<String> metadataSqlCols;  // columns for metadata query
     private boolean docIdIsUrl = false;
 
     /**
@@ -282,6 +306,7 @@ class UniqueKey {
       docIdSqlCols = Collections.unmodifiableList(tmpNames);
       contentSqlCols = docIdSqlCols;
       aclSqlCols = docIdSqlCols;
+      metadataSqlCols = docIdSqlCols;
     }
 
     /**
@@ -341,6 +366,19 @@ class UniqueKey {
       if (!aclSqlColumns.trim().isEmpty()) {
         this.aclSqlCols = splitIntoNameList("db.aclSqlParameters",
             aclSqlColumns, types.keySet());
+      }
+      return this;
+    }
+
+    Builder setMetadataSqlColumns(String metadataSqlColumns)
+        throws InvalidConfigurationException {
+      if (metadataSqlColumns == null) {
+        throw new NullPointerException();
+      }
+      if (!metadataSqlColumns.trim().isEmpty()) {
+        this.metadataSqlCols =
+            splitIntoNameList("db.extraMetadataSqlParameters",
+                metadataSqlColumns, types.keySet());
       }
       return this;
     }
@@ -434,6 +472,10 @@ class UniqueKey {
       return aclSqlCols;
     }
 
+    List<String> getMetadataSqlColumns() {
+      return metadataSqlCols;
+    }
+
     /** Return the Map of column types. */
     @VisibleForTesting
     Map<String, ColumnType> getColumnTypes() {
@@ -464,7 +506,7 @@ class UniqueKey {
            + " The key must be a single string column when docId.isUrl=true.");
       }
       return new UniqueKey(docIdSqlCols, types, contentSqlCols, aclSqlCols,
-                           docIdIsUrl);
+          metadataSqlCols, docIdIsUrl);
     }
   }
 }

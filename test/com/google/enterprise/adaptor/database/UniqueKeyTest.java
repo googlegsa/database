@@ -95,6 +95,12 @@ public class UniqueKeyTest {
   }
 
   @Test
+  public void testNullMetadataCols() {
+    thrown.expect(NullPointerException.class);
+    new UniqueKey.Builder("num:int").setMetadataSqlColumns(null);
+  }
+
+  @Test
   public void testSingleInt() {
     UniqueKey.Builder builder = new UniqueKey.Builder("numnum:int");
     assertEquals(asList("numnum"), builder.getDocIdSqlColumns());
@@ -185,6 +191,15 @@ public class UniqueKeyTest {
         "Unknown column 'IsStranger' from db.aclSqlParameters");
     new UniqueKey.Builder("numnum:int,strstr:string")
         .setAclSqlColumns("numnum,IsStranger,strstr");
+  }
+
+  @Test
+  public void testUnknownMetadataCol() {
+    thrown.expect(InvalidConfigurationException.class);
+    thrown.expectMessage(
+        "Unknown column 'IsStranger' from db.extraMetadataSqlParameters");
+    new UniqueKey.Builder("numnum:int,strstr:string")
+        .setMetadataSqlColumns("numnum,IsStranger,strstr");
   }
 
   @Test
@@ -719,6 +734,26 @@ public class UniqueKeyTest {
       UniqueKey.Builder testBuilder = new UniqueKey.Builder(ukDecl)
           .setAclSqlColumns(colDecl);
       assertEquals(goldenNames, testBuilder.getAclSqlColumns());
+    }
+  }
+
+  @Test
+  public void testSpacesBetweenMetadataSqlCols() {
+    String ukDecl = "numnum:int,strstr:string";
+    UniqueKey.Builder builder = new UniqueKey.Builder(ukDecl)
+        .setMetadataSqlColumns("numnum,numnum,strstr,numnum,strstr");
+    List<String> goldenNames = builder.getMetadataSqlColumns();
+
+    List<String> testDecls = asList(
+        "numnum ,numnum,strstr,numnum,strstr",
+        "numnum, numnum,strstr,numnum,strstr",
+        "numnum , numnum,strstr,numnum,strstr",
+        "numnum  ,   numnum,strstr,numnum,strstr",
+        "numnum  ,   numnum , strstr   ,  numnum,strstr");
+    for (String colDecl : testDecls) {
+      UniqueKey.Builder testBuilder = new UniqueKey.Builder(ukDecl)
+          .setMetadataSqlColumns(colDecl);
+      assertEquals(goldenNames, testBuilder.getMetadataSqlColumns());
     }
   }
 }
