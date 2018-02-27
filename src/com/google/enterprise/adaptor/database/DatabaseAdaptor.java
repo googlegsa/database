@@ -150,7 +150,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     // when set to true, if "db.metadataColumns" is blank, it will use all
     // returned columns as metadata.
     config.addKey("db.includeAllColumnsAsMetadata", "false");
-    config.addKey("db.modeOfOperation", null);
+    config.addKey("db.modeOfOperation", "");
     config.addKey("db.updateSql", "");
     config.addKey("db.aclSql", "");
     config.addKey("db.aclSqlParameters", "");
@@ -258,10 +258,20 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         } else if (!metadataColumns.isEmpty()) {
           ignored.add("db.metadataColumns");
         }
+        if (!modeOfOperation.isEmpty()) {
+          ignored.add("db.modeOfOperation");
+          // For consistency with db.singleDocContentSql, we validate
+          // a non-empty value even though it isn't used. Setting
+          // respGenerator here triggers additional validation.
+          respGenerator = loadResponseGenerator(cfg);
+        }
       }
+      // Don't bother loading the urlAndMetadataLister response generator.
     } else if (singleDocContentSql.isEmpty()) {
       throw new InvalidConfigurationException(
           "db.singleDocContentSql cannot be an empty string");
+    } else {
+      respGenerator = loadResponseGenerator(cfg);
     }
 
     if (everyDocIdSql.isEmpty()) {
@@ -269,8 +279,6 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           "db.everyDocIdSql cannot be an empty string");
     }
 
-    respGenerator = loadResponseGenerator(cfg);
-    
     if (!isNullOrEmptyString(cfg.getValue("db.aclSql"))) {
       aclSql = cfg.getValue("db.aclSql");
       log.config("acl sql: " + aclSql); 
@@ -885,7 +893,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   static ResponseGenerator loadResponseGenerator(Config config) {
     String mode = config.getValue("db.modeOfOperation");
     if (isNullOrEmptyString(mode)) {
-      String errmsg = "modeOfOperation cannot be an empty string";
+      String errmsg = "modeOfOperation cannot be missing or an empty string";
       throw new InvalidConfigurationException(errmsg);
     }
     int sepIndex = mode.lastIndexOf(".");
