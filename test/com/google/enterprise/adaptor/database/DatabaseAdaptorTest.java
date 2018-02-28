@@ -1204,13 +1204,16 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "id:int");
     moreEntries.put("db.everyDocIdSql", "");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    // Required for validation, but not specific to this test.
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
-    moreEntries.put("db.modeOfOperation", "rowToText");
 
-    thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("db.everyDocIdSql cannot be an empty string");
-    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class,
+        "db.everyDocIdSql cannot be an empty string", messages);
+    getObjectUnderTest(moreEntries);
+    assertEquals(messages.toString(), 1, messages.size());
   }
 
   @Test
@@ -1487,6 +1490,26 @@ public class DatabaseAdaptorTest {
             new Record.Builder(new DocId("4")).setMetadata(null).build()),
         pusher.getRecords());
    }
+
+  @Test
+  public void testGetDocIds_emptyQuery() throws Exception {
+    executeUpdate("create table data(id int, other varchar(20))");
+    executeUpdate("insert into data(id) values(1001)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.everyDocIdSql", "");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    moreEntries.put("db.modeOfOperation", "rowToText");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    thrown.expect(IOException.class);
+    thrown.expectMessage("db.everyDocIdSql cannot be an empty string");
+    adaptor.getDocIds(pusher);
+  }
 
   @Test
   public void testGetDocIds_columnAlias() throws Exception {
