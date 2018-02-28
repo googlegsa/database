@@ -275,8 +275,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     }
 
     if (everyDocIdSql.isEmpty()) {
-      throw new InvalidConfigurationException(
-          "db.everyDocIdSql cannot be an empty string");
+      log.warning("db.everyDocIdSql cannot be an empty string"
+          + " if full listings are enabled.");
     }
 
     if (!isNullOrEmptyString(cfg.getValue("db.aclSql"))) {
@@ -463,6 +463,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   @Override
   public void getDocIds(DocIdPusher pusher) throws IOException,
       InterruptedException {
+    if (everyDocIdSql.isEmpty()) {
+      throw new IOException("db.everyDocIdSql cannot be an empty string");
+    }
     BufferedPusher outstream = new BufferedPusher(pusher);
     try (Connection conn = makeNewConnection();
         PreparedStatement stmt = getStreamFromDb(conn, everyDocIdSql);
