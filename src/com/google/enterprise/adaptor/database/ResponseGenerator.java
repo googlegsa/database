@@ -151,6 +151,8 @@ public abstract class ResponseGenerator {
     return new UrlColumn(config);
   }
 
+  /** This implementation always returns {@code Response.NOT_FOUND}. */
+  /* No longer used when db.modeOfOperation = urlAndMetadataLister. */
   public static ResponseGenerator urlAndMetadataLister(
       Map<String, String> config) {
     return new UrlAndMetadataLister(config);

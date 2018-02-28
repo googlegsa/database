@@ -189,7 +189,8 @@ public class DatabaseAdaptorTest {
     Config config = new Config();
     config.addKey("db.modeOfOperation", "");
     thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("modeOfOperation cannot be an empty string");
+    thrown.expectMessage(
+        "modeOfOperation cannot be missing or an empty string");
     DatabaseAdaptor.loadResponseGenerator(config);
   }
 
@@ -797,7 +798,6 @@ public class DatabaseAdaptorTest {
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "");
     // Required for validation, but not specific to this test.
-    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.everyDocIdSql", "select id from data");
     thrown.expect(InvalidConfigurationException.class);
@@ -831,7 +831,6 @@ public class DatabaseAdaptorTest {
   public void testInitUniqueKeyUrl() throws Exception {
     executeUpdate("create table data(id int, url varchar(200))");
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "urlAndMetadataLister");
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "id:int, url:string");
     // Required for validation, but not specific to this test.
@@ -1107,7 +1106,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(url varchar(200), other varchar(20))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "url:string");
     // Required for validation, but not specific to this test.
@@ -1130,7 +1128,6 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table data(url varchar(200), other varchar(200))");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "url:string");
     // Required for validation, but not specific to this test.
@@ -1144,6 +1141,26 @@ public class DatabaseAdaptorTest {
     assertEquals(messages.toString(), 1, messages.size());
     assertThat(messages.get(0),
         containsString("[db.includeAllColumnsAsMetadata]"));
+   }
+
+  @Test
+  public void testInitLister_ignoredProperties_modeOfOperation()
+      throws Exception {
+    executeUpdate("create table data(url varchar(200), other varchar(200))");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("docId.isUrl", "true");
+    moreEntries.put("db.uniqueKey", "url:string");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select url from data");
+    // Ignored properties in this mode.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+
+    List<String> messages = new ArrayList<String>();
+    captureLogMessages(DatabaseAdaptor.class, "will be ignored", messages);
+    getObjectUnderTest(moreEntries);
+    assertEquals(messages.toString(), 1, messages.size());
+    assertThat(messages.get(0), containsString("[db.modeOfOperation]"));
    }
 
   @Test
@@ -2252,13 +2269,35 @@ public class DatabaseAdaptorTest {
     executeUpdate("insert into data(url, name) values('http://', 'John')");
 
     Map<String, String> moreEntries = new HashMap<String, String>();
-    moreEntries.put("db.modeOfOperation", "rowToText");
     moreEntries.put("docId.isUrl", "true");
     moreEntries.put("db.uniqueKey", "url:string");
     moreEntries.put("db.everyDocIdSql", "select * from data");
 
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
     DocRequest request = new DocRequest(new DocId("http://"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+    assertEquals(RecordingResponse.State.NOT_FOUND, response.getState());
+   }
+
+  /** Tests a ResponseGenerator that always returns not found. */
+  @Test
+  public void testGetDocContent_notFound() throws Exception {
+    executeUpdate("create table data(id integer, name varchar(20))");
+    executeUpdate("insert into data(id, name) values(1001, 'John')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("docId.isUrl", "false");
+    moreEntries.put("db.modeOfOperation",
+        ResponseGenerator.class.getName() + ".urlAndMetadataLister");
+    moreEntries.put("db.uniqueKey", "id:int");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
+    DocRequest request = new DocRequest(new DocId("1001"));
     RecordingResponse response = new RecordingResponse();
     adaptor.getDocContent(request, response);
     assertEquals(RecordingResponse.State.NOT_FOUND, response.getState());
