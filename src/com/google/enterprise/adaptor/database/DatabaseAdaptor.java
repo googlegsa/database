@@ -126,7 +126,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String password;
   private UniqueKey uniqueKey;
   private String everyDocIdSql;
+  private String flexibleDocContentSql;
   private String singleDocContentSql;
+  private String contentSql;
+  private String contentSqlParameters;
   private MetadataColumns metadataColumns;
   private ResponseGenerator respGenerator;
   private String aclSql;
@@ -146,6 +149,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     config.addKey("db.everyDocIdSql", null);
     config.addKey("db.singleDocContentSql", "");
     config.addKey("db.singleDocContentSqlParameters", "");
+    config.addKey("db.flexibleDocContentSql", "");
+    config.addKey("db.flexibleDocContentSqlParameters", "");
     config.addKey("db.metadataColumns", "");
     // when set to true, if "db.metadataColumns" is blank, it will use all
     // returned columns as metadata.
@@ -214,6 +219,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     everyDocIdSql = cfg.getValue("db.everyDocIdSql");
     log.config("every doc id sql: " + everyDocIdSql);
 
+    flexibleDocContentSql = cfg.getValue("db.flexibleDocContentSql");
+    log.config("flexible doc content sql: " + flexibleDocContentSql);
+
     singleDocContentSql = cfg.getValue("db.singleDocContentSql");
     log.config("single doc content sql: " + singleDocContentSql);
 
@@ -259,9 +267,23 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           ignored.add("db.metadataColumns");
         }
       }
-    } else if (singleDocContentSql.isEmpty()) {
+    } else if (singleDocContentSql.isEmpty()
+        && flexibleDocContentSql.isEmpty()) {
       throw new InvalidConfigurationException(
-          "db.singleDocContentSql cannot be an empty string");
+          "Both db.singleDocContentSql, db.flexibleDocContentSql "
+              + "cannot be empty");
+    }
+
+    if (!flexibleDocContentSql.isEmpty()) {
+      contentSql = flexibleDocContentSql;
+      contentSqlParameters =
+          cfg.getRawValue("db.flexibleDocContentSqlParameters");
+    } else if (!singleDocContentSql.isEmpty()) {
+      contentSql = singleDocContentSql;
+      contentSqlParameters =
+          cfg.getRawValue("db.singleDocContentSqlParameters");
+    } else {
+      contentSqlParameters = "";
     }
 
     if (everyDocIdSql.isEmpty()) {
@@ -310,7 +332,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     UniqueKey.Builder ukBuilder
         = new UniqueKey.Builder(cfg.getValue("db.uniqueKey"))
         .setDocIdIsUrl(docIdIsUrl)
-        .setContentSqlColumns(cfg.getValue("db.singleDocContentSqlParameters"))
+        .setContentSqlColumns(contentSqlParameters)
         .setAclSqlColumns(cfg.getValue("db.aclSqlParameters"));
 
     // Verify all column names.
@@ -328,15 +350,19 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           verifyColumnNames(conn, "db.updateSql", updateSql,
               "db.metadataColumns", metadataColumns.keySet());
         } else {
-          verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
-              "db.metadataColumns", metadataColumns.keySet());
+          verifyColumnNames(conn,
+              flexibleDocContentSql.isEmpty() ? "db.singleDocContentSql"
+                  : "db.flexibleDocContentSql",
+              contentSql, "db.metadataColumns", metadataColumns.keySet());
         }
       }
       if (respGenerator instanceof ResponseGenerator.SingleColumnContent) {
         ResponseGenerator.SingleColumnContent content =
             (ResponseGenerator.SingleColumnContent) respGenerator;
-        verifyColumnNames(conn, "db.singleDocContentSql", singleDocContentSql,
-            "db.modeOfOperation." + modeOfOperation + ".columnName",
+        verifyColumnNames(conn,
+            flexibleDocContentSql.isEmpty() ? "db.singleDocContentSql"
+                : "db.flexibleDocContentSql",
+            contentSql, "db.modeOfOperation." + modeOfOperation + ".columnName",
             Arrays.asList(content.getContentColumnName()));
       }
     } catch (SQLException e) {
@@ -809,7 +835,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
   private PreparedStatement getDocFromDb(Connection conn,
       String uniqueId) throws SQLException {
-    PreparedStatement st = conn.prepareStatement(singleDocContentSql);
+    PreparedStatement st = conn.prepareStatement(contentSql);
     uniqueKey.setContentSqlValues(st, uniqueId);  
     log.log(Level.FINER, "about to get doc: {0}",  uniqueId);
     return st;

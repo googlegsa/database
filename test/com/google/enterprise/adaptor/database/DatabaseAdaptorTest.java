@@ -1158,7 +1158,8 @@ public class DatabaseAdaptorTest {
     moreEntries.put("db.everyDocIdSql", "select id from data");
 
     thrown.expect(InvalidConfigurationException.class);
-    thrown.expectMessage("db.singleDocContentSql cannot be an empty string");
+    thrown.expectMessage("Both db.singleDocContentSql, "
+        + "db.flexibleDocContentSql cannot be empty");
     DatabaseAdaptor adaptor = getObjectUnderTest(moreEntries);
   }
 
@@ -2305,6 +2306,32 @@ public class DatabaseAdaptorTest {
     thrown.expectMessage("retrieval error");
     thrown.expectCause(isA(SQLException.class));
     adaptor.getDocContent(request, response);
+  }
+
+  @Test
+  public void testGetDocContent_FlexibleContent() throws Exception {
+    executeUpdate("create table data(id integer, content varchar(20))");
+    executeUpdate("insert into data(id, content) values('1', 'Hello ')");
+    executeUpdate("insert into data(id, content) values('1', 'World')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select id from data");
+    configEntries.put("db.flexibleDocContentSql",
+        "select content from data where id = ?");
+    configEntries.put("db.modeOfOperation", "flexContentColumn");
+    configEntries.put("db.modeOfOperation.flexContentColumn.columnName",
+        "content");
+    configEntries.put(
+        "db.modeOfOperation.flexContentColumn.contentClass",
+        "com.google.enterprise.adaptor.database.dbext.ContentColValue");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
+    adaptor.getDocContent(request, response);
+    assertEquals("Hello World", baos.toString(UTF_8.toString()));
   }
 
   /** @see testMetadataColumns(int, String, Object, String) */

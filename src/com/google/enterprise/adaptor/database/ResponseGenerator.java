@@ -17,6 +17,7 @@ package com.google.enterprise.adaptor.database;
 import static com.google.common.base.Charsets.UTF_8;
 import static com.google.enterprise.adaptor.database.DatabaseAdaptor.getColumnTypeName;
 
+import com.google.common.base.Strings;
 import com.google.enterprise.adaptor.IOHelper;
 import com.google.enterprise.adaptor.InvalidConfigurationException;
 import com.google.enterprise.adaptor.Response;
@@ -177,6 +178,10 @@ public abstract class ResponseGenerator {
   public static ResponseGenerator rowToHtml(Map<String, String> config)
       throws TransformerConfigurationException, IOException {
     return new RowToHtml(config);
+  }
+
+  public static ResponseGenerator flexContentColumn(Map<String, String> config) {
+    return new FlexibleContentColumn(config);
   }
 
   private static class RowToHtml extends ResponseGenerator {
@@ -608,6 +613,44 @@ public abstract class ResponseGenerator {
           log.log(Level.WARNING, "Content column type not supported: {0}",
               columnTypeName);
           break;
+      }
+    }
+  }
+
+  private static class FlexibleContentColumn extends SingleColumnContent {
+    FlexibleContentColumn(Map<String, String> config) {
+      super(config);
+    }
+
+    @Override
+    public void generateResponse(ResultSet rs, Response resp)
+        throws IOException, SQLException {
+      overrideContentType(rs, resp);
+      overrideDisplayUrl(rs, resp);
+
+      ResultSetMetaData rsMetaData = rs.getMetaData();
+      int index = rs.findColumn(getContentColumnName());
+      int columnType = rsMetaData.getColumnType(index);
+      String columnTypeName = getColumnTypeName(columnType, rsMetaData, index);
+      log.log(Level.FINEST, "Flexible Content column name: {0}, Type: {1}",
+          new Object[] {getContentColumnName(), columnTypeName});
+
+      OutputStream out = resp.getOutputStream();
+      String contentClass = getConfig().get("contentClass");
+      log.log(Level.FINEST, "contentClass: {0}", contentClass);
+      if (Strings.isNullOrEmpty(contentClass)) {
+        throw new InvalidConfigurationException(
+            "The modeOfOperation property contentClass is required for "
+                + getClass().getSimpleName());
+      }
+      try {
+        Class<?> cl = Class.forName(contentClass);
+        ContentValue obj = (ContentValue) cl.newInstance();
+        obj.writeContentValue(rs, index, out);
+      } catch (ClassNotFoundException | InstantiationException
+          | IllegalAccessException e) {
+        log.log(Level.FINEST, "Error in getting content: ", e);
+        throw new SQLException(e);
       }
     }
   }
