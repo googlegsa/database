@@ -125,6 +125,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private String user;
   private String password;
   private UniqueKey uniqueKey;
+  private AclHandler aclHandler;
   private String everyDocIdSql;
   private String singleDocContentSql;
   private MetadataColumns metadataColumns;
@@ -310,6 +311,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         .setDocIdIsUrl(docIdIsUrl)
         .setContentSqlColumns(cfg.getValue("db.singleDocContentSqlParameters"))
         .setAclSqlColumns(cfg.getValue("db.aclSqlParameters"));
+
+    if (aclSql == null) {
+      aclHandler = new AclHandler(singleDocContentSql,
+          ukBuilder.getContentSqlColumns()).withResultSetStrategy();
+    } else {
+      aclHandler = new AclHandler(aclSql,
+          ukBuilder.getAclSqlColumns()).withQueryStrategy();
+    }
 
     // Verify all column names.
     try (Connection conn = makeNewConnection()) {
@@ -674,7 +683,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       // Generate response metadata first.
       addMetadataToResponse(resp, rs);
       // Generate Acl.
-      resp.setAcl(getAcl(conn, rs, id.getUniqueId()));
+      resp.setAcl(aclHandler.forContent().getAcl(conn, rs, id.getUniqueId()));
       // Generate response body.
       // In database adaptor's case, we almost never want to follow the URLs.
       // One record means one document.
@@ -689,28 +698,72 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     AbstractAdaptor.main(new DatabaseAdaptor(), args);
   }
   
-  private Acl getAcl(Connection conn, ResultSet contentRs, String uniqueId)
-      throws SQLException {
-    if (aclSql != null || contentRs == null) {
-      try (PreparedStatement stmt = getAclFromDb(conn, uniqueId);
+  private class AclHandler {
+    String sql;
+    List<String> sqlColumns;
+    ResultSetNext rsNext;
+    Acl defaultAcl;
+    Strategy contentStrategy;
+    Strategy authzStrategy;
+
+    AclHandler(String sql, List<String> sqlColumns) {
+      this.sql = sql;
+      this.sqlColumns = sqlColumns;
+      this.authzStrategy = new QueryStrategy();
+    }
+
+    public AclHandler withQueryStrategy() {
+      contentStrategy = new QueryStrategy();
+      rsNext = ResultSetNext.PROCESS_ALL_ROWS;
+      defaultAcl = Acl.EMPTY;
+      return this;
+    }
+
+    public AclHandler withResultSetStrategy() {
+      contentStrategy = new ResultSetStrategy();
+      rsNext = ResultSetNext.PROCESS_ONE_ROW;
+      defaultAcl = null;
+      return this;
+    }
+
+    public Strategy forContent() {
+      return contentStrategy;
+    }
+
+    public Strategy forAuthz() {
+      return authzStrategy;
+    }
+
+    public abstract class Strategy {
+      public abstract Acl getAcl(Connection conn, ResultSet rs, String uniqueId)
+          throws SQLException;
+    }
+
+    private class QueryStrategy extends Strategy {
+      public Acl getAcl(Connection conn, ResultSet ignored, String uniqueId)
+          throws SQLException {
+      try (PreparedStatement stmt = getAclFromDb(conn, uniqueId, sql, sqlColumns);
           ResultSet rs = stmt.executeQuery()) {
         log.finer("got acl");
         boolean hasResult = rs.next();
         if (!hasResult) {
           // empty Acl ensures adaptor will mark this document as secure
           return Acl.EMPTY;
-        } else if (aclSql != null) {
-          return buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
-              ResultSetNext.PROCESS_ALL_ROWS, Acl.EMPTY);
         } else {
           return buildAcl(rs, aclPrincipalDelimiter, aclNamespace,
-              ResultSetNext.PROCESS_ONE_ROW, null);
+              rsNext, defaultAcl);
         }
       }
-    } else {
+      }
+    }
+
+    private class ResultSetStrategy extends Strategy {
+      public Acl getAcl(Connection conn, ResultSet contentRs, String uniqueId)
+          throws SQLException {
       // Generate ACL if it came as part of result to singleDocContentSql.
       return buildAcl(contentRs, aclPrincipalDelimiter, aclNamespace,
-          ResultSetNext.PROCESS_ONE_ROW, null);
+          rsNext, defaultAcl);
+      }
     }
   }
   
@@ -830,16 +883,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   }
 
   private PreparedStatement getAclFromDb(Connection conn,
-      String uniqueId) throws SQLException {
-    PreparedStatement st;
-    // aclSql will only be null when called from isUserAuthorized.
-    if (aclSql == null) {
-      st = conn.prepareStatement(singleDocContentSql);
-      uniqueKey.setContentSqlValues(st, uniqueId);
-    } else {
-      st = conn.prepareStatement(aclSql);
-      uniqueKey.setAclSqlValues(st, uniqueId);
-    }
+      String uniqueId, String sql, List<String> sqlColumns)
+      throws SQLException {
+    PreparedStatement st = conn.prepareStatement(sql);
+    uniqueKey.setSqlValues(st, uniqueId, sqlColumns);
     log.log(Level.FINER, "about to get acl: {0}",  uniqueId);
     return st;
   }
@@ -1128,7 +1175,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       try (Connection conn = makeNewConnection()) {
         for (DocId id : ids) {
           log.log(Level.FINE, "about to get acl of doc {0}", id);
-          Acl acl = getAcl(conn, null, id.getUniqueId());
+          Acl acl = aclHandler.forAuthz().getAcl(conn, null, id.getUniqueId());
           if (acl == null) {
             result.put(id, AuthzStatus.PERMIT);
           } else if (userIdentity == null || userIdentity.getUser() == null) {
