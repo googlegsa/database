@@ -2370,6 +2370,186 @@ public class DatabaseAdaptorTest {
     adaptor.getDocContent(request, response);
   }
 
+  private Timestamp now() {
+    return new Timestamp(System.currentTimeMillis());
+  }
+
+  private Timestamp nowPlusMinutes(int minutes) {
+    long millis = System.currentTimeMillis() + MINUTES.toMillis(minutes);
+    return new Timestamp(millis);
+  }
+
+  private Map<String, String> initDataAndConfig(String content,
+      Timestamp modifyTs) throws SQLException {
+    executeUpdate("create table data(id  integer, content varchar(20), "
+        + "gsa_timestamp timestamp)");
+    executeUpdate("insert into data(id, content, gsa_timestamp) values(1, '"
+        + content + "', {ts '" + modifyTs + "'})");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.everyDocIdSql", "select * from data");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "contentColumn");
+    configEntries.put("db.modeOfOperation.contentColumn.columnName", "content");
+    return configEntries;
+  }
+
+  @Test
+  public void testIfModifiedSince_null() throws Exception {
+    String content = "Hello";
+    Map<String, String> configEntries = initDataAndConfig(content, now());
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    DocRequest request = new DocRequest(new DocId("1"), null);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
+    adaptor.getDocContent(request, response);
+    assertEquals(content, baos.toString(UTF_8.toString()));
+  }
+
+  private Response testIfModifiedSince_getDocIds(String content,
+      Timestamp modifyTs, Timestamp lastAccessTs) throws Exception {
+    Map<String, String> configEntries = initDataAndConfig(content, modifyTs);
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    adaptor.getDocIds(pusher);
+    DocRequest request =
+        new DocRequest(new DocId("1"), (lastAccessTs == null ? null
+            : new Date(lastAccessTs.getTime())));
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
+    adaptor.getDocContent(request, response);
+    return response;
+  }
+
+  @Test
+  public void testIfModifiedSince_getDocIds_lastAccess_null() throws Exception {
+    String content = "Hello";
+    Response response = testIfModifiedSince_getDocIds(content, now(), null);
+    ByteArrayOutputStream baos =
+        (ByteArrayOutputStream) response.getOutputStream();
+    assertEquals(content, baos.toString(UTF_8.toString()));
+  }
+
+  @Test
+  public void testIfModifiedSince_getDocIds_lastAccess_later()
+      throws Exception {
+    RecordingResponse response =
+        (RecordingResponse) testIfModifiedSince_getDocIds("Hello", now(),
+            nowPlusMinutes(1));
+    assertEquals(RecordingResponse.State.NOT_MODIFIED, response.getState());
+  }
+
+  @Test
+  public void testIfModifiedSince_getDocIds_lastAccess_earlier()
+      throws Exception {
+    String content = "Hello";
+    Response response =
+        testIfModifiedSince_getDocIds(content, nowPlusMinutes(1), now());
+    ByteArrayOutputStream baos =
+        (ByteArrayOutputStream) response.getOutputStream();
+    assertEquals(content, baos.toString(UTF_8.toString()));
+  }
+
+  private Response testIfModifiedSince_getModifiedDocIds(String content,
+      Timestamp modifyTs, Date lastAccessTs) throws Exception {
+    Map<String, String> configEntries = initDataAndConfig(content, modifyTs);
+    configEntries.put("db.updateSql",
+        "select * from data where gsa_timestamp >= ? order by id");
+
+    Holder<RecordingContext> contextHolder = new Holder<>();
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries, contextHolder);
+    PollingIncrementalLister lister =
+        contextHolder.get().getPollingIncrementalLister();
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    lister.getModifiedDocIds(pusher);
+
+    DocRequest request =
+        new DocRequest(new DocId("1"), (lastAccessTs == null ? null
+            : new Date(lastAccessTs.getTime())));
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
+    adaptor.getDocContent(request, response);
+    return response;
+  }
+
+  @Test
+  public void testIfModifiedSince_getModifiedDocIds_lastAccess_null()
+      throws Exception {
+    String content = "Hello";
+    Response response =
+        testIfModifiedSince_getModifiedDocIds(content, nowPlusMinutes(1), null);
+    ByteArrayOutputStream baos =
+        (ByteArrayOutputStream) response.getOutputStream();
+    assertEquals(content, baos.toString(UTF_8.toString()));
+  }
+
+  @Test
+  public void testIfModifiedSince_getModifiedDocIds_lastAccess_later()
+      throws Exception {
+    RecordingResponse response =
+        (RecordingResponse) testIfModifiedSince_getModifiedDocIds("Hello",
+            nowPlusMinutes(1), nowPlusMinutes(2));
+    assertEquals(RecordingResponse.State.NOT_MODIFIED, response.getState());
+  }
+
+  @Test
+  public void testIfModifiedSince_getModifiedDocIds_lastAccess_earlier()
+      throws Exception {
+    String content = "Hello";
+    Response response = testIfModifiedSince_getModifiedDocIds(content,
+        nowPlusMinutes(1), now());
+    ByteArrayOutputStream baos =
+        (ByteArrayOutputStream) response.getOutputStream();
+    assertEquals(content, baos.toString(UTF_8.toString()));
+  }
+
+  @Test
+  public void testIfModifiedSince_getDocIdsDelDoc() throws Exception {
+    String content = "Hello";
+    Timestamp modifyTs = now();
+    Timestamp lastAccessTs = now();
+    Map<String, String> configEntries = initDataAndConfig(content, modifyTs);
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    adaptor.getDocIds(pusher);
+
+    executeUpdate("delete from data where content = '" + content + "'");
+
+    DocRequest request =
+        new DocRequest(new DocId("1"), new Date(lastAccessTs.getTime()));
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
+    adaptor.getDocContent(request, response);
+    assertEquals(RecordingResponse.State.NOT_MODIFIED, response.getState());
+  }
+
+  @Test
+  public void testIfModifiedSince_getDocIdsDelDocGetDocIds() throws Exception {
+    String content = "Hello";
+    Timestamp modifyTs = now();
+    Timestamp lastAccessTs = now();
+    Map<String, String> configEntries = initDataAndConfig(content, modifyTs);
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    RecordingDocIdPusher pusher = new RecordingDocIdPusher();
+    adaptor.getDocIds(pusher);
+
+    executeUpdate("delete from data where content = '" + content + "'");
+    adaptor.getDocIds(pusher);
+
+    DocRequest request =
+        new DocRequest(new DocId("1"), new Date(lastAccessTs.getTime()));
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    RecordingResponse response = new RecordingResponse(baos);
+    adaptor.getDocContent(request, response);
+    assertEquals(RecordingResponse.State.NOT_FOUND, response.getState());
+  }
+
   /** @see testMetadataColumns(int, String, Object, String) */
   private void testMetadataColumns(int sqlType, Object input, String output)
       throws Exception {

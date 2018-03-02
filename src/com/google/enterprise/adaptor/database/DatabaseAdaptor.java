@@ -17,6 +17,8 @@ package com.google.enterprise.adaptor.database;
 import static java.util.Locale.US;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.enterprise.adaptor.AbstractAdaptor;
 import com.google.enterprise.adaptor.Acl;
 import com.google.enterprise.adaptor.AdaptorContext;
@@ -78,6 +80,9 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   /** Map from SQL types to SQL type names. */
   private static final HashMap<Integer, String> sqlTypeNames = new HashMap<>();
 
+  /** Cache for DocId and last modified date. */
+  private static Cache<DocId, Date> lastModifiedCache;
+
   static {
     for (Field field : Types.class.getFields()) {
       if (field.getType() == int.class
@@ -135,6 +140,8 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   private boolean disableStreaming;
   private boolean docIdIsUrl;
   private String modeOfOperation;
+
+  private Calendar updateTimestampTimezone;
 
   @Override
   public void initConfig(Config config) {
@@ -292,6 +299,16 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     String updateSql = cfg.getValue("db.updateSql");
     String tzString = cfg.getValue("db.updateTimestampTimezone");
+
+    if (isNullOrEmptyString(tzString)) {
+      updateTimestampTimezone = Calendar.getInstance();
+    } else {
+      updateTimestampTimezone =
+          Calendar.getInstance(TimeZone.getTimeZone(tzString));
+    }
+    log.config("updateTimestampTimezone: "
+        + updateTimestampTimezone.getTimeZone().getDisplayName());
+
     if (!updateSql.isEmpty()) {
       context.setPollingIncrementalLister(
           new DbAdaptorIncrementalLister(updateSql, tzString));
@@ -353,6 +370,10 @@ public class DatabaseAdaptor extends AbstractAdaptor {
 
     uniqueKey = ukBuilder.build();
     log.config("primary key: " + uniqueKey);
+
+    lastModifiedCache =
+        CacheBuilder.newBuilder().initialCapacity(10000).maximumSize(1000000L)
+            .build();
   }
 
   /** A SQL data type, with a type code and type name. */
@@ -466,14 +487,19 @@ public class DatabaseAdaptor extends AbstractAdaptor {
     if (everyDocIdSql.isEmpty()) {
       throw new IOException("db.everyDocIdSql cannot be an empty string");
     }
+    lastModifiedCache.invalidateAll();
+    DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z");
+    formatter.setTimeZone(updateTimestampTimezone.getTimeZone());
     BufferedPusher outstream = new BufferedPusher(pusher);
     try (Connection conn = makeNewConnection();
         PreparedStatement stmt = getStreamFromDb(conn, everyDocIdSql);
         ResultSet rs = stmt.executeQuery()) {
       log.finer("queried for stream");
-      boolean hasAction
-          = hasColumn(rs.getMetaData(), GsaSpecialColumns.GSA_ACTION);
+      ResultSetMetaData rsmd = rs.getMetaData();
+      boolean hasAction = hasColumn(rsmd, GsaSpecialColumns.GSA_ACTION);
       log.log(Level.FINEST, "Has GSA_ACTION column: {0}", hasAction);
+      boolean hasTimestamp = hasColumn(rsmd, GsaSpecialColumns.GSA_TIMESTAMP);
+      log.log(Level.FINEST, "Has GSA_TIMESTAMP column: {0}", hasTimestamp);
       while (rs.next()) {
         DocId id;
         try {
@@ -482,6 +508,18 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           log.log(Level.WARNING, "Invalid DocId, skipping row: "
               + e.getMessage());
           continue;
+        }
+        // Cache last modified time stamp for this DocId
+        if (hasTimestamp) {
+          Timestamp ts =
+              rs.getTimestamp(GsaSpecialColumns.GSA_TIMESTAMP.toString(),
+                  updateTimestampTimezone);
+          if (ts != null) {
+            Date lastModified = new Date(ts.getTime());
+            lastModifiedCache.put(id, lastModified);
+            log.log(Level.FINE, "lastModifiedCache updated: {0}",
+                formatter.format(lastModified));
+          }
         }
         DocIdPusher.Record.Builder builder = new DocIdPusher.Record.Builder(id);
         if (hasAction && isDeleteAction(rs)) {
@@ -674,6 +712,14 @@ public class DatabaseAdaptor extends AbstractAdaptor {
       return;
     }
     DocId id = req.getDocId();
+    // Check if modified since last access.
+    Date cachedLastModified = lastModifiedCache.getIfPresent(id);
+    if (cachedLastModified != null
+        && !req.hasChangedSinceLastAccess(cachedLastModified)) {
+      log.log(Level.FINE, "Content not modified since last crawl: {0}", id);
+      resp.respondNotModified();
+      return;
+    }
     try (Connection conn = makeNewConnection();
         PreparedStatement stmt = getDocFromDb(conn, id.getUniqueId());
         ResultSet rs = stmt.executeQuery()) {
@@ -684,6 +730,7 @@ public class DatabaseAdaptor extends AbstractAdaptor {
         resp.respondNotFound();
         return;
       }
+      log.log(Level.FINE, "Content modified since last crawl: {0}", id);
       // Generate response metadata first.
       addMetadataToResponse(resp, rs);
       // Generate Acl if aclSql is provided.
@@ -985,29 +1032,19 @@ public class DatabaseAdaptor extends AbstractAdaptor {
   // next full push to be sent to GSA.
   private class DbAdaptorIncrementalLister implements PollingIncrementalLister {
     private final String updateSql;
-    private final Calendar updateTimestampTimezone;
     private Timestamp lastUpdateTimestamp;
-    private final DateFormat formatter;
 
     public DbAdaptorIncrementalLister(String updateSql, String tzString) {
       this.updateSql = updateSql;
-      if (isNullOrEmptyString(tzString)) {
-        updateTimestampTimezone = Calendar.getInstance();
-      } else {
-        updateTimestampTimezone =
-            Calendar.getInstance(TimeZone.getTimeZone(tzString));
-      }
       log.config("update sql: " + this.updateSql);
-      log.config("updateTimestampTimezone: "
-          + updateTimestampTimezone.getTimeZone().getDisplayName());
       this.lastUpdateTimestamp = new Timestamp(System.currentTimeMillis());
-      formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z");
-      formatter.setTimeZone(updateTimestampTimezone.getTimeZone());
     }
 
     @Override
     public void getModifiedDocIds(DocIdPusher pusher)
         throws IOException, InterruptedException {
+      DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z");
+      formatter.setTimeZone(updateTimestampTimezone.getTimeZone());
       BufferedPusher outstream = new BufferedPusher(pusher);
       // latestTimestamp will be used to update lastUpdateTimestamp
       // if GSA_TIMESTAMP column is present in the ResultSet and there is at 
@@ -1042,17 +1079,21 @@ public class DatabaseAdaptor extends AbstractAdaptor {
           log.log(Level.FINEST, "doc id: {0}", id);
           outstream.add(record);
           
-          // update latestTimestamp
+          // update time stamps
           if (hasTimestamp) {
             Timestamp ts =
                 rs.getTimestamp(GsaSpecialColumns.GSA_TIMESTAMP.toString(),
                     updateTimestampTimezone);
             if (ts != null) {
+              Date lastModified = new Date(ts.getTime());
               if (latestTimestamp == null || ts.after(latestTimestamp)) {
                 latestTimestamp = ts;
                 log.log(Level.FINE, "latestTimestamp updated: {0}",
-                    formatter.format(new Date(latestTimestamp.getTime())));
+                    formatter.format(lastModified));
               }
+              lastModifiedCache.put(id, lastModified);
+              log.log(Level.FINE, "lastModifiedCache updated: {0}",
+                  formatter.format(lastModified));
             }
           }
         }
