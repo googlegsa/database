@@ -61,6 +61,7 @@ import com.google.enterprise.adaptor.SensitiveValueDecoder;
 import com.google.enterprise.adaptor.StartupException;
 import com.google.enterprise.adaptor.UserPrincipal;
 import com.google.enterprise.adaptor.database.DatabaseAdaptor.GsaSpecialColumns;
+import com.google.enterprise.adaptor.database.DatabaseAdaptor.ResultSetNext;
 import com.google.enterprise.adaptor.testing.RecordingDocIdPusher;
 import com.google.enterprise.adaptor.testing.RecordingResponse;
 import com.google.enterprise.adaptor.testing.UnsupportedAdaptorContext;
@@ -367,6 +368,13 @@ public class DatabaseAdaptorTest {
         GsaSpecialColumns.GSA_TIMESTAMP));
   }
 
+  private Acl buildAcl(ResultSet rs, String delim, String namespace)
+      throws SQLException {
+    rs.next();
+    return DatabaseAdaptor.buildAcl(rs, delim, namespace,
+        ResultSetNext.PROCESS_ALL_ROWS, Acl.EMPTY);
+  }
+
   @Test
   public void testAclSqlResultSetHasNoAclColumns() throws SQLException {
     Acl golden = Acl.EMPTY;
@@ -374,7 +382,7 @@ public class DatabaseAdaptorTest {
     executeUpdate("create table acl(id integer)");
     executeUpdate("insert into acl(id) values(1)");
     ResultSet rs = executeQuery("select * from acl");
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    Acl acl = buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
 
@@ -384,7 +392,7 @@ public class DatabaseAdaptorTest {
 
     executeUpdate("create table acl(id integer)");
     ResultSet rs = executeQuery("select * from acl");
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    Acl acl = buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
 
@@ -417,8 +425,86 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup1")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    Acl acl = buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
+  }
+
+  @Test
+  public void testSingleDocSqlResultSetHasTwoRecords() throws Exception {
+    executeUpdate("create table data("
+        + "id int, col1 varchar(20),"
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_PERMIT_USERS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_GROUPS + " varchar(20),"
+        + GsaSpecialColumns.GSA_DENY_USERS + " varchar(20))");
+    executeUpdate("insert into data("
+        + "id, col1,"
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
+        + GsaSpecialColumns.GSA_PERMIT_USERS + ","
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
+        + "1, 'test', "
+        + "'pgroup1, pgroup2', 'puser1, puser2', "
+        + "'dgroup1, dgroup2', 'duser1, duser2')");
+    executeUpdate("insert into data("
+        + "id, col1,"
+        + GsaSpecialColumns.GSA_PERMIT_GROUPS + ","
+        + GsaSpecialColumns.GSA_PERMIT_USERS + ","
+        + GsaSpecialColumns.GSA_DENY_GROUPS + ","
+        + GsaSpecialColumns.GSA_DENY_USERS + ") values ("
+        + "1, 'test2', "
+        + "'pgroup3, pgroup4', 'puser3, puser4', "
+        + "'dgroup3, dgroup4', 'duser3, duser4')");
+    Acl golden = new Acl.Builder()
+        .setPermitUsers(Arrays.asList(
+            new UserPrincipal("puser2"),
+            new UserPrincipal("puser1")))
+        .setDenyUsers(Arrays.asList(
+            new UserPrincipal("duser1"),
+            new UserPrincipal("duser2")))
+        .setPermitGroups(Arrays.asList(
+            new GroupPrincipal("pgroup1"),
+            new GroupPrincipal("pgroup2")))
+        .setDenyGroups(Arrays.asList(
+            new GroupPrincipal("dgroup2"),
+            new GroupPrincipal("dgroup1")))
+        .build();
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    // Required for validation, but not specific to this test.
+    configEntries.put("db.everyDocIdSql", "select id from data");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    assertEquals(golden, response.getAcl());
+  }
+
+  @Test
+  public void testSingleDocSqlHasNoAcl() throws Exception {
+    executeUpdate("create table data(id int, col1 varchar(20))");
+    executeUpdate("insert into data(id, col1) values (1, 'test')");
+
+    Map<String, String> configEntries = new HashMap<String, String>();
+    configEntries.put("db.uniqueKey", "id:int");
+    configEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    configEntries.put("db.modeOfOperation", "rowToText");
+    // Required for validation, but not specific to this test.
+    configEntries.put("db.everyDocIdSql", "select id from data");
+
+    DatabaseAdaptor adaptor = getObjectUnderTest(configEntries);
+    MockRequest request = new MockRequest(new DocId("1"));
+    RecordingResponse response = new RecordingResponse();
+    adaptor.getDocContent(request, response);
+
+    assertNull(response.getAcl());
   }
 
   @Test
@@ -466,7 +552,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    Acl acl = buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -507,7 +593,7 @@ public class DatabaseAdaptorTest {
             new GroupPrincipal("dgroup2")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    Acl acl = buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -541,7 +627,7 @@ public class DatabaseAdaptorTest {
             new UserPrincipal("duser2")))
         .build();
     ResultSet rs = executeQuery("select * from acl");
-    Acl acl = DatabaseAdaptor.buildAcl(rs, ",", DEFAULT_NAMESPACE);
+    Acl acl = buildAcl(rs, ",", DEFAULT_NAMESPACE);
     assertEquals(golden, acl);
   }
   
@@ -2823,18 +2909,46 @@ public class DatabaseAdaptorTest {
 
   @Test
   public void testAuthzAuthority_public() throws Exception {
-    Map<String, String> moreEntries = new HashMap<String, String>();
-    // Required for validation, but not specific to this test.
     executeUpdate("create table data(id int)");
-    moreEntries.put("db.modeOfOperation", "rowToText");
+    executeUpdate("insert into data(id) values (1)");
+    executeUpdate("insert into data(id) values (2)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "select id from data");
     moreEntries.put("db.singleDocContentSql",
         "select * from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
 
     AuthzAuthority authority = getAuthzAuthority(moreEntries);
     Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
         getAuthnIdentity(new UserPrincipal("alice")),
+        Arrays.asList(new DocId("1"), new DocId("2")));
+
+    HashMap<DocId, AuthzStatus> golden = new HashMap<>();
+    golden.put(new DocId("1"), AuthzStatus.PERMIT);
+    golden.put(new DocId("2"), AuthzStatus.PERMIT);
+    assertEquals(golden, answers);
+  }
+
+  @Test
+  public void testAuthzAuthority_publicNullIdentity() throws Exception {
+    executeUpdate("create table data(id int)");
+    executeUpdate("insert into data(id) values (1)");
+    executeUpdate("insert into data(id) values (2)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+
+    AuthzAuthority authority = getAuthzAuthority(moreEntries);
+    Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
+        null,
         Arrays.asList(new DocId("1"), new DocId("2")));
 
     HashMap<DocId, AuthzStatus> golden = new HashMap<>();
@@ -2926,22 +3040,24 @@ public class DatabaseAdaptorTest {
 
     Map<String, String> moreEntries = new HashMap<String, String>();
     moreEntries.put("db.aclSql", "select * from acl where id = ?");
+    moreEntries.put("db.aclSqlParameters", "id");
+    moreEntries.put("db.singleDocContentSqlParameters", "author");
     // Required for validation, but not specific to this test.
-    executeUpdate("create table data(id int)");
+    executeUpdate("create table data(id integer, author varchar(20))");
     moreEntries.put("db.modeOfOperation", "rowToText");
-    moreEntries.put("db.uniqueKey", "id:int");
-    moreEntries.put("db.everyDocIdSql", "select id from data");
+    moreEntries.put("db.uniqueKey", "id:int,author:string");
+    moreEntries.put("db.everyDocIdSql", "select id, author from data");
     moreEntries.put("db.singleDocContentSql",
-        "select * from data where id = ?");
+        "select * from data where author = ?");
 
     AuthzAuthority authority = getAuthzAuthority(moreEntries);
     Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
         getAuthnIdentity(new UserPrincipal("alice")),
-        Arrays.asList(new DocId("1"), new DocId("2")));
+        Arrays.asList(new DocId("1/tom"), new DocId("2/alice")));
 
     HashMap<DocId, AuthzStatus> golden = new HashMap<>();
-    golden.put(new DocId("1"), AuthzStatus.INDETERMINATE);
-    golden.put(new DocId("2"), AuthzStatus.PERMIT);
+    golden.put(new DocId("1/tom"), AuthzStatus.INDETERMINATE);
+    golden.put(new DocId("2/alice"), AuthzStatus.PERMIT);
     assertEquals(golden, answers);
   }
 
@@ -2971,5 +3087,136 @@ public class DatabaseAdaptorTest {
     Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
         getAuthnIdentity(new UserPrincipal("alice")),
         Arrays.asList(new DocId("1"), new DocId("2")));
+  }
+
+  @Test
+  public void testAuthzAuthoritySingleDocContentSql_noResults()
+      throws Exception {
+    executeUpdate("create table data(id integer)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+
+    AuthzAuthority authority = getAuthzAuthority(moreEntries);
+    Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
+        getAuthnIdentity(new UserPrincipal("alice")),
+        Arrays.asList(new DocId("1"), new DocId("2")));
+
+    HashMap<DocId, AuthzStatus> golden = new HashMap<>();
+    golden.put(new DocId("1"), AuthzStatus.INDETERMINATE);
+    golden.put(new DocId("2"), AuthzStatus.INDETERMINATE);
+    assertEquals(golden, answers);
+  }
+
+  @Test
+  public void testAuthzAuthoritySingleDocContentSql_permit() throws Exception {
+    executeUpdate("create table data(id integer, author varchar(20), "
+        + "gsa_permit_users varchar(20), gsa_deny_users varchar(20))");
+    executeUpdate("insert into data(id, author, gsa_deny_users) values "
+        + "(1, 'tom', 'alice')");
+    executeUpdate("insert into data(id, author, gsa_permit_users) values "
+        + "(2, 'alice', 'alice')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.aclSqlParameters", "author");
+    moreEntries.put("db.singleDocContentSqlParameters", "id, author");
+    moreEntries.put("db.uniqueKey", "id:int,author:string");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ? and author = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "select id, author from data");
+
+    AuthzAuthority authority = getAuthzAuthority(moreEntries);
+    Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
+        getAuthnIdentity(new UserPrincipal("alice")),
+        Arrays.asList(new DocId("1/tom"), new DocId("2/alice")));
+
+    HashMap<DocId, AuthzStatus> golden = new HashMap<>();
+    golden.put(new DocId("1/tom"), AuthzStatus.DENY);
+    golden.put(new DocId("2/alice"), AuthzStatus.PERMIT);
+    assertEquals(golden, answers);
+  }
+
+  @Test
+  public void testAuthzAuthoritySingleDocContentSql_muiltiRowAcl()
+      throws Exception {
+    executeUpdate("create table data(id integer, "
+        + "gsa_permit_users varchar(20), gsa_deny_users varchar(20))");
+    executeUpdate("insert into data(id, gsa_deny_users) values (1, 'tom')");
+    executeUpdate("insert into data(id, gsa_permit_users) values (1, 'alice')");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+
+    AuthzAuthority authority = getAuthzAuthority(moreEntries);
+    Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
+        getAuthnIdentity(new UserPrincipal("alice")),
+        Arrays.asList(new DocId("1")));
+
+    HashMap<DocId, AuthzStatus> golden = new HashMap<>();
+    golden.put(new DocId("1"), AuthzStatus.DENY);
+    assertEquals(golden, answers);
+  }
+
+  @Test
+  public void testAuthzAuthoritySingleDocContentSql_noAclColumns()
+      throws Exception {
+    executeUpdate("create table data(id integer)");
+    executeUpdate("insert into data(id) values (2)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+
+    AuthzAuthority authority = getAuthzAuthority(moreEntries);
+    Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
+        getAuthnIdentity(new UserPrincipal("alice")),
+        Arrays.asList(new DocId("1"), new DocId("2")));
+
+    HashMap<DocId, AuthzStatus> golden = new HashMap<>();
+    golden.put(new DocId("1"), AuthzStatus.INDETERMINATE);
+    golden.put(new DocId("2"), AuthzStatus.PERMIT);
+    assertEquals(golden, answers);
+  }
+
+  @Test
+  public void testAuthzAuthoritySingleDocContentSql_noAclEntries()
+      throws Exception {
+    executeUpdate("create table data(id integer, "
+        + "gsa_permit_users varchar(20))");
+    executeUpdate("insert into data(id) values (2)");
+
+    Map<String, String> moreEntries = new HashMap<String, String>();
+    moreEntries.put("db.uniqueKey", "id:int");
+    moreEntries.put("db.singleDocContentSql",
+        "select * from data where id = ?");
+    // Required for validation, but not specific to this test.
+    moreEntries.put("db.modeOfOperation", "rowToText");
+    moreEntries.put("db.everyDocIdSql", "select id from data");
+
+    AuthzAuthority authority = getAuthzAuthority(moreEntries);
+    Map<DocId, AuthzStatus> answers = authority.isUserAuthorized(
+        getAuthnIdentity(new UserPrincipal("alice")),
+        Arrays.asList(new DocId("1"), new DocId("2")));
+
+    HashMap<DocId, AuthzStatus> golden = new HashMap<>();
+    golden.put(new DocId("1"), AuthzStatus.INDETERMINATE);
+    golden.put(new DocId("2"), AuthzStatus.INDETERMINATE);
+    assertEquals(golden, answers);
   }
 }
